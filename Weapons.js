@@ -9,7 +9,9 @@
     "use strict";
 
     var MOD_VERSION = "1.12";
-    var CATEGORY = "high-tech weapons";
+    // Sandboxels builds the picker from its known category names. Registering
+    // directly in the built-in Weapons tab is the most compatible option.
+    var CATEGORY = "weapons";
     var DEFAULT_NUKE_RADIUS = 82;
     var MAX_NUKE_RADIUS = 120;
 
