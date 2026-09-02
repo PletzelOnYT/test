@@ -1,394 +1,644 @@
-/* Realistic Nuke — standalone Sandboxels mod */
+async function _weaponsjsprompt(message, defaultValue = "") {
 
-elements.realistic_nuke = {
-    color: ["#303638", "#596265", "#8c7b44", "#d2bd4b"],
+
+    return new Promise(resolve => {
+
+
+        promptInput(message, (result) => {
+
+
+            resolve(result);
+
+
+        }, "weapons.js is asking you...", defaultValue);
+
+
+    })
+}
+elements.tsar_bomba = {
+    color: "#524C41",
     behavior: [
+        "XX|EX:150>plasma|XX",
         "XX|XX|XX",
-        "XX|XX|XX",
-        "M2|M1|M2"
+        "M2|M1 AND EX:150>plasma|M2",
     ],
     category: "weapons",
     state: "solid",
-    density: 7800,
-    conduct: 1,
+    density: 1300,
     excludeRandom: true,
-    cooldown: 10,
-    desc: "Detonates on impact, electricity, or heat above 650 C.",
-
+    cooldown: defaultCooldown
+},
+elements.little_boy = {
+    color: "#F5F5DC",
+    behavior: [
+        "XX|EX:20>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:70>plasma,plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 500,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.fat_man = {
+    color: ["#ffff00","#333333"],
+    behavior: [
+        "XX|EX:28>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:98>plasma,plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1000,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.self_propelled_bomb = {
+    color: "#71797E",
     tick: function(pixel) {
-        if (
-            pixel.charge ||
-            pixel.temp >= 650 ||
-            pixel.burning ||
-            !isEmpty(pixel.x, pixel.y + 1, false)
-        ) {
-            realisticNukeExplode(pixel);
-            return;
+        if ((pixel.temp > 1000 || pixel.charge) && !pixel.burning) {
+            pixel.burning = true;
+            pixel.burnStart = pixelTicks;
         }
-
-        tryMove(pixel, pixel.x, pixel.y + 1);
+        if (pixel.burning) {
+            if (!tryMove(pixel, pixel.x, pixel.y-1)) {
+                tryMove(pixel, pixel.x+(Math.random() < 0.5 ? -1 : 1), pixel.y-1);
+            }
+            if (pixelTicks-pixel.burnStart > 50 && Math.random() < 0.1) {
+                explodeAt(pixel.x, pixel.y, 10, "bomb");
+            }
+        }
+        else {
+            if (!tryMove(pixel, pixel.x, pixel.y+1)) {
+                tryMove(pixel, pixel.x+(Math.random() < 0.5 ? -1 : 1), pixel.y+1);
+            }
+        }
         doDefaults(pixel);
-    }
-};
-
-function realisticNukeCreate(element, x, y) {
-    if (
-        outOfBounds(x, y) ||
-        !isEmpty(x, y, true) ||
-        !elements[element]
-    ) {
-        return null;
-    }
-
-    createPixel(element, x, y);
-    return pixelMap[x][y];
-}
-
-function realisticNukeExplode(pixel) {
-    var x = pixel.x;
-    var y = pixel.y;
-
-    explodeAt(x, y, 45, [
-        "plasma",
-        "plasma",
-        "plasma",
-        "plasma",
-        "radiation",
-        "fallout",
-        "realistic_nuke_fire"
-    ]);
-
-    if (!outOfBounds(x, y) && !isEmpty(x, y, true)) {
-        deletePixel(x, y);
-    }
-
-    var controller = realisticNukeCreate(
-        "realistic_nuke_controller",
-        x,
-        y
-    );
-
-    if (controller) {
-        controller.age = 0;
-        controller.originX = x;
-        controller.originY = y;
-    }
-}
-
-elements.realistic_nuke_controller = {
-    color: "#ffffff",
+    },
+    burn: 90,
+    burnTime: 100,
+    density: 2000,
+    conduct: 1,
+    state: "solid",
+    category: "weapons"
+},
+elements.up_missile = {
+    color: "#4c4e42",
     behavior: [
+        "M2|M1 AND EX:10|M2",
+       "EX:10|XX|EX:10",
+        "XX|EX:10|XX",
+    ],
+    state: "solid",
+    category:"ammunition",
+    density: 1300,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+    elements.cluster_munition = {
+    color: "#444444",
+    behavior: [
+        "XX|EX:10>smoke,smoke,smoke,smoke,bomb,bomb|XX",
         "XX|XX|XX",
-        "XX|XX|XX",
-        "XX|XX|XX"
+        "M2|M1 AND EX:10>smoke,smoke,smoke,smoke,bomb,cluster_munition|M2",
     ],
     category: "weapons",
     state: "solid",
-    density: 999999,
+    density: 1300,
+},
+    elements.RL_cluster_munition = {
+    color: "#444444",
+    behavior: [
+        "XX|XX|XX",
+        "CRcluster%20|XX|CR:cluster%20",
+        "M2|M1|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1300,
+},
+    elements.cluster = {
+    color: "#444444",
+    behavior: [
+        "XX|EX:10%10|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:10%10|M2",
+    ],
+    category: "ammunition",
+    state: "solid",
+    density: 1300,
     hidden: true,
-    excludeRandom: true,
-
+},
+                                                elements.flak_cannon = {
+    color: "#C0C0C0",
+    behavior: behaviors.WALL,
+    behaviorOn: [
+        "XX|CR:flak|XX",
+        "XX|XX|XX",
+        "XX|XX|XX",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1300,
+    conduct: 1,
+},
+    elements.flak = {
+    color: "#f0f0f0",
     tick: function(pixel) {
-        pixel.age = (pixel.age || 0) + 1;
-
-        var age = pixel.age;
-        var centerX = pixel.originX;
-        var centerY = pixel.originY;
-        var shockwaveRadius = age * 3;
-
-        // Expanding circular shockwave
-        if (shockwaveRadius <= 75) {
-            var points = Math.min(
-                420,
-                Math.max(40, shockwaveRadius * 6)
-            );
-
-            for (var i = 0; i < points; i++) {
-                var angle = Math.PI * 2 * i / points;
-
-                var waveX = Math.round(
-                    centerX + Math.cos(angle) * shockwaveRadius
-                );
-
-                var waveY = Math.round(
-                    centerY + Math.sin(angle) * shockwaveRadius
-                );
-
-                if (outOfBounds(waveX, waveY)) {
-                    continue;
+        if ((pixel.temp > 10 || pixel.charge) && !pixel.burning) {
+            pixel.burning = true;
+            pixel.burnStart = pixelTicks;
+        }
+        if (pixel.burning) {
+            if (!tryMove(pixel, pixel.x, pixel.y-1)) {
+                tryMove(pixel, pixel.x+(Math.random() < 0.5 ? -1 : 1), pixel.y-1);
+            }
+            if (pixelTicks-pixel.burnStart > 50 && Math.random() < 0.005) {
+                explodeAt(pixel.x, pixel.y, 10, "flak_shrapnel");
+            }
+        }
+        else {
+            if (!tryMove(pixel, pixel.x, pixel.y+1)) {
+                tryMove(pixel, pixel.x+(Math.random() < 0.5 ? -1 : 1), pixel.y+1);
+            }
+        }
+        doDefaults(pixel);
+    },
+    burn: 90,
+    burnTime: 100,
+    density: 2000,
+    conduct: 1,
+    state: "solid",
+    category: "ammunition"
+},
+    elements.flak_shrapnel = {
+    color: "#71797E",
+       behavior: [
+        "XX|XX|XX",
+        "XX|EX:5 %10|XX",
+        "M2|M1|M2",
+    ],
+    burn: 90,
+    burnTime: 100,
+    density: 2000,
+    conduct: 1,
+    state: "solid",
+    category: "ammunition"
+},
+elements.fast_bomb = {
+    color: "#524c41",
+    category: "weapons",
+    state: "solid",
+    behavior: [
+        "XX|EX:10>explosion|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:10>explosion|M2",
+        ],
+    tick: function(pixel) {
+        for (var i=0; i<3; i++) {
+            if (!tryMove(pixel, pixel.x, pixel.y+1)) {
+                if (!isEmpty(pixel.x, pixel.y+1,true)) {
+                    }
                 }
-
-                if (isEmpty(waveX, waveY, true)) {
-                    realisticNukeCreate(
-                        "realistic_nuke_shockwave",
-                        waveX,
-                        waveY
-                    );
+            }
+        },
+    density: 1300,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.liquid_bomb = {
+    color: "#524c41",
+    tick: function(pixel) {
+                if (pixel.start === pixelTicks) {return}
+                if (pixel.charge && elements[pixel.element].behaviorOn) {
+                    pixelTick(pixel)
                 }
-                else if (
-                    !(waveX === pixel.x && waveY === pixel.y)
-                ) {
-                    var hitPixel = pixelMap[waveX][waveY];
-
-                    if (hitPixel) {
-                        hitPixel.temp = Math.max(
-                            hitPixel.temp || 20,
-                            2500 - shockwaveRadius * 12
-                        );
-
-                        if (
-                            shockwaveRadius < 38 &&
-                            Math.random() < 0.35
-                        ) {
-                            deletePixel(waveX, waveY);
+                if (elements[pixel.element].viscosity && (!((Math.random()*100) < 100 / Math.pow(elements[pixel.element].viscosity, 0.25)))) {
+                    var move1Spots = [
+                        [pixel.x, pixel.y+1]
+                    ]
+                }
+                else {
+                    var move1Spots = [
+                        [pixel.x+1, pixel.y+1],
+                        [pixel.x, pixel.y+1],
+                        [pixel.x-1, pixel.y+1],
+                    ]
+                }
+                var moved = false;
+                for (var i = 0; i < move1Spots.length; i++) {
+                    var coords = move1Spots[Math.floor(Math.random()*move1Spots.length)];
+                    if (tryMove(pixel, coords[0], coords[1])) { moved = true; break; }
+                    else { move1Spots.splice(move1Spots.indexOf(coords), 1); }
+                }
+                if (!moved) {
+                    if (elements[pixel.element].viscosity===undefined || !(!((Math.random()*100) < 100 / Math.pow(elements[pixel.element].viscosity, 0.25)))) {
+                        if (Math.random() < 0.5) {
+                            if (!tryMove(pixel, pixel.x+1, pixel.y)) {
+                                tryMove(pixel, pixel.x-1, pixel.y);
+                            }
+                        } else {
+                            if (!tryMove(pixel, pixel.x-1, pixel.y)) {
+                                tryMove(pixel, pixel.x+1, pixel.y);
+                            }
                         }
+                    }
+                }
+                doDefaults(pixel);
+            },
+    category: "weapons",
+    state: "liquid",
+    behavior: [
+        "XX|EX:10>explosion|XX",
+        "XX|XX|XX",
+        "XX|EX:10>explosion|XX",
+        ],
+    density: 1300,
+    excludeRandom: true,
+    ignore: "gas_bomb",
+    cooldown: defaultCooldown
+},
+elements.gas_bomb = {
+    color: "#524c41",
+    tick: function(pixel) {
+                if (pixel.start === pixelTicks) {return}
+                if (pixel.charge && elements[pixel.element].behaviorOn) {
+                    pixelTick(pixel)
+                }
+                var move1Spots = [
+                    [pixel.x, pixel.y+1],
+                    [pixel.x, pixel.y-1],
+                    [pixel.x+1, pixel.y],
+                    [pixel.x-1, pixel.y],
+                ]
+                var moved = false;
+                for (var i = 0; i < move1Spots.length; i++) {
+                    var coords = move1Spots[Math.floor(Math.random()*move1Spots.length)];
+                    if (tryMove(pixel, coords[0], coords[1])) { moved = true; break; }
+                    else { move1Spots.splice(move1Spots.indexOf(coords), 1);}
+                }
+                if (!moved) {
+                    var move2Spots = [
+                        [pixel.x+1, pixel.y+1],
+                        [pixel.x-1, pixel.y+1],
+                        [pixel.x+1, pixel.y-1],
+                        [pixel.x-1, pixel.y-1],
+                    ]
+                    for (var i = 0; i < move2Spots.length; i++) {
+                        var coords = move2Spots[Math.floor(Math.random()*move2Spots.length)];
+                        if (tryMove(pixel, coords[0], coords[1])) { break; }
+                        else { move2Spots.splice(move2Spots.indexOf(coords), 1); }
+                    }
+                }
+                doDefaults(pixel);
+            },
+    category: "weapons",
+    state: "gas",
+    behavior: [
+        "XX|EX:10>explosion|XX",
+        "XX|XX|XX",
+        "XX|EX:10>explosion|XX",
+        ],
+    density: 1300,
+    excludeRandom: true,
+    ignore: "liquid_bomb",
+    cooldown: defaultCooldown
+}
+    elements.missile_shrapnel = {
+    color: "#71797E",
+       behavior: [
+        "XX|XX|XX",
+        "XX|EX:5 %20|XX",
+        "M2%20|M1%20|M2%20",
+    ],
+    burn: 90,
+    burnTime: 100,
+    density: 2000,
+    conduct: 1,
+    state: "solid",
+    category: "ammunition"
+},
+createAtXvar = 0;
+createAtYvar = 0;
+create1var = "";
+elements.element_spawner = {
+    color: "#71797E",
+    onSelect: async function() {
+        var answer1 = await _weaponsjsprompt("Please input the x value.",(createAtXvar||undefined));
+        if (!answer1) {return}
+        createAtXvar = parseInt(answer1);
+        var answer2 = await _weaponsjsprompt("Please input the y value.",(createAtYvar||undefined));
+        if (!answer2) {return}
+        createAtYvar = parseInt(answer2);
+        var answer3 = await _weaponsjsprompt("Please input what element should spawn.",(create1var||undefined));
+        if (!answer3) {return}
+        create1var = answer3;
+    },
+    tick: function(pixel) {
+        if (pixel.charge){
+            createPixel(create1var, createAtXvar, createAtYvar);
+        }
+        doDefaults(pixel);
+    },
+    density: 1,
+    conduct: 1,
+    state: "solid",
+    category: "machines"
+},
+elements.static_bomb = {
+    color: "#524c41",
+    behavior: [
+        "XX|EX:10|XX",
+        "EX:10|XX|EX:10",
+        "XX|EX:10|XX",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1300,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+}
+var target =[,];
+var tgt = "head";
+elements.tracking_missile = {
+    color: "#323232",
+    category: "weapons",
+    behavior: [
+        "XX|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|XX",
+        "EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel",
+        "EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel",
+        "EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|XX|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel",
+        "EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel",
+        "EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel",
+        "XX|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|EX:20>missile_shrapnel|XX",
+    ],
+    onSelect: function() {
+        var answer1 = prompt("Please input the target element.",(tgt||undefined));
+        if (!answer1) {return}
+        tgt = answer1;
+    },
+    tick: (pixel) => {
+        for (var x = 1; x < width; x++) {
+            for (var y = 1; y < height; y++) {
+                if (!isEmpty(x,y)) {
+                    if (pixelMap[x][y].element===tgt) {
+                        target = [pixelMap[x][y].x, pixelMap[x][y].y];
                     }
                 }
             }
         }
-
-        // Bright central fireball
-        if (age <= 18) {
-            var fireRadius = Math.min(25, age * 2);
-
-            for (var fire = 0; fire < 65; fire++) {
-                var fireAngle = Math.random() * Math.PI * 2;
-                var fireDistance =
-                    Math.sqrt(Math.random()) * fireRadius;
-
-                var fireX = Math.round(
-                    centerX +
-                    Math.cos(fireAngle) * fireDistance
-                );
-
-                var fireY = Math.round(
-                    centerY +
-                    Math.sin(fireAngle) * fireDistance
-                );
-
-                realisticNukeCreate(
-                    "realistic_nuke_fire",
-                    fireX,
-                    fireY
-                );
+        if (pixel.x != target[0] || pixel.y != target[1]) {
+            let {x, y} = pixel;
+            const empty = checkForEmptyPixels(x, y);
+            const [tX, tY] = target;
+            let bestVal = Math.sqrt(Math.pow(tX - x, 2) + Math.pow(tY - y, 2));
+            let best = null;
+            for (const pixelPair of empty) {
+                const [x_, y_] = [x + pixelPair[0], y + pixelPair[1]];
+                const c = Math.sqrt(Math.pow(tX - x_, 2) + Math.pow(tY - y_, 2));
+                if (c < bestVal) {
+                    bestVal = c;
+                    best = pixelPair;
+                }
             }
-        }
-
-        // Mushroom-cloud stem
-        if (age >= 3 && age <= 70) {
-            var rise = Math.min(62, age);
-
-            for (var stem = 0; stem < 10; stem++) {
-                var stemX = Math.round(
-                    centerX + (Math.random() - 0.5) * 7
-                );
-
-                var stemY = Math.round(
-                    centerY - Math.random() * rise
-                );
-
-                realisticNukeCreate(
-                    "realistic_nuke_cloud",
-                    stemX,
-                    stemY
-                );
+            if (best) {
+                tryMove(pixel, x + best[0]*2, y + best[1]*2, undefined, true);
             }
-
-            // Procedural mushroom-cloud cap
-            var capY = Math.round(centerY - rise);
-            var capRadius = Math.min(32, 4 + age * 0.45);
-
-            for (var cap = 0; cap < 24; cap++) {
-                var capAngle = Math.random() * Math.PI * 2;
-
-                var capDistance =
-                    capRadius *
-                    (0.35 + Math.random() * 0.65);
-
-                var capX = Math.round(
-                    centerX +
-                    Math.cos(capAngle) * capDistance
-                );
-
-                var cloudY = Math.round(
-                    capY +
-                    Math.sin(capAngle) *
-                    capDistance *
-                    0.4
-                );
-
-                realisticNukeCreate(
-                    "realistic_nuke_cloud",
-                    capX,
-                    cloudY
-                );
-            }
-        }
-
-        // Radioactive fallout
-        if (age >= 25 && age <= 95) {
-            for (var dust = 0; dust < 5; dust++) {
-                realisticNukeCreate(
-                    "realistic_nuke_fallout",
-                    Math.round(
-                        centerX +
-                        (Math.random() - 0.5) * 110
-                    ),
-                    Math.round(
-                        centerY -
-                        25 -
-                        Math.random() * 40
-                    )
-                );
-            }
-        }
-
-        if (age > 105) {
-            deletePixel(pixel.x, pixel.y);
-        }
+        } 
     }
-};
-
-elements.realistic_nuke_shockwave = {
-    color: ["#ffffff", "#fff4cf", "#d7c5a3"],
-    behavior: [
-        "XX|XX|XX",
-        "XX|XX|XX",
-        "XX|XX|XX"
-    ],
+},
+elements.laser_bomb = {
     category: "weapons",
-    state: "gas",
-    density: 0.01,
-    temp: 900,
-    hidden: true,
-    excludeRandom: true,
-
+    color: "#524c41",
     tick: function(pixel) {
-        pixel.life = (pixel.life || 0) + 1;
+        var x = pixel.x;
+        for (var y = pixel.y; y < height+1; y++) {
+            if (outOfBounds(x, y)) {
+                if (isEmpty(x, y-1)) { createPixel("smoke", x, y-1); }
+                break;
+            }
+            if (isEmpty(x, y)) {
 
-        if (pixel.life > 3) {
-            deletePixel(pixel.x, pixel.y);
+                createPixel("flash", x, y);
+                pixelMap[x][y].color = "#ff0000";
+                pixelMap[x][y].temp = 35000;
+                pixelMap[x][y].delay = (y + pixel.y) / 8;
+            }
         }
-    }
-};
+        for (var y = pixel.y; y < height-1; y--) {
+            if (outOfBounds(x, y)) {
+                if (isEmpty(x, y+1)) { createPixel("smoke", x, y+1); }
+                break;
+            }
+            if (isEmpty(x, y)) {
 
-elements.realistic_nuke_fire = {
-    color: [
-        "#ffffff",
-        "#fff45c",
-        "#ff9900",
-        "#ff3300"
-    ],
-    behavior: [
-        "M2|M1|M2",
-        "M1|XX|M1",
-        "M2|M1|M2"
-    ],
+                createPixel("flash", x, y);
+                pixelMap[x][y].color = "#ff0000";
+                pixelMap[x][y].temp = 35000;
+                pixelMap[x][y].delay = (y + pixel.y) / 8;
+            }
+        }
+        var y = pixel.y;
+        for (var x = pixel.x; x < width+1; x++) {
+            if (outOfBounds(x, y)) {
+                if (isEmpty(x-1, y)) { createPixel("smoke", x-1, y); }
+                break;
+            }
+            if (isEmpty(x, y)) {
+
+                createPixel("flash", x, y);
+                pixelMap[x][y].color = "#ff0000";
+                pixelMap[x][y].temp = 35000;
+                pixelMap[x][y].delay = (x + pixel.x) / 8;
+            }
+        }
+        for (var x = pixel.x; x < width-1; x--) {
+            if (outOfBounds(x, y)) {
+                if (isEmpty(x+1, y)) { createPixel("smoke", x+1, y); }
+                break;
+            }
+            if (isEmpty(x, y)) {
+
+                createPixel("flash", x, y);
+                pixelMap[x][y].color = "#ff0000";
+                pixelMap[x][y].temp = 35000;
+                pixelMap[x][y].delay = (x + pixel.x) / 8;
+            }
+        }
+        deletePixel(pixel.x, pixel.y);
+    },
+},
+elements.cluster_nuke = {
+    color: "#323232",
     category: "weapons",
-    state: "gas",
-    density: 0.08,
-    temp: 9000,
-    hidden: true,
-    excludeRandom: true,
-
-    tick: function(pixel) {
-        pixel.life = (pixel.life || 0) + 1;
-
-        if (pixel.life > 25) {
-            changePixel(
-                pixel,
-                "realistic_nuke_cloud"
-            );
-            return;
+    behavior: behaviors.POWDER,
+    tick: (pixel) => {
+        for (var y = 1; y < 50; y++) {
+            if (!isEmpty(pixel.x, pixel.y + y, false)) {
+                explodeAt(pixel.x,pixel.y,50,["dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","nuke",])
+            }
         }
-
-        doDefaults(pixel);
     }
-};
-
-elements.realistic_nuke_cloud = {
-    color: [
-        "#171513",
-        "#302a26",
-        "#51453b",
-        "#78614d",
-        "#9b7c61"
-    ],
+}
+document.onkeydown = function(ki)/*keyboard_input*/ {
+    //a
+    if (ki.keyCode == 65) {
+        KA = true;
+        //vX ++;
+    }
+    //d
+    if (ki.keyCode == 68) {
+        KD = true;
+        //vX ++;
+    }
+    //w
+    if (ki.keyCode == 87) {
+        KW = true;
+        //vY ++;
+    }
+    //s
+    if (ki.keyCode == 83) {
+        KS = true;
+        //vY ++;
+    }
+}
+document.onkeyup = function(i2)/*keyboard_input*/ {
+    //a
+    if (i2.keyCode == 65) {
+        KA = false;
+        //vX --;
+    }
+    //d
+    if (i2.keyCode == 68) {
+        KD = false;
+       //vX --;
+    }
+    //w
+    if (i2.keyCode == 87) {
+        KW = false;
+        //vY = 0;
+    }
+    //s
+    if (i2.keyCode == 83) {
+        KS = false;
+        //vY = 0;
+    }
+}
+var KA = false;
+var KD = false;
+var KW = false;
+var KS = false;
+var vX = 1;
+var vY = 1;
+elements.heli_bomb = {
     behavior: [
-        "M2|M1|M2",
-        "M1|XX|M1",
-        "M2|M1|M2"
+        "XX|EX:10|XX",
+        "EX:10|XX|EX:10",
+        "XX|EX:10|XX",
     ],
-    category: "weapons",
-    state: "gas",
-    density: 0.15,
-    temp: 700,
-    hidden: true,
-    excludeRandom: true,
-
     tick: function(pixel) {
-        pixel.life = (pixel.life || 0) + 1;
-
-        tryMove(
-            pixel,
-            pixel.x + (
-                Math.random() < 0.5 ? -1 : 1
-            ),
-            pixel.y - 1
-        );
-
-        if (
-            pixel.life > 180 &&
-            Math.random() < 0.04
-        ) {
-            deletePixel(pixel.x, pixel.y);
-            return;
+    /*if (vX === 3) {
+            vX --;
         }
-
-        doDefaults(pixel);
-    }
-};
-
-elements.realistic_nuke_fallout = {
-    color: [
-        "#62772f",
-        "#82963b",
-        "#4c6025",
-        "#91834b"
-    ],
+    if (vY === 3) {
+            vY --;
+        }*/
+    if (KA === true) {
+            tryMove (pixel,pixel.x-vX,pixel.y)
+        }
+    if (KD === true) {
+            tryMove (pixel,pixel.x+vX,pixel.y)
+        }
+    if (KW === true) {
+            tryMove (pixel,pixel.x,pixel.y-vY)
+        }
+    if (KS === true) {
+            tryMove (pixel,pixel.x,pixel.y+vY)
+        }
+    },
+    category: "weapons",
+    states:"solid",
+    color: "#524c41",
+},
+elements.mini_nuke = {
+    color: "#534636",
     behavior: [
         "XX|XX|XX",
         "XX|XX|XX",
-        "M2|M1|M2"
+        "M2|M1 AND EX:20>plasma,plasma,plasma,plasma,radiation,rad_steam|M2",
     ],
     category: "weapons",
     state: "solid",
-    density: 430,
-    temp: 180,
-    hidden: true,
+    density: 1500,
     excludeRandom: true,
-
-    tick: function(pixel) {
-        pixel.life = (pixel.life || 0) + 1;
-
-        if (
-            pixel.life > 400 &&
-            Math.random() < 0.005
-        ) {
-            if (elements.radiation) {
-                changePixel(pixel, "radiation");
+    cooldown: defaultCooldown
+},
+elements.cluster_nuke = {
+    color: "#323232",
+    ignore: "cluster_nuke",
+    category: "weapons",
+    behavior: behaviors.POWDER,
+    maxSize: 1,
+    tick: (pixel) => {
+        for (var y = 1; y < 50; y++) {
+            if (!isEmpty(pixel.x, pixel.y + y, false)) {
+                explodeAt(pixel.x,pixel.y,50,["dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","dirty_bomb","nuke",])
             }
-            else {
-                deletePixel(pixel.x, pixel.y);
-            }
-
-            return;
         }
-
-        doDefaults(pixel);
     }
-};
+}
 
-console.log(
-    "Realistic Nuke loaded in the Weapons category."
-);
+// Additional well-known nuclear weapons
+elements.castle_bravo = {
+    color: ["#6f765f","#d8c46a"],
+    behavior: [
+        "XX|EX:30>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:120>plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1700,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.ivy_mike = {
+    color: ["#444b48","#9ca39d"],
+    behavior: [
+        "XX|EX:35>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:135>plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1900,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.trinity_gadget = {
+    color: ["#303030","#8b6f47"],
+    behavior: [
+        "XX|EX:22>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:85>plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1600,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+},
+elements.b83_nuclear_bomb = {
+    color: ["#555b45","#b7ad69"],
+    behavior: [
+        "XX|EX:28>plasma|XX",
+        "XX|XX|XX",
+        "M2|M1 AND EX:110>plasma,plasma,plasma,radiation,fallout|M2",
+    ],
+    category: "weapons",
+    state: "solid",
+    density: 1800,
+    excludeRandom: true,
+    cooldown: defaultCooldown
+};
