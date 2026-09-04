@@ -1,11 +1,11 @@
 /*
- * High-Tech Weapons v2.23 for Sandboxels
- * Eight weapons, five aircraft, specialized effects, and a living City worldgen preset.
+ * High-Tech Weapons v2.24 for Sandboxels
+ * Eight weapons, three aircraft, specialized effects, and a living City worldgen preset.
  */
 (function () {
     "use strict";
 
-    var MOD_VERSION = "2.23";
+    var MOD_VERSION = "2.24";
     var CATEGORY = "weapons";
     var AIRCRAFT_CATEGORY = "aircraft";
     var SPECIAL_CATEGORY = "special";
@@ -636,15 +636,64 @@
         tick: function (pixel) { var targetY = pixel.y; safeDelete(pixel.x, pixel.y); summonA10(targetY); }
     };
 
+    function ac130CursorTarget(aircraft) {
+        var targetX = typeof mousePos !== "undefined" && mousePos ? mousePos.x : aircraft.x;
+        var targetY = typeof mousePos !== "undefined" && mousePos ? mousePos.y : Math.min(height - 1, aircraft.y + 80);
+        return {
+            x: Math.max(0, Math.min(width - 1, Math.round(targetX))),
+            y: Math.max(0, Math.min(height - 1, Math.round(targetY)))
+        };
+    }
+
+    function fireAC130AtCursor(name, aircraft, offsetX, speed) {
+        var target = ac130CursorTarget(aircraft);
+        return put(name, aircraft.x + offsetX * aircraft.direction, aircraft.y + 4, function (round) {
+            var dx = target.x - round.x, dy = target.y - round.y;
+            var distance = Math.sqrt(dx * dx + dy * dy) || 1;
+            round.fx = round.x; round.fy = round.y;
+            round.vx = dx / distance * speed; round.vy = dy / distance * speed;
+            round.targetX = target.x; round.targetY = target.y;
+        });
+    }
+
+    function tickAC130Round(pixel, radius, shockwave, speed) {
+        pixel.age = (pixel.age || 0) + 1;
+        pixel.fx = pixel.fx === undefined ? pixel.x : pixel.fx;
+        pixel.fy = pixel.fy === undefined ? pixel.y : pixel.fy;
+        for (var step = 0; step < Math.max(2, Math.ceil(speed)); step++) {
+            pixel.fx += (pixel.vx || 0) / Math.max(2, Math.ceil(speed));
+            pixel.fy += (pixel.vy || 1) / Math.max(2, Math.ceil(speed));
+            var nx = Math.round(pixel.fx), ny = Math.round(pixel.fy);
+            if (!inBounds(nx, ny)) { safeDelete(pixel.x, pixel.y); return; }
+            var remaining = Math.sqrt(Math.pow((pixel.targetX === undefined ? nx : pixel.targetX) - nx, 2) + Math.pow((pixel.targetY === undefined ? ny : pixel.targetY) - ny, 2));
+            var obstruction = pixelMap[nx] && pixelMap[nx][ny];
+            if (obstruction && obstruction !== pixel) {
+                var definition = elements[obstruction.element];
+                if (definition && definition.state === "gas") safeDelete(nx, ny);
+                else {
+                    detonateBomb(pixel, { radius: radius, shockwave: shockwave, payload: ["explosion", "fire", "smoke"], waveColor: "#ffe0a4" });
+                    return;
+                }
+            }
+            if (remaining <= speed * 0.8) {
+                if (nx !== pixel.x || ny !== pixel.y) { safeDelete(nx, ny); if (empty(nx, ny)) tryMove(pixel, nx, ny); }
+                detonateBomb(pixel, { radius: radius, shockwave: shockwave, payload: ["explosion", "fire", "smoke"], waveColor: "#ffe0a4" });
+                return;
+            }
+            if ((nx !== pixel.x || ny !== pixel.y) && empty(nx, ny)) tryMove(pixel, nx, ny);
+        }
+        if (pixel.age > 180) safeDelete(pixel.x, pixel.y);
+    }
+
     elements.ac130_25mm_round = {
         color: ["#fff4a0", "#ff9d20"], category: SPECIAL_CATEGORY, state: "solid", density: 7900,
         hidden: true, excludeRandom: true,
-        tick: function (pixel) { tickAircraftProjectile(pixel, { speed: 4, radius: 6, shockwave: 12, waveColor: "#ffe0a4" }); }
+        tick: function (pixel) { tickAC130Round(pixel, 6, 12, 5); }
     };
     elements.ac130_105mm_shell = {
         color: ["#353c3f", "#747e82"], category: SPECIAL_CATEGORY, state: "solid", density: 7600,
         hidden: true, excludeRandom: true,
-        tick: function (pixel) { tickAircraftProjectile(pixel, { speed: 3, radius: 27, shockwave: 39, waveColor: "#ffd1a0" }); }
+        tick: function (pixel) { tickAC130Round(pixel, 27, 39, 3.5); }
     };
     makeAircraftArtElement("ac130_gunship_pixel", ["#4c5558", "#899397", "#c2c9cb"]);
 
@@ -670,8 +719,11 @@
         hidden: true, excludeRandom: true, hardness: 1,
         tick: function (pixel) {
             pixel.age = (pixel.age || 0) + 1; drawAC130(pixel);
-            if (pixel.age > 10 && pixel.age % 5 === 0) fireDownwardProjectile("ac130_25mm_round", pixel, -2, 4, -0.2);
-            if (pixel.age > 15 && pixel.age % 19 === 0) fireDownwardProjectile("ac130_105mm_shell", pixel, -7, 4, -0.15);
+            if (pixel.age > 5 && pixel.age % 4 === 0) fireAC130AtCursor("ac130_25mm_round", pixel, -2, 5);
+            var rightClicking = typeof mouseIsDown !== "undefined" && mouseIsDown && typeof mouseType !== "undefined" && mouseType === "right";
+            if (rightClicking && (pixel.lastHeavyShot === undefined || pixel.age - pixel.lastHeavyShot >= 16)) {
+                if (fireAC130AtCursor("ac130_105mm_shell", pixel, -7, 3.5)) pixel.lastHeavyShot = pixel.age;
+            }
             if (pixel.age % 2 === 0) moveAircraftAcross(pixel, 1);
         }
     };
@@ -680,12 +732,12 @@
         var direction = Math.random() < 0.5 ? 1 : -1;
         var startX = direction > 0 ? 22 : width - 23;
         triggerCityAirRaid(Math.floor(width / 2), 22000);
-        return forcePut("ac130_gunship_controller", startX, Math.round(targetY), function (plane) { plane.age = 0; plane.direction = direction; });
+        return forcePut("ac130_gunship_controller", startX, Math.round(targetY), function (plane) { plane.age = 0; plane.direction = direction; plane.lastHeavyShot = -999; });
     }
     elements.ac130_gunship = {
         color: ["#465055", "#7d888c", "#b1b9bc"], category: AIRCRAFT_CATEGORY, state: "solid", density: 1000,
         hardness: 1, excludeRandom: true, cooldown: typeof defaultCooldown !== "undefined" ? defaultCooldown : 1,
-        desc: "Summons a slow AC-130 gunship with animated propellers, rapid 25 mm fire, and heavy 105 mm cannon shells.",
+        desc: "Summons a slow AC-130 gunship. Its 25 mm cannon tracks the cursor automatically; hold right-click to fire a heavy 105 mm shell exactly toward the cursor.",
         tick: function (pixel) { var targetY = pixel.y; safeDelete(pixel.x, pixel.y); summonAC130(targetY); }
     };
 
@@ -907,15 +959,24 @@
     };
 
     function isAircraftControllerName(name) {
-        return name === "fighter_jet_controller" || name === "b2_bomber_controller" || name === "a10_warthog_controller" ||
-            name === "ac130_gunship_controller" || name === "apache_helicopter_controller" || name === "f22_raptor_controller" ||
-            name === "f35_lightning_controller" || name === "su57_felon_controller" || name === "tu160_blackjack_controller" || name === "mq9_reaper_controller";
+        return name === "fighter_jet_controller" || name === "b2_bomber_controller" || name === "ac130_gunship_controller";
     }
     function isAircraftVisualName(name) {
-        return name === "fighter_jet_pixel" || name === "b2_bomber_pixel" || name === "a10_warthog_pixel" ||
-            name === "ac130_gunship_pixel" || name === "apache_helicopter_pixel" || name === "f22_raptor_pixel" ||
-            name === "f35_lightning_pixel" || name === "su57_felon_pixel" || name === "tu160_blackjack_pixel" || name === "mq9_reaper_pixel";
+        return name === "fighter_jet_pixel" || name === "b2_bomber_pixel" || name === "ac130_gunship_pixel";
     }
+
+    // Retired aircraft and their private payload/art elements are deleted before
+    // Sandboxels builds its element menu, so they cannot appear even with Unhide on.
+    var RETIRED_AIRCRAFT_ELEMENTS = [
+        "a10_cannon_round", "a10_rocket", "a10_warthog_pixel", "a10_warthog_controller", "a10_warthog",
+        "apache_chain_round", "apache_hellfire", "apache_helicopter_pixel", "apache_helicopter_controller", "ah64_apache",
+        "f22_precision_bomb", "f22_raptor_pixel", "f22_raptor_controller", "f22_raptor",
+        "f35_guided_bomb", "f35_lightning_pixel", "f35_lightning_controller", "f35b_lightning",
+        "su57_missile", "su57_felon_pixel", "su57_felon_controller", "su57_felon",
+        "tu160_cluster_canister", "tu160_blackjack_pixel", "tu160_blackjack_controller", "tu160_blackjack",
+        "reaper_hellfire", "mq9_reaper_pixel", "mq9_reaper_controller", "mq9_reaper"
+    ];
+    for (var retiredIndex = 0; retiredIndex < RETIRED_AIRCRAFT_ELEMENTS.length; retiredIndex++) delete elements[RETIRED_AIRCRAFT_ELEMENTS[retiredIndex]];
 
     elements.orbital_beam = {
         color: ["#ffffff", "#c8ffff", "#63ccff", "#ffd66b"], category: SPECIAL_CATEGORY, state: "gas",
