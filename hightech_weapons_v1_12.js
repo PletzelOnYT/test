@@ -1,11 +1,11 @@
 /*
- * High-Tech Weapons v2.29 for Sandboxels
+ * High-Tech Weapons v2.30 for Sandboxels
  * Eight weapons, three aircraft, specialized effects, and a living City worldgen preset.
  */
 (function () {
     "use strict";
 
-    var MOD_VERSION = "2.29";
+    var MOD_VERSION = "2.30";
     var CATEGORY = "weapons";
     var AIRCRAFT_CATEGORY = "aircraft";
     var SPECIAL_CATEGORY = "special";
@@ -1565,11 +1565,7 @@
             if (!CITY_TUNING.airRaidSirens) return;
             for (var pole = 1; pole <= 4; pole++) cityPut(["steel", "metal", "wire"], center, roofY - pole, "#4d585e");
             forcePut("city_siren_horn", center - 1, roofY - 5);
-            forcePut("city_siren_horn", center - 2, roofY - 5);
             forcePut("city_siren_horn", center + 1, roofY - 5);
-            forcePut("city_siren_horn", center + 2, roofY - 5);
-            forcePut("city_siren_horn", center - 2, roofY - 6);
-            forcePut("city_siren_horn", center + 2, roofY - 6);
             markCityDefense(forcePut("city_air_raid_siren", center, roofY - 5), defenseType);
         } else if (defenseType === "blast_doors") {
             for (var doorY = 1; doorY <= 3; doorY++) markCityDefense(forcePut("city_blast_door", info.doorX, streetY - doorY), defenseType === "blast_doors" && doorY === 1 ? defenseType : undefined);
@@ -1764,11 +1760,7 @@
         if (!CITY_TUNING.airRaidSirens) return;
         for (var pole = 1; pole <= 9; pole++) cityPut(["steel", "metal", "wire"], x, streetY - pole, "#4d585e");
         forcePut("city_siren_horn", x - 1, streetY - 10);
-        forcePut("city_siren_horn", x - 2, streetY - 10);
         forcePut("city_siren_horn", x + 1, streetY - 10);
-        forcePut("city_siren_horn", x + 2, streetY - 10);
-        forcePut("city_siren_horn", x - 2, streetY - 11);
-        forcePut("city_siren_horn", x + 2, streetY - 11);
         put("city_air_raid_siren", x, streetY - 10);
     }
 
