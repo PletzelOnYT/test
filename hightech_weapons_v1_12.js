@@ -1,17 +1,32 @@
 /*
- * High-Tech Weapons v2.24 for Sandboxels
+ * High-Tech Weapons v2.29 for Sandboxels
  * Eight weapons, three aircraft, specialized effects, and a living City worldgen preset.
  */
 (function () {
     "use strict";
 
-    var MOD_VERSION = "2.24";
+    var MOD_VERSION = "2.29";
     var CATEGORY = "weapons";
     var AIRCRAFT_CATEGORY = "aircraft";
     var SPECIAL_CATEGORY = "special";
     var MAX_CUSTOM_RADIUS = 999;
     var MAX_SHOCKWAVE_RADIUS = 260;
     var BLACK_HOLE_LIFETIME_MS = 150000;
+
+    // Kept visible and declared before every private effect so it is the first
+    // element contributed by this mod to Sandboxels' Special category.
+    elements.citygen = {
+        color: ["#36d46b", "#63b7ff", "#d8dde0", "#ffd35a"],
+        category: SPECIAL_CATEGORY, state: "solid", density: 1600,
+        seed: true, maxSize: 1, excludeRandom: true,
+        behavior: behaviors.STURDYPOWDER,
+        cooldown: typeof defaultCooldown !== "undefined" ? defaultCooldown : 1,
+        desc: "CityGen: place one seed to instantly replace the current world with a complete random City.",
+        tick: function (pixel) {
+            safeDelete(pixel.x, pixel.y);
+            generateInstantCity();
+        }
+    };
 
     // EASY TUNING: change these numbers to resize explosions and shockwaves.
     // Quakewave intentionally stays at 8 / 175 because it is the dedicated shockwave bomb.
@@ -53,6 +68,7 @@
 
     var cityRaidUntil = 0;
     var cityRaidTargetX = null;
+    var cityDecoyTargets = [];
     function triggerCityAirRaid(targetX, durationMs) {
         cityRaidTargetX = Math.max(0, Math.min(width - 1, Math.round(targetX === undefined ? width / 2 : targetX)));
         cityRaidUntil = Math.max(cityRaidUntil, Date.now() + (durationMs || 14000));
@@ -535,7 +551,7 @@
         var direction = Math.random() < 0.5 ? 1 : -1;
         var startX = direction > 0 ? 24 : width - 25;
         var altitude = Math.round(targetY);
-        var targetX = 20 + Math.floor(Math.random() * Math.max(1, width - 40));
+        var targetX = cityDecoyTargets.length ? cityDecoyTargets[Math.floor(Math.random() * cityDecoyTargets.length)] : 20 + Math.floor(Math.random() * Math.max(1, width - 40));
         triggerCityAirRaid(targetX, 16000);
         return forcePut("b2_bomber_controller", startX, altitude, function (bomber) {
             bomber.age = 0; bomber.direction = direction; bomber.targetX = targetX;
@@ -660,12 +676,21 @@
         pixel.age = (pixel.age || 0) + 1;
         pixel.fx = pixel.fx === undefined ? pixel.x : pixel.fx;
         pixel.fy = pixel.fy === undefined ? pixel.y : pixel.fy;
+        // A downward-moving shell sitting directly above matter has impacted even
+        // when rounding would otherwise leave its center in the previous cell.
+        if ((pixel.vy === undefined || pixel.vy >= 0) && impactSurfaceBelow(pixel)) {
+            detonateBomb(pixel, { radius: radius, shockwave: shockwave, payload: ["explosion", "fire", "smoke"], waveColor: "#ffe0a4" });
+            return;
+        }
         for (var step = 0; step < Math.max(2, Math.ceil(speed)); step++) {
             pixel.fx += (pixel.vx || 0) / Math.max(2, Math.ceil(speed));
-            pixel.fy += (pixel.vy || 1) / Math.max(2, Math.ceil(speed));
+            pixel.fy += (pixel.vy === undefined ? 1 : pixel.vy) / Math.max(2, Math.ceil(speed));
             var nx = Math.round(pixel.fx), ny = Math.round(pixel.fy);
-            if (!inBounds(nx, ny)) { safeDelete(pixel.x, pixel.y); return; }
-            var remaining = Math.sqrt(Math.pow((pixel.targetX === undefined ? nx : pixel.targetX) - nx, 2) + Math.pow((pixel.targetY === undefined ? ny : pixel.targetY) - ny, 2));
+            if (!inBounds(nx, ny)) {
+                if (ny >= height - 1) detonateBomb(pixel, { radius: radius, shockwave: shockwave, payload: ["explosion", "fire", "smoke"], waveColor: "#ffe0a4" });
+                else safeDelete(pixel.x, pixel.y);
+                return;
+            }
             var obstruction = pixelMap[nx] && pixelMap[nx][ny];
             if (obstruction && obstruction !== pixel) {
                 var definition = elements[obstruction.element];
@@ -675,13 +700,11 @@
                     return;
                 }
             }
-            if (remaining <= speed * 0.8) {
-                if (nx !== pixel.x || ny !== pixel.y) { safeDelete(nx, ny); if (empty(nx, ny)) tryMove(pixel, nx, ny); }
-                detonateBomb(pixel, { radius: radius, shockwave: shockwave, payload: ["explosion", "fire", "smoke"], waveColor: "#ffe0a4" });
-                return;
-            }
             if ((nx !== pixel.x || ny !== pixel.y) && empty(nx, ny)) tryMove(pixel, nx, ny);
         }
+        // Small ballistic drop keeps shallow shots from flying forever and makes
+        // every round eventually meet terrain after it passes the cursor bearing.
+        pixel.vy = (pixel.vy === undefined ? 1 : pixel.vy) + 0.045;
         if (pixel.age > 180) safeDelete(pixel.x, pixel.y);
     }
 
@@ -737,7 +760,7 @@
     elements.ac130_gunship = {
         color: ["#465055", "#7d888c", "#b1b9bc"], category: AIRCRAFT_CATEGORY, state: "solid", density: 1000,
         hardness: 1, excludeRandom: true, cooldown: typeof defaultCooldown !== "undefined" ? defaultCooldown : 1,
-        desc: "Summons a slow AC-130 gunship. Its 25 mm cannon tracks the cursor automatically; hold right-click to fire a heavy 105 mm shell exactly toward the cursor.",
+        desc: "Summons a slow AC-130 gunship. Its 25 mm cannon fires along the cursor bearing; hold right-click to fire a heavy 105 mm shell. Rounds continue past the cursor and explode only on impact.",
         tick: function (pixel) { var targetY = pixel.y; safeDelete(pixel.x, pixel.y); summonAC130(targetY); }
     };
 
@@ -1069,13 +1092,22 @@
         color: ["#4e5960", "#78858b", "#b92020"], category: SPECIAL_CATEGORY, state: "solid", density: 7800,
         hardness: 0.8, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
         tick: function (pixel) {
-            pixel.age = (pixel.age || 0) + 1;
-            if (!cityAirRaidActive()) { pixel.color = pixel.age % 24 < 12 ? "#58646a" : "#69767c"; return; }
-            pixel.color = pixel.age % 4 < 2 ? "#ff251c" : "#fff1a6";
-            if (pixel.age % 3 === 0) {
+            var phase = Math.floor(Date.now() / 160) % 2;
+            if (!cityAirRaidActive()) { pixel.color = "#69767c"; return; }
+            pixel.color = phase ? "#ff251c" : "#fff1a6";
+            if (phase === 0) {
                 put("city_siren_flash", pixel.x - 1, pixel.y - 1);
                 put("city_siren_flash", pixel.x + 1, pixel.y - 1);
             }
+        }
+    };
+
+    elements.city_siren_horn = {
+        color: ["#4e5960", "#78858b", "#b92020"], category: SPECIAL_CATEGORY, state: "solid", density: 7800,
+        hardness: 0.8, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) {
+            var phase = Math.floor(Date.now() / 160) % 2;
+            pixel.color = cityAirRaidActive() ? (phase ? "#c51f1f" : "#fff1a6") : "#59666c";
         }
     };
 
@@ -1121,9 +1153,9 @@
         }
     };
 
-    function nearestAircraft(pixel) {
+    function nearestAircraft(pixel, maximumDistance) {
         if (typeof currentPixels === "undefined") return null;
-        var nearest = null, nearestDistance = 170;
+        var nearest = null, nearestDistance = maximumDistance || 170;
         for (var i = 0; i < currentPixels.length; i++) {
             var candidate = currentPixels[i];
             if (!candidate || !pixelMap[candidate.x] || pixelMap[candidate.x][candidate.y] !== candidate) continue;
@@ -1161,6 +1193,141 @@
             }
             drawAntiAirGun(pixel, pixel.aimX || 0, pixel.aimY || -1);
         }
+    };
+
+    var CITY_DEFENSE_TYPES = [
+        "radar_dish", "searchlights", "missile_battery", "flak_cannon",
+        "siren_network", "blast_doors", "reinforced_bunker", "anti_bomb_field", "decoy_building"
+    ];
+    var CITY_AIR_THREATS = {
+        carpet_bomb: true, b2_nuclear_payload: true, ac130_25mm_round: true,
+        ac130_105mm_shell: true, orbital_strike_beacon: true
+    };
+
+    elements.city_defense_light = {
+        color: ["#fffbd0", "#bdeaff", "#6fc8ff"], category: SPECIAL_CATEGORY, state: "gas", density: 0.0001,
+        hidden: true, excludeRandom: true,
+        tick: function (pixel) { pixel.life = (pixel.life || 0) + 1; if (pixel.life > 2) safeDelete(pixel.x, pixel.y); }
+    };
+
+    function clearDefenseLine(pixel) {
+        if (typeof currentPixels === "undefined") return;
+        for (var i = currentPixels.length - 1; i >= 0; i--) {
+            var part = currentPixels[i];
+            if (!part || part.element !== "city_defense_light") continue;
+            if (part.defenseOwnerX === pixel.x && part.defenseOwnerY === pixel.y) safeDelete(part.x, part.y);
+        }
+    }
+
+    function drawDefenseLine(name, x1, y1, x2, y2, maximum, color, owner) {
+        var dx = x2 - x1, dy = y2 - y1, distance = Math.sqrt(dx * dx + dy * dy) || 1;
+        var steps = Math.min(maximum || 40, Math.floor(distance));
+        for (var i = 1; i <= steps; i++) put(name, x1 + dx * i / distance, y1 + dy * i / distance, function (p) {
+            if (color) p.color = color;
+            if (owner) { p.defenseOwnerX = owner.x; p.defenseOwnerY = owner.y; }
+        });
+    }
+
+    function cityFullMapRange() {
+        return Math.sqrt(width * width + height * height) + 8;
+    }
+
+    function nearestCityThreat(pixel, maximumDistance) {
+        if (typeof currentPixels === "undefined") return null;
+        var nearest = null, nearestDistance = maximumDistance || 70;
+        for (var i = 0; i < currentPixels.length; i++) {
+            var candidate = currentPixels[i];
+            if (!candidate || !CITY_AIR_THREATS[candidate.element] || !pixelMap[candidate.x] || pixelMap[candidate.x][candidate.y] !== candidate) continue;
+            var dx = candidate.x - pixel.x, dy = candidate.y - pixel.y;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < nearestDistance) { nearest = candidate; nearestDistance = distance; }
+        }
+        return nearest;
+    }
+
+    elements.city_radar_dish = {
+        color: ["#9ba8ad", "#d5dde0", "#516067"], category: SPECIAL_CATEGORY, state: "solid", density: 7900,
+        hardness: 0.9, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) {
+            clearDefenseLine(pixel);
+            var target = nearestAircraft(pixel, 320);
+            if (target) triggerCityAirRaid(target.x, 20000);
+            var sweep = (Math.floor(Date.now() / 80) % 32) / 31 * Math.PI;
+            drawDefenseLine("city_defense_light", pixel.x, pixel.y - 1, pixel.x + Math.cos(sweep) * 13, pixel.y - 1 - Math.sin(sweep) * 8, 14, "#8ff7ff", pixel);
+        }
+    };
+
+    elements.city_searchlight = {
+        color: ["#333d43", "#f3e7a2"], category: SPECIAL_CATEGORY, state: "solid", density: 7600,
+        hardness: 0.84, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) {
+            clearDefenseLine(pixel);
+            var target = nearestAircraft(pixel, cityFullMapRange());
+            if (target) {
+                triggerCityAirRaid(target.x, 16000);
+                drawDefenseLine("city_defense_light", pixel.x, pixel.y - 1, target.x, target.y, cityFullMapRange(), "#fff3a6", pixel);
+            }
+        }
+    };
+
+    elements.city_aa_missile = {
+        color: ["#e7ecee", "#ef3f27", "#ffbd3e"], category: SPECIAL_CATEGORY, state: "gas", density: 0.001,
+        hidden: true, excludeRandom: true,
+        tick: function (pixel) {
+            pixel.life = (pixel.life || 0) + 1;
+            var target = nearestAircraft(pixel, 340);
+            var dx = target ? target.x - pixel.x : 0, dy = target ? target.y - pixel.y : -8;
+            var length = Math.sqrt(dx * dx + dy * dy) || 1;
+            var nx = pixel.x + Math.round(dx / length * 2), ny = pixel.y + Math.round(dy / length * 2);
+            put("fire", pixel.x, pixel.y + 1);
+            if (target && Math.abs(dx) <= 5 && Math.abs(dy) <= 5) {
+                var hx = target.x, hy = target.y; safeDelete(hx, hy); safeDelete(pixel.x, pixel.y);
+                explodeAt(hx, hy, 7, validPayload(["explosion", "fire", "smoke"], "fire")); return;
+            }
+            if (!inBounds(nx, ny) || pixel.life > 160) { safeDelete(pixel.x, pixel.y); return; }
+            var obstruction = pixelMap[nx] && pixelMap[nx][ny];
+            if (obstruction && isAircraftVisualName(obstruction.element)) safeDelete(nx, ny);
+            else if (obstruction && obstruction !== pixel) { safeDelete(pixel.x, pixel.y); explodeAt(pixel.x, pixel.y, 4, validPayload(["fire", "smoke"], "fire")); return; }
+            tryMove(pixel, nx, ny);
+        }
+    };
+
+    elements.city_missile_battery = {
+        color: ["#435147", "#7c8b76", "#c8d1c1"], category: SPECIAL_CATEGORY, state: "solid", density: 8100,
+        hardness: 0.9, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) {
+            pixel.age = (pixel.age || 0) + 1;
+            var target = nearestAircraft(pixel, 340);
+            if (target) triggerCityAirRaid(target.x, 16000);
+            if (target && pixel.age % 18 === 0) forcePut("city_aa_missile", pixel.x, pixel.y - 2, function (m) { m.life = 0; });
+        }
+    };
+
+    elements.city_blast_door = {
+        color: ["#253139", "#4a5a61", "#d9bd39"], category: SPECIAL_CATEGORY, state: "solid", density: 9000,
+        hardness: 0.98, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) { pixel.color = cityAirRaidActive() ? "#172026" : "#46565d"; }
+    };
+
+    elements.city_reinforced_bunker = {
+        color: ["#30383b", "#596166", "#7a8285"], category: SPECIAL_CATEGORY, state: "solid", density: 10000,
+        hardness: 1, burn: 0, hidden: true, excludeRandom: true, behavior: behaviors.WALL
+    };
+
+    elements.city_anti_bomb_field = {
+        color: ["#3ac7ff", "#d9fbff", "#214b68"], category: SPECIAL_CATEGORY, state: "solid", density: 7700,
+        hardness: 0.92, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) {
+            pixel.age = (pixel.age || 0) + 1;
+            var threat = nearestCityThreat(pixel, 58);
+            if (threat) { var tx = threat.x, ty = threat.y; safeDelete(tx, ty); circleSamples(pixel.x, pixel.y, 12, 48, function (x, y) { put("city_defense_light", x, y, function (p) { p.color = "#58ddff"; }); }); }
+        }
+    };
+
+    elements.city_decoy_beacon = {
+        color: ["#ff8c33", "#ffe57d", "#4b5559"], category: SPECIAL_CATEGORY, state: "solid", density: 7600,
+        hardness: 0.75, hidden: true, excludeRandom: true, behavior: behaviors.WALL,
+        tick: function (pixel) { pixel.age = (pixel.age || 0) + 1; pixel.color = pixel.age % 10 < 5 ? "#ff8c33" : "#ffe57d"; }
     };
 
     function nearbyHumanDangerDirection(pixel) {
@@ -1365,7 +1532,71 @@
         forcePut("city_anti_air_turret", center, roofY - 2, function (turret) { turret.antiAirCityGun = true; turret.aimX = 0; turret.aimY = -1; });
     }
 
-    function cityAddTower(left, towerWidth, towerHeight, streetY, style, compactBlock, antiAirGun) {
+    function markCityDefense(pixel, defenseType) {
+        if (!pixel) return pixel;
+        pixel.cityDefenseAnchor = true;
+        pixel.cityDefenseType = defenseType;
+        return pixel;
+    }
+
+    function cityAddDefense(info, defenseType, streetY) {
+        if (!info) return;
+        var center = info.center, roofY = info.roofY;
+        if (defenseType === "radar_dish") {
+            for (var dishX = -3; dishX <= 3; dishX++) cityPut(["steel", "metal"], center + dishX, roofY - 1 - Math.floor((3 - Math.abs(dishX)) / 2), dishX % 2 ? "#d5dde0" : "#7d8b91");
+            cityPut(["steel", "metal"], center, roofY - 4, "#8ff7ff");
+            markCityDefense(forcePut("city_radar_dish", center, roofY - 3), defenseType);
+        } else if (defenseType === "searchlights") {
+            for (var lightBase = -2; lightBase <= 2; lightBase++) cityPut(["steel", "metal"], center + lightBase, roofY - 1, "#39444a");
+            cityPut(["glass", "light", "steel"], center - 2, roofY - 2, "#fff3a6");
+            cityPut(["glass", "light", "steel"], center + 2, roofY - 2, "#d8f5ff");
+            markCityDefense(forcePut("city_searchlight", center, roofY - 2), defenseType);
+        } else if (defenseType === "missile_battery") {
+            for (var mx = -2; mx <= 2; mx++) cityPut(["steel", "metal"], center + mx, roofY - 1, "#465449");
+            cityPut(["steel", "metal"], center - 2, roofY - 2, "#d8dde0");
+            cityPut(["steel", "metal"], center + 2, roofY - 2, "#d8dde0");
+            cityPut(["steel", "metal"], center - 1, roofY - 3, "#ef3f27");
+            cityPut(["steel", "metal"], center + 1, roofY - 3, "#ef3f27");
+            markCityDefense(forcePut("city_missile_battery", center, roofY - 2), defenseType);
+        } else if (defenseType === "flak_cannon") {
+            cityAddAntiAirGun(center, roofY);
+            markCityDefense(pixelMap[center] && pixelMap[center][roofY - 2], defenseType);
+        } else if (defenseType === "siren_network") {
+            if (!CITY_TUNING.airRaidSirens) return;
+            for (var pole = 1; pole <= 4; pole++) cityPut(["steel", "metal", "wire"], center, roofY - pole, "#4d585e");
+            forcePut("city_siren_horn", center - 1, roofY - 5);
+            forcePut("city_siren_horn", center - 2, roofY - 5);
+            forcePut("city_siren_horn", center + 1, roofY - 5);
+            forcePut("city_siren_horn", center + 2, roofY - 5);
+            forcePut("city_siren_horn", center - 2, roofY - 6);
+            forcePut("city_siren_horn", center + 2, roofY - 6);
+            markCityDefense(forcePut("city_air_raid_siren", center, roofY - 5), defenseType);
+        } else if (defenseType === "blast_doors") {
+            for (var doorY = 1; doorY <= 3; doorY++) markCityDefense(forcePut("city_blast_door", info.doorX, streetY - doorY), defenseType === "blast_doors" && doorY === 1 ? defenseType : undefined);
+            var doorAnchor = pixelMap[info.doorX] && pixelMap[info.doorX][streetY - 1];
+            if (doorAnchor) { doorAnchor.cityDefenseAnchor = true; doorAnchor.cityDefenseType = defenseType; }
+            for (var otherDoorY = 2; otherDoorY <= 3; otherDoorY++) {
+                var otherDoor = pixelMap[info.doorX] && pixelMap[info.doorX][streetY - otherDoorY];
+                if (otherDoor) { delete otherDoor.cityDefenseAnchor; delete otherDoor.cityDefenseType; }
+            }
+        } else if (defenseType === "reinforced_bunker") {
+            for (var by = 1; by <= 4; by++) for (var bx = -(5 - by); bx <= 5 - by; bx++) forcePut("city_reinforced_bunker", center + bx, streetY - by);
+            forcePut("city_blast_door", center, streetY - 1);
+            markCityDefense(pixelMap[center] && pixelMap[center][streetY - 1], defenseType);
+        } else if (defenseType === "anti_bomb_field") {
+            for (var fieldX = -2; fieldX <= 2; fieldX++) cityPut(["steel", "metal"], center + fieldX, roofY - 1, "#214b68");
+            cityPut(["steel", "metal"], center - 2, roofY - 2, "#58ddff");
+            cityPut(["steel", "metal"], center + 2, roofY - 2, "#58ddff");
+            cityPut(["glass", "light", "steel"], center, roofY - 3, "#d9fbff");
+            markCityDefense(forcePut("city_anti_bomb_field", center, roofY - 2), defenseType);
+        } else if (defenseType === "decoy_building") {
+            for (var beaconY = 1; beaconY <= 4; beaconY++) cityPut(["steel", "metal", "wire"], center, roofY - beaconY, "#4b5559");
+            markCityDefense(forcePut("city_decoy_beacon", center, roofY - 5), defenseType);
+            cityDecoyTargets.push(center);
+        }
+    }
+
+    function cityAddTower(left, towerWidth, towerHeight, streetY, style, compactBlock) {
         var roofY = Math.max(3, streetY - towerHeight);
         var facadeColors = ["#c5ccce", "#b5bec1", "#d0cbc1", "#aeb8bc"];
         var windowColors = ["#83a7aa", "#73979e", "#91b6bd", "#6f9298"];
@@ -1415,7 +1646,9 @@
             var compactMarker = pixelMap[left] && pixelMap[left][Math.min(streetY - 1, roofY + 1)];
             if (compactMarker) compactMarker.compactCityBlock = true;
         }
-        if (antiAirGun) cityAddAntiAirGun(left + Math.floor((right - left) / 2), roofY);
+        var buildingMarker = pixelMap[left] && pixelMap[left][roofY];
+        if (buildingMarker) buildingMarker.cityBuildingAnchor = true;
+        return { left: left, right: right, center: left + Math.floor((right - left) / 2), roofY: roofY, doorX: doorX };
     }
 
     function cityAddRareBuilding(left, towerWidth, towerHeight, streetY) {
@@ -1437,7 +1670,8 @@
         }
         for (var antenna = 4; antenna <= 11; antenna++) cityPut(["steel", "metal", "wire"], center, roofY - antenna, antenna === 11 ? "#ff3045" : "#8fdce5");
         var marker = forcePut(cityMaterial(["steel", "metal"]), center, roofY, function (p) { p.color = "#00e5ff"; });
-        if (marker) marker.rareCityLandmark = true;
+        if (marker) { marker.rareCityLandmark = true; marker.cityBuildingAnchor = true; }
+        return { left: left, right: right, center: center, roofY: roofY, doorX: center };
     }
 
     function cityAddPerson(x, streetY) {
@@ -1529,8 +1763,12 @@
     function cityAddSiren(x, streetY) {
         if (!CITY_TUNING.airRaidSirens) return;
         for (var pole = 1; pole <= 9; pole++) cityPut(["steel", "metal", "wire"], x, streetY - pole, "#4d585e");
-        cityPut(["steel", "metal"], x - 1, streetY - 9, "#6c777c");
-        cityPut(["steel", "metal"], x + 1, streetY - 9, "#6c777c");
+        forcePut("city_siren_horn", x - 1, streetY - 10);
+        forcePut("city_siren_horn", x - 2, streetY - 10);
+        forcePut("city_siren_horn", x + 1, streetY - 10);
+        forcePut("city_siren_horn", x + 2, streetY - 10);
+        forcePut("city_siren_horn", x - 2, streetY - 11);
+        forcePut("city_siren_horn", x + 2, streetY - 11);
         put("city_air_raid_siren", x, streetY - 10);
     }
 
@@ -1577,6 +1815,7 @@
     }
 
     function generateInstantCity() {
+        cityDecoyTargets = [];
         var streetY = Math.max(30, Math.min(height - 8, Math.floor(height * CITY_TUNING.streetLevel)));
         cityPaintGround(streetY);
         cityAddSewer(streetY);
@@ -1589,6 +1828,9 @@
         var compactDistrictEnabled = Math.random() < CITY_TUNING.compactDistrictChance;
         var compactDistrictStart = compactDistrictEnabled ? cityRandomInt(1, 4) : -1;
         var compactDistrictLength = compactDistrictEnabled ? cityRandomInt(CITY_TUNING.compactDistrictMinBuildings, CITY_TUNING.compactDistrictMaxBuildings) : 0;
+        var buildingCount = 0;
+        var defenseCount = 0;
+        var defenseTypeOffset = cityRandomInt(0, CITY_DEFENSE_TYPES.length - 1);
 
         while (cursor < width - CITY_TUNING.minBuildingWidth - 3) {
             var rareBuildingHere = gapNumber === rareBuildingSlot;
@@ -1597,8 +1839,13 @@
             if (towerWidth % 2 === 0) towerWidth++;
             towerWidth = Math.min(towerWidth, width - cursor - 3);
             var towerHeight = rareBuildingHere ? Math.min(streetY - 8, CITY_TUNING.maxBuildingHeight + 18) : cityRandomInt(CITY_TUNING.minBuildingHeight, maxTowerHeight);
-            if (rareBuildingHere) cityAddRareBuilding(cursor, towerWidth, towerHeight, streetY);
-            else cityAddTower(cursor, towerWidth, towerHeight, streetY, gapNumber % 4, compactBuildingHere, gapNumber % 5 === 2);
+            var buildingInfo = rareBuildingHere ? cityAddRareBuilding(cursor, towerWidth, towerHeight, streetY) : cityAddTower(cursor, towerWidth, towerHeight, streetY, gapNumber % 4, compactBuildingHere);
+            buildingCount++;
+            // One defense slot per complete group of four buildings: never more than 5 per 20.
+            if (buildingCount % 4 === 0) {
+                cityAddDefense(buildingInfo, CITY_DEFENSE_TYPES[(defenseTypeOffset + defenseCount) % CITY_DEFENSE_TYPES.length], streetY);
+                defenseCount++;
+            }
             cursor += towerWidth;
 
             var gap = compactBuildingHere ? 0 : cityRandomInt(CITY_TUNING.minBuildingGap, CITY_TUNING.maxBuildingGap);
@@ -1615,8 +1862,6 @@
             if (gapEnd - gapStart >= 9 && gapNumber % 8 === 5) cityAddPhoneBooth(gapEnd - 4, streetY);
             if (gapEnd - gapStart >= 6 && gapNumber % 4 === 0) cityAddMailbox(gapEnd - 2, streetY);
             if (gapEnd - gapStart >= 9 && gapNumber % 3 === 0) cityAddCrosswalk(gapStart + 2, streetY);
-            if (gapEnd - gapStart >= 7 && gapNumber % 4 === 2) cityAddShelter(gapEnd - 3, streetY);
-            if (gapEnd - gapStart >= 6 && gapNumber % 6 === 1) cityAddSiren(gapStart + Math.floor((gapEnd - gapStart) / 2), streetY);
             for (var person = 0; person < CITY_TUNING.peoplePerGap; person++) {
                 var personX = gapStart + 2 + person * Math.max(2, Math.floor((gapEnd - gapStart - 3) / Math.max(1, CITY_TUNING.peoplePerGap)));
                 if (personX <= gapEnd) cityAddPerson(personX, streetY);
@@ -1666,18 +1911,28 @@
         }
     }
 
+    function placeCityGenFirstInSpecial() {
+        if (typeof document === "undefined") return;
+        var button = document.getElementById("elementButton-citygen") || document.querySelector('[element="citygen"], [data-element="citygen"], [data-element-name="citygen"]');
+        if (button && button.parentNode && button.parentNode.firstChild !== button) button.parentNode.insertBefore(button, button.parentNode.firstChild);
+    }
+
     registerCityWorldgen();
     installCityWorldgenHook();
     installBuiltInHumanAI();
     placeAircraftCategoryAfterWeapons();
+    placeCityGenFirstInSpecial();
     if (typeof runAfterLoad === "function") runAfterLoad(function () {
         registerCityWorldgen();
         installCityWorldgenHook();
         installBuiltInHumanAI();
         placeAircraftCategoryAfterWeapons();
+        placeCityGenFirstInSpecial();
         if (typeof setTimeout === "function") {
             setTimeout(placeAircraftCategoryAfterWeapons, 0);
             setTimeout(placeAircraftCategoryAfterWeapons, 250);
+            setTimeout(placeCityGenFirstInSpecial, 0);
+            setTimeout(placeCityGenFirstInSpecial, 250);
         }
         if (typeof logMessage === "function") logMessage("High-Tech Weapons v" + MOD_VERSION + " loaded: instant finished City worldgen enabled.");
     });
