@@ -44,7 +44,7 @@ try:
   print(f"SPAWN ready after {first_time-started:.1f}s at CPU_SLOWDOWN={rate}",flush=True)
   # Running and sprinting in an actual Survival world. The player may hit a block;
   # server diagnostics still observe chunk pressure and tick response during movement.
-  page.keyboard.down("Control");page.keyboard.down("w")
+  page.keyboard.press("w");page.keyboard.down("w")
   while time.monotonic()-first_time < duration:
    time.sleep(10)
    t=round(time.monotonic()-first_time,1)
@@ -61,7 +61,7 @@ try:
    if len(metrics)%6==0:
     page.screenshot(path=str(out/f"walking-{round(t):03d}s.png"),timeout=30000)
     screens.append(f"walking-{round(t):03d}s")
-  page.keyboard.up("w");page.keyboard.up("Control")
+  page.keyboard.up("w")
   page.screenshot(path=str(out/"finish.png"),timeout=30000);screens.append("finish")
   browser.close()
 except Exception:
