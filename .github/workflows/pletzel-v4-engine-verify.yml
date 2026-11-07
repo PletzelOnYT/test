@@ -1,0 +1,89 @@
+name: Pletzel V4 ENGINE PATCH - test actual compiled singleplayer, worker contention, save and Schematica
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-chromium:
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [survival, survival-onecpu, save-reopen, schematica]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact previously compiled repaired HTML with real assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 42408817655 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-engine-tps-repaired-html -D candidate
+          file=$(find candidate -type f -name '*.html' | head -1)
+          test -n "$file" && test -s "$file"
+          sha256sum "$file" | tee input-html-sha256.txt
+          python3 - "$file" <<'PY'
+          import pathlib,sys
+          p=pathlib.Path(sys.argv[1])
+          assert p.stat().st_size>50_000_000,"not full standalone client"
+          s=p.read_text()
+          assert 'Optimized by Pletzel' in s
+          assert '__pletzelNativeXHR' in s,"release inline asset loader missing"
+          PY
+      - name: Install Chromium WebGL2, WASM-GC, IndexedDB, Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Normal Survival: 185s of actual server ticks/chunk work and gameplay
+        if: matrix.test == 'survival'
+        env:
+          PIN_ONE_CPU: '0'
+          CPU_SLOWDOWN: '1'
+          GAMEPLAY_SECONDS: '185'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-singleplayer-pressure.py 2>&1 | tee verification-console.log
+      - name: Constrained Survival: PIN all Chromium and WASM server processes to one core
+        if: matrix.test == 'survival-onecpu'
+        env:
+          PIN_ONE_CPU: '1'
+          CPU_SLOWDOWN: '1'
+          GAMEPLAY_SECONDS: '185'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-singleplayer-pressure.py 2>&1 | tee verification-console.log
+      - name: Create world, move, save+quit and reopen
+        if: matrix.test == 'save-reopen'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-lifecycle.py 2>&1 | tee verification-console.log
+      - name: In-world Schematica stone fixture import, ghost and unload regression
+        if: matrix.test == 'schematica'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-inworld-schematica-test.py 2>&1 | tee verification-console.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-engine-tps-${{ matrix.test }}-evidence
+          path: |
+            singleplayer-pressure-evidence/
+            lifecycle-evidence/
+            inworld-schematic-evidence/
+            input-html-sha256.txt
+            verification-console.log
+          retention-days: 7
+          if-no-files-found: warn
