@@ -9,25 +9,82 @@ htmls = list(root.rglob("*Schematica*CANDIDATE.html"))
 assert len(htmls)==1, [str(p) for p in htmls]
 source=htmls[0]
 out=Path("smoke-evidence");out.mkdir(parents=True,exist_ok=True)
-# CI test-only: serve real EPK bytes over same-origin HTTP rather than using the
-# standalone custom URL (not valid as XMLHttpRequest origin in Chromium HTTP mode).
-# Never publish this smoke-test HTML as the playable client.
+# CI test-only: restore soundless yet valid EPK bytes in the HTML to
+# exercise the REAL standalone inline payload routing, including worker boot.
+# Never publish or deliver this modified test-only HTML.
 import re,base64
 test_source=source.read_text('utf8')
 m=re.search(r'<script\b(?=[^>]*\bid="eag-inline-assets")[^>]*>(.*?)</script>',test_source,re.S)
-assert m, 'missing built-in asset archive'
+assert m,'missing real asset EPK'
 assets=base64.b64decode(re.sub(r'\s+','',m.group(1)))
-assert assets.startswith(b'EAGPKG$'), assets[:20]
-(source.parent/'assets.epk').write_bytes(assets)
-# Prior CI intermediate intentionally contains a 48-byte placeholder sound EPK.
-# Use valid base asset EPK as a soundless substitute ONLY for this CI rendering test;
-# user-delivered final HTML restores the full V3 sound library locally.
-(source.parent/'sounds.epk').write_bytes(assets)
-anchor='entries[i].url = inlinePayloadPrefix + name;'
-assert test_source.count(anchor)==1, 'unknown standalone asset shim'
-test_source=test_source.replace(anchor,'entries[i].url = name;',1)
+assert assets.startswith(b'EAGPKG$$'),assets[:20]
+m2=re.search(r'(<script type="application/octet-stream" id="eag-inline-sounds" data-size=")(\d+)(">\s*)(.*?)(</script>)',test_source,re.S)
+assert m2,'missing temporary sound placeholder'
+b64=base64.b64encode(assets).decode('ascii')
+formatted='\n'.join(b64[i:i+262144] for i in range(0,len(b64),262144))
+replacement=m2.group(1)+str(len(assets))+m2.group(3)+'\n'+formatted+'\n'+m2.group(5)
+test_source=test_source[:m2.start()]+replacement+test_source[m2.end():]
+# Test-only XMLHttpRequest bridge for inline EPK data on HTTP origin.
+# Main browser fetch is already patched by the standalone generator; worker
+# XHR has its own inline-asset override, but main-page XHR needs one too.
+anchor='  window.fetch = function (input, init) {'
+assert test_source.count(anchor)==1,'unknown standalone fetch shim'
+helper="""  var __testOriginalXHR = window.XMLHttpRequest;
+  var __testPayloadMemo = Object.create(null);
+  function __testPayload(name){
+    var id=payloadIds[name];
+    if(!id)return Promise.reject(new Error('Unknown inline EPK '+name));
+    if(!__testPayloadMemo[id])__testPayloadMemo[id]=decodePayloadAsync(id);
+    return __testPayloadMemo[id];
+  }
+  window.XMLHttpRequest = function(){
+    var self=this, real=null, url='', inline=false, callbacks=Object.create(null);
+    this.responseType='';this.status=0;this.response=null;this.readyState=0;
+    this.addEventListener=function(name,cb){
+      (callbacks[name]||(callbacks[name]=[])).push(cb);
+    };
+    this.removeEventListener=function(name,cb){
+      callbacks[name]=(callbacks[name]||[]).filter(function(fn){return fn!==cb;});
+    };
+    function dispatch(name){
+      var evt={type:name,target:self,currentTarget:self,loaded:self.response?self.response.byteLength:0};
+      (callbacks[name]||[]).forEach(function(fn){try{fn.call(self,evt);}catch(e){console.error(e);}});
+      var fn=self['on'+name];if(typeof fn==='function')fn.call(self,evt);
+    }
+    this.open=function(method,nextURL,async){
+      url=String(nextURL);inline=url.indexOf(inlinePayloadPrefix)===0;
+      if(inline){self.readyState=1;dispatch('readystatechange');}
+      else{
+        real=new __testOriginalXHR();
+        real.open(method,nextURL,async);
+        for(var name in callbacks)(function(n){real.addEventListener(n,function(e){dispatch(n);});})(name);
+      }
+    };
+    this.send=function(body){
+      if(!inline){
+        real.responseType=self.responseType;
+        real.send(body);
+        return;
+      }
+      __testPayload(url.slice(inlinePayloadPrefix.length).split(/[?#]/)[0])
+      .then(function(buf){
+        self.response=buf;self.status=200;self.readyState=4;
+        dispatch('readystatechange');dispatch('load');dispatch('loadend');
+      },function(err){
+        self.status=0;self.readyState=4;
+        dispatch('error');dispatch('loadend');console.error(err);
+      });
+    };
+    this.abort=function(){if(real)real.abort();};
+    this.setRequestHeader=function(k,v){if(real)real.setRequestHeader(k,v);};
+    this.getResponseHeader=function(k){return real?real.getResponseHeader(k):null;};
+  };
+"""
+test_source=test_source.replace(anchor,helper+anchor,1)
+test_source=test_source.replace('return decodePayloadAsync(id).then(function (raw) {',
+    'return __testPayload(name).then(function (raw) {',1)
 source.write_text(test_source)
-print('CI TEST ONLY: replaced custom asset URLs with same-origin EPKs',len(assets),'bytes',flush=True)
+print('CI TEST ONLY: valid EPK inlined for both assets and sound, main+worker custom URL routing',len(assets),flush=True)
 class Server(http.server.SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,directory=str(source.parent),**kwargs)
@@ -83,7 +140,7 @@ with sync_playwright() as p:
       click("03-continue",638,572,8)
       click("04-title",638,353,7) # Singleplayer
       click("05-new-world-choice",638,282,7)
-      click("06-create-world",638,661,80)
+      click("06-create-world",400,670,90)
       snapshot("07-world-maybe")
       page.keyboard.press("Escape");time.sleep(4);snapshot("08-pause")
       click("09-options",484,500,6)
