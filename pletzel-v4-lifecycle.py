@@ -2,7 +2,7 @@
 """Singleplayer world move, save/quit, reopening exploration. Screen evidence required."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import time,threading,http.server,json,re,traceback
+import time,threading,http.server,json,re,traceback,sys
 out=Path('lifecycle-evidence');out.mkdir(exist_ok=True)
 files=list(Path('candidate').rglob('*.html'));assert len(files)==1,files
 src=files[0].resolve();records=[];screens=[]
@@ -23,8 +23,8 @@ try:
    page.screenshot(path=str(out/(name+'.png')),timeout=25000);screens.append(name);print('SNAP',name,flush=True)
   page.goto(f'http://127.0.0.1:{server.server_address[1]}/{src.name}?perfdebug',wait_until='domcontentloaded',timeout=150000)
   time.sleep(105);snap('01-world-before-movement')
-  page.keyboard.down('w');page.keyboard.down('space');time.sleep(35)
-  page.keyboard.up('space');page.keyboard.up('w');snap('02-world-after-movement')
+  page.keyboard.down('w');page.keyboard.down('Space');time.sleep(35)
+  page.keyboard.up('Space');page.keyboard.up('w');snap('02-world-after-movement')
   page.keyboard.press('Escape');time.sleep(3);snap('03-pause-menu')
   page.mouse.click(638,454);time.sleep(10);snap('04-after-save-and-quit-attempt')
   page.mouse.click(640,353);time.sleep(8);snap('05-reopen-world-selector')
@@ -36,3 +36,5 @@ except Exception:
 server.shutdown()
 (out/'records.json').write_text(json.dumps({'screens':screens,'events':records},indent=2))
 print('screens',screens,'errors',[x for x in records if x['type'] in ('error','pageerror','test-exception')][-15:],flush=True)
+
+sys.exit(2 if any(x['type'] in ('test-exception','pageerror') for x in records) or len(screens)<7 else 0)
