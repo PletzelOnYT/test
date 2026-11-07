@@ -38,7 +38,7 @@ try:
    beats=[x["text"] for x in events if "[EagPerfHeartbeat]" in x["text"]]
    if any((m:=re.search(r"lastTick=(\d+)",b)) and int(m.group(1))>40 for b in beats):
     first_time=time.monotonic();break
-   time.sleep(5)
+   page.wait_for_timeout(5000)
   if first_time is None:raise RuntimeError("no completed gameplay ticks within 325 s")
   page.screenshot(path=str(out/"spawn.png"),timeout=25000);screens.append("spawn")
   print(f"SPAWN ready after {first_time-started:.1f}s at CPU_SLOWDOWN={rate}",flush=True)
@@ -46,7 +46,7 @@ try:
   # server diagnostics still observe chunk pressure and tick response during movement.
   page.keyboard.press("w");page.keyboard.down("w")
   while time.monotonic()-first_time < duration:
-   time.sleep(10)
+   page.wait_for_timeout(10000)
    t=round(time.monotonic()-first_time,1)
    beats=[x for x in events if "[EagPerfHeartbeat]" in x["text"]]
    recent=beats[-1]["text"] if beats else ""
