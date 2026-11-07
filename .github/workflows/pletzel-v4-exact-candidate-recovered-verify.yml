@@ -1,0 +1,82 @@
+name: Pletzel V4 - Verify exact previously compiled async singleplayer engine
+on:
+  push:
+    branches: [pletzel-v4-singleplayer-verify-recovered]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-candidate-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [survival, survival-onecpu, save-reopen, schematica]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download immutable compiled HTML from build 42408817655
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 42408817655 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-singleplayer-engine-tpsed-html-candidate -D candidate
+          mapfile -t files < <(find candidate -type f -name '*.html')
+          test "${#files[@]}" -eq 1
+          printf '%s  %s\n' '1c95670852c5e1241cd78fd6646b8091ebb4aed81d5eafac32dc0761e01fc6ef' "${files[0]}" | sha256sum --check
+          sha256sum "${files[0]}" | tee input-html-sha256.txt
+          cat > candidate-source.json <<'JSON'
+          {"source_repository":"dicestack88/Eaglercraft-26.2-source","source_commit":"f73bff91f0f0840bc958c09ab536dbba1e146b2e","integration_commit":"bf6d09ae1c72f9c7693f2daef7799028c1fa23a3","original_build_run":42408817655,"artifact_name":"pletzel-v4-singleplayer-engine-tpsed-html-candidate","html_sha256":"1c95670852c5e1241cd78fd6646b8091ebb4aed81d5eafac32dc0761e01fc6ef","untouched_binary":true}
+          JSON
+          python3 - "${files[0]}" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1])
+          assert p.stat().st_size>50000000
+          assert b'__pletzelNativeXHR' in p.read_bytes()
+          print("Exact compiled standalone HTML checked:",p.name,p.stat().st_size,"bytes")
+          PY
+      - name: Install WebGL2 Chromium / IndexedDB / Playwright / Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Run genuine browser test for ${{ matrix.test }}
+        shell: bash
+        env:
+          GAMEPLAY_SECONDS: '185'
+          CPU_SLOWDOWN: '1'
+          PIN_ONE_CPU: ${{ matrix.test == 'survival-onecpu' && '1' || '0' }}
+        run: |
+          set -o pipefail
+          case "${{ matrix.test }}" in
+            survival|survival-onecpu) script=pletzel-v4-singleplayer-pressure.py ;;
+            save-reopen) script=pletzel-v4-lifecycle.py ;;
+            schematica) script=pletzel-v4-inworld-schematica-test.py ;;
+            *) echo "Unknown matrix case"; exit 2 ;;
+          esac
+          xvfb-run -a -s '-screen 0 1280x720x24' python "${script}" 2>&1 | tee verification-console.log
+      - name: Upload exact input fingerprint, logs, screenshots, telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-recovered-verify-${{ matrix.test }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            input-html-sha256.txt
+            candidate-source.json
+            verification-console.log
+            singleplayer-pressure-evidence/
+            lifecycle-evidence/
+            inworld-schematic-evidence/
