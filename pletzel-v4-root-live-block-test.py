@@ -69,7 +69,7 @@ try:
   # Native Game-mode and cheats cycle controls. One click Survival -> Creative.
   click(640,257,'06-hardcore-intermediate')
   click(640,257,'06-creative-on')
-  click(638,424,'07-cheats-on')
+  snap('07-cheats-default-creative')
   click(397,671,'08-create-click',92)
   snap('09-game-loaded')
   # All placements at fixed coordinates high above terrain, on actual server blocks.
