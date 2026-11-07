@@ -1,7 +1,5 @@
 name: Pletzel V4 SINGLEPLAYER ENGINE - async biome and noise scheduling
 on:
-  push:
-    branches: [pletzel-v4-singleplayer-engine-tps]
   workflow_dispatch:
 permissions:
   contents: read
