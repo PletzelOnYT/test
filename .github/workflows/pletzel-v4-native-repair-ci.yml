@@ -155,10 +155,12 @@ jobs:
           old='if (!fs.existsSync(musicSource)) {'
           assert source.count(old)==1
           source=source.replace(old,'if (withMusic && !fs.existsSync(musicSource)) {',1)
-          old='if (withoutMusic) {\\n  const musicPack = spawnSync('
-          old=old.replace('\\\\n',chr(10))
-          assert source.count(old)==1
-          source=source.replace(old,old.replace('if (withoutMusic)', 'if (withoutMusic && fs.existsSync(musicSource))'),1)
+          marker='  const musicPack = spawnSync('
+          pos=source.index(marker)
+          start=source.rfind('if (withoutMusic) {',0,pos)
+          assert start>=0
+          source=source[:start]+source[start:].replace('if (withoutMusic) {',
+                'if (withoutMusic && fs.existsSync(musicSource)) {',1)
           p.write_text(source)
           PY
           sha256sum engine/target_teavm/build/web/sounds.epk | tee logs/sounds-real-sha256.txt
