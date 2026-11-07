@@ -28,8 +28,9 @@ try:
   page.keyboard.press('Escape');time.sleep(3);snap('03-pause-menu')
   page.mouse.click(638,454);time.sleep(10);snap('04-after-save-and-quit-attempt')
   page.mouse.click(640,353);time.sleep(8);snap('05-reopen-world-selector')
-  page.mouse.click(638,320);time.sleep(7);snap('06-select-existing-world-attempt')
-  page.mouse.click(640,633);time.sleep(40);snap('07-reopen-terrain-attempt')
+  page.mouse.click(475,210);time.sleep(4);snap('06-select-existing-world-attempt')
+  page.mouse.click(406,590);time.sleep(90);snap('07-reopen-terrain-attempt')
+  time.sleep(45);snap('08-reopened-world-running')
   browser.close()
 except Exception:
  records.append({'type':'test-exception','text':traceback.format_exc()[-2000:]})
@@ -37,4 +38,4 @@ server.shutdown()
 (out/'records.json').write_text(json.dumps({'screens':screens,'events':records},indent=2))
 print('screens',screens,'errors',[x for x in records if x['type'] in ('error','pageerror','test-exception')][-15:],flush=True)
 
-sys.exit(2 if any(x['type'] in ('test-exception','pageerror') for x in records) or len(screens)<7 else 0)
+sys.exit(2 if any(x['type'] in ('test-exception','pageerror') for x in records) or len(screens)<8 else 0)
