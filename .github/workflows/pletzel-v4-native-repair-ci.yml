@@ -152,13 +152,13 @@ jobs:
           print('real sound archive',len(s),'sha256',hashlib.sha256(s).hexdigest())
           p=Path('engine/wasm-toolchain/build-single-html.js')
           source=p.read_text()
-          before="if (!fs.existsSync(musicSource)) {\\n  fail("
-          before=before.replace('\\\\n','\\n')
-          assert source.count(before)==1, 'unexpected optional music check'
-          source=source.replace(before, "if (withMusic && !fs.existsSync(musicSource)) {\\n  fail(".replace('\\n','\n'),1)
-          before="if (withoutMusic) {\\n  const musicPack = spawnSync(".replace('\\n','\n')
-          assert source.count(before)==1
-          source=source.replace(before,"if (withoutMusic && fs.existsSync(musicSource)) {\\n  const musicPack = spawnSync(".replace('\\n','\n'),1)
+          old='if (!fs.existsSync(musicSource)) {'
+          assert source.count(old)==1
+          source=source.replace(old,'if (withMusic && !fs.existsSync(musicSource)) {',1)
+          old='if (withoutMusic) {\\n  const musicPack = spawnSync('
+          old=old.replace('\\\\n',chr(10))
+          assert source.count(old)==1
+          source=source.replace(old,old.replace('if (withoutMusic)', 'if (withoutMusic && fs.existsSync(musicSource))'),1)
           p.write_text(source)
           PY
           sha256sum engine/target_teavm/build/web/sounds.epk | tee logs/sounds-real-sha256.txt
@@ -180,7 +180,7 @@ jobs:
           PY
           python3 pletzel-v4/repair_packaging.py --input "engine/$CANDIDATE" --sounds engine/target_teavm/build/web/sounds.epk --output engine/repaired-standalone.html
           mv engine/repaired-standalone.html "engine/$CANDIDATE"
-          grep -Fq '__pletzelInlineOriginalXHR' "engine/$CANDIDATE"
+          grep -Fq '__pletzelNativeXHR' "engine/$CANDIDATE"
       - name: Validate compiled WebAssembly and record candidate
         shell: bash
         run: |
