@@ -36,7 +36,7 @@ try:
   # A nonzero tick in EagPerfHeartbeat proves the integrated server has entered gameplay.
   while time.monotonic()-started < 325:
    beats=[x["text"] for x in events if "[EagPerfHeartbeat]" in x["text"]]
-   if any((m:=re.search(r"lastTick=(\\d+)",b)) and int(m.group(1))>40 for b in beats):
+   if any((m:=re.search(r"lastTick=(\d+)",b)) and int(m.group(1))>40 for b in beats):
     first_time=time.monotonic();break
    time.sleep(5)
   if first_time is None:raise RuntimeError("no completed gameplay ticks within 325 s")
@@ -51,7 +51,7 @@ try:
    beats=[x for x in events if "[EagPerfHeartbeat]" in x["text"]]
    recent=beats[-1]["text"] if beats else ""
    def number(name):
-    m=re.search(re.escape(name)+r"=(-?\\d+)",recent)
+    m=re.search(re.escape(name)+r"=(-?\d+)",recent)
     return int(m.group(1)) if m else None
    values={k:number(k) for k in ["lastTick","sinceCompleted","worldgenQueue","oldestQueueAge","activeWorldgen","claims","tasks","workerMessageBatches"]}
    values["elapsed"]=t
@@ -69,7 +69,7 @@ except Exception:
 finally:
  httpd.shutdown()
 hb=[e for e in events if "[EagPerfHeartbeat]" in e["text"]]
-tot=[re.search(r"lastTick=(\\d+)",e["text"]) for e in hb]
+tot=[re.search(r"lastTick=(\d+)",e["text"]) for e in hb]
 seq=[int(m.group(1)) for m in tot if m]
 waits=[e for e in events if "[EagPerfChunkWait]" in e["text"]]
 phases=[e for e in events if "[EagPerf] slow phase" in e["text"]]
