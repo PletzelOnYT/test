@@ -67,6 +67,7 @@ try:
   click(638,282,'04-create-world',14)
   snap('05-before-creative')
   # Native Game-mode and cheats cycle controls. One click Survival -> Creative.
+  click(640,257,'06-hardcore-intermediate')
   click(640,257,'06-creative-on')
   click(638,424,'07-cheats-on')
   click(397,671,'08-create-click',92)
