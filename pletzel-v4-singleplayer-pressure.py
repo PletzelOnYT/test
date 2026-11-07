@@ -20,7 +20,19 @@ rate=float(os.getenv("CPU_SLOWDOWN","1"))
 duration=int(os.getenv("GAMEPLAY_SECONDS","185"))
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(headless=False,args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader","--use-gl=desktop","--disable-features=Vulkan"])
+  # A dedicated-worker workload needs OS-wide throttling: CDP only throttles the tab.
+  # Affinity is inherited by ALL Chromium processes including the Wasm-GC server worker.
+  chromium_bin=p.chromium.executable_path
+  browser_executable=None
+  if os.getenv("PIN_ONE_CPU","0")=="1":
+   cpus=sorted(os.sched_getaffinity(0))
+   assert cpus,"no available CPU"
+   wrapper=out/"chromium-affinity-wrapper.sh"
+   wrapper.write_text('#!/bin/sh\\nexec taskset -c '+str(cpus[0])+' "'+chromium_bin+'" "$@"\\n')
+   wrapper.chmod(0o755)
+   browser_executable=str(wrapper.resolve())
+   print("CPU AFFINITY: pin all Chromium worker processes to CPU",cpus[0],flush=True)
+  browser=p.chromium.launch(executable_path=browser_executable,headless=False,args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader","--use-gl=desktop","--disable-features=Vulkan"])
   page=browser.new_page(viewport={"width":1280,"height":720})
   page.add_init_script("""window.__eaglerAutoTest='sp';window.__pletzelProbe={workers:0,messages:0,errors:0};
    (()=>{const W=window.Worker;window.Worker=class extends W{
@@ -44,7 +56,12 @@ try:
   print(f"SPAWN ready after {first_time-started:.1f}s at CPU_SLOWDOWN={rate}",flush=True)
   # Running and sprinting in an actual Survival world. The player may hit a block;
   # server diagnostics still observe chunk pressure and tick response during movement.
-  page.keyboard.press("w");page.keyboard.down("w")
+  # Dismiss look-around tutorial and obtain focus/pointer-lock for actual traversal.
+  page.mouse.click(640,355);page.wait_for_timeout(850)
+  page.mouse.move(655,355);page.mouse.move(700,390,steps=5)
+  page.keyboard.press("Escape");page.wait_for_timeout(400)
+  # A quick second W press triggers vanilla sprint; use only normal gameplay input.
+  page.keyboard.press("w");page.wait_for_timeout(150);page.keyboard.down("w")
   while time.monotonic()-first_time < duration:
    page.wait_for_timeout(10000)
    t=round(time.monotonic()-first_time,1)
