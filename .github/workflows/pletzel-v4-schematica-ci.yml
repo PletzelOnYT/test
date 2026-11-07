@@ -108,6 +108,34 @@ jobs:
             grep -Fx "net/pletzel/schematica/${cls}.class" logs/compiled-jar-entries.txt
           done
           echo "All native Schematica classes compiled into game JAR"
+      - name: Prepare temporary empty sound archive and skip absent optional music
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p engine/target_teavm/build/web
+          python3 - <<'PY'
+          from pathlib import Path
+          dest=Path('engine/target_teavm/build/web/sounds.epk')
+          # A valid empty EPK v2 object table for the CI INTERMEDIATE ONLY.
+          # The full sounds.epk from the user-provided Pletzel V3 client is
+          # restored locally before any deliverable HTML is generated.
+          name=b'sounds.epk'
+          dest.write_bytes(b'EAGPKG$'+b'\x06ver2.0'+bytes([len(name)])+name
+                           +b'\x00\x00'+bytes(8)+bytes(4)+b'0'+b':::YEE:>')
+          assert dest.read_bytes().startswith(b'EAGPKG$')
+          p=Path('engine/wasm-toolchain/build-single-html.js')
+          s=p.read_text()
+          before='if (!fs.existsSync(musicSource)) {\n  fail('
+          assert s.count(before)==1
+          s=s.replace(before,'if (withMusic && !fs.existsSync(musicSource)) {\n  fail(',1)
+          before='if (withoutMusic) {\n  const musicPack = spawnSync('
+          assert s.count(before)==1
+          s=s.replace(before,'if (withoutMusic && fs.existsSync(musicSource)) {\n  const musicPack = spawnSync(',1)
+          p.write_text(s)
+          print('Prepared empty sounds.epk, music export now optional for no-music CI intermediate')
+          PY
+          printf '%s\n' 'WARNING: CI intermediate embeds EMPTY sound EPK. Must restore V3 sounds in ChatGPT local assembly before delivering.' > logs/SOUNDS_PLACEHOLDER_DO_NOT_RELEASE.txt
+          ls -l engine/target_teavm/build/web/sounds.epk
       - name: Link precise TeaVM/Wasm-GC and package standalone HTML
         shell: bash
         working-directory: engine
@@ -131,6 +159,17 @@ jobs:
           cp "$wasm" engine/Pletzel-v4-compiled.wasm
           test -s "engine/$CANDIDATE"
           sha256sum "$wasm" "engine/$CANDIDATE" | tee logs/artifact-sha256.txt
+      - name: Preserve generated Wasm even if packaging fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-built-wasm-modules
+          path: |
+            engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
+            engine/target_teavm_wasm_gc_mesh/build/generated/teavm/wasm-gc/mesh-worker.wasm
+            engine/target_teavm_wasm_gc_server/build/generated/teavm/wasm-gc/server-worker.wasm
+          retention-days: 7
+          if-no-files-found: warn
       - name: Upload actual logs even on build failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -142,9 +181,10 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-unverified-compiled-candidate
+          name: pletzel-v4-build-intermediate-needs-v3-sounds
           path: |
             engine/${{ env.CANDIDATE }}
             engine/Pletzel-v4-compiled.wasm
+            logs/SOUNDS_PLACEHOLDER_DO_NOT_RELEASE.txt
           retention-days: 14
           if-no-files-found: error
