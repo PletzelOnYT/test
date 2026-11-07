@@ -31,10 +31,41 @@ try:
    print("SCREENSHOT",name,shots[-1]["elapsed"],flush=True)
   def send(command,delay=1):
    page.keyboard.press("t")
-   page.wait_for_timeout(400)
-   page.keyboard.type(command,delay=25)
+   page.wait_for_timeout(1500)
+   # Browser's real keyboard listener accepts the DOM keydown/up pair; dispatch
+   # batched events so 1-3 FPS software Chromium does not require ~1 second/character.
+   # Avoid inserting text via CDP: this game consumes key event queues, not a textarea.
+   for off in range(0,len(command),42):
+    chunk=command[off:off+42]
+    page.evaluate("""(s) => {
+      function info(c) {
+        if(/^[A-Za-z]$/.test(c)) return ['Key'+c.toUpperCase(),c.toUpperCase().charCodeAt(0),c!==c.toLowerCase()];
+        if(/^[0-9]$/.test(c)) return ['Digit'+c,c.charCodeAt(0),false];
+        const special={' ':['Space',32,false],'/':['Slash',191,false],'~':['Backquote',192,true],
+          '[':['BracketLeft',219,false],']':['BracketRight',221,false],
+          '{':['BracketLeft',219,true],'}':['BracketRight',221,true],
+          ':':['Semicolon',186,true],';':['Semicolon',186,false],
+          '"':['Quote',222,true],"'":['Quote',222,false],
+          '@':['Digit2',50,true],',':['Comma',188,false],
+          '.':['Period',190,false],'-':['Minus',189,false],
+          '_':['Minus',189,true],'=':['Equal',187,false],
+          '^':['Digit6',54,true],'(':['Digit9',57,true],')':['Digit0',48,true]};
+        return special[c]||['Unidentified',0,false];
+      }
+      for(const ch of s) {
+        const [code,which,shiftKey]=info(ch);
+        const opt={key:ch,code,shiftKey,bubbles:true,cancelable:true,composed:true};
+        for(const kind of ['keydown','keyup']) {
+          const ev=new KeyboardEvent(kind,opt);
+          Object.defineProperty(ev,'which',{value:which});
+          Object.defineProperty(ev,'keyCode',{value:which});
+          window.dispatchEvent(ev);
+        }
+      }
+    }""",chunk)
+    page.wait_for_timeout(1250)
    page.keyboard.press("Enter")
-   page.wait_for_timeout(int(delay*1000))
+   page.wait_for_timeout(int(max(delay,1)*1000))
    cmds.append(command)
    print("SENT",command,flush=True)
   page.goto("http://127.0.0.1:%s/%s?perfdebug"%(srv.server_address[1],html.name),wait_until="domcontentloaded",timeout=150000)
