@@ -41,7 +41,7 @@ try:
   # Heartbeat with >300 ticks is necessary but NOT enough. Commands must run while player is present.
   while time.monotonic()-start < 270:
    beats=[x["text"] for x in events if "[EagPerfHeartbeat]" in x["text"]]
-   if any((m:=re.search(r"lastTick=(\\d+)",b)) and int(m.group(1))>320 for b in beats):break
+   if any((m:=re.search(r"lastTick=(\d+)",b)) and int(m.group(1))>320 for b in beats):break
    page.wait_for_timeout(4000)
   page.wait_for_timeout(15000)
   snap("00-inworld-before-command")
