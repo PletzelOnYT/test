@@ -24,6 +24,8 @@ with sync_playwright() as p:
   time.sleep(25);snap("01-boot")
   for name,x,y,delay in [("02-profile",638,618,6),("03-main-menu",638,572,6),("04-singleplayer-menu",638,353,7),("05-create-world-choice",638,282,7)]:
    page.mouse.click(x,y);time.sleep(delay);snap(name)
+  time.sleep(24);snap('06-world-options-post-load')
+  page.mouse.click(638,282);time.sleep(18);snap('07-world-options-second-try')
  except Exception:print(traceback.format_exc()[-2000:],flush=True)
  browser.close()
 srv.shutdown()
