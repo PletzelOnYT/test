@@ -1,0 +1,60 @@
+name: Verify EXACT compiled V4 singleplayer root fix #42392345185
+on:
+  push:
+    branches: [pletzel-v4-final-verification]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [singleplayer, schematica]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact completed root-fixed build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 42392345185 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-singleplayer-root-fixed-html-candidate -D rootbuild
+          mkdir -p candidate
+          cp rootbuild/engine/eaglercraft-26.2-Pletzel-v4-Schematica-singleplayer-REPAIR-CANDIDATE.html candidate/
+          sha256sum candidate/*.html | tee verified-input-sha256.txt
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+      - name: Install Chromium with graphics and browser storage
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Enter singleplayer world and verify compiled artifact
+        if: matrix.test == 'singleplayer'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python verify-v4-singleplayer.py 2>&1 | tee verification-console.log
+      - name: Load a schematic in actual singleplayer world
+        if: matrix.test == 'schematica'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python verify-v4-schematica.py 2>&1 | tee verification-console.log
+      - name: Preserve original HTML test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-rootbuild-${{ matrix.test }}-browser-verification
+          path: |
+            singleplayer-inworld-evidence/
+            inworld-schematic-evidence/
+            verification-console.log
+            verified-input-sha256.txt
+          if-no-files-found: warn
+          retention-days: 7
