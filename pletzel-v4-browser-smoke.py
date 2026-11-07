@@ -143,7 +143,7 @@ with sync_playwright() as p:
       click("06-create-world",400,670,90)
       snapshot("07-world-maybe")
       page.keyboard.press("Escape");time.sleep(4);snapshot("08-pause")
-      click("09-options",484,500,6)
+      click("09-options",480,570,6)
       click("10-schematica",895,577,5)
       click("11-load-file",405,183,12)
       page.keyboard.press("Escape");time.sleep(3);snapshot("12-after-escape")
