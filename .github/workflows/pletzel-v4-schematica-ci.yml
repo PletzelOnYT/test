@@ -70,6 +70,21 @@ jobs:
           python3 pletzel-v4/apply_to_26_2_source.py engine 2>&1 | tee logs/patch-apply.log
           grep -F 'SchematicaWorldRenderer.submit(' engine/game/src/main/java/net/minecraft/client/renderer/LevelRenderer.java
           grep -F 'Optimized by Pletzel' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+      - name: Fix verified 26.2 colored block API difference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          src=p.read_text()
+          before='Blocks.WHITE_WOOL.defaultBlockState()'
+          after='Blocks.WOOL.white().defaultBlockState()'
+          assert src.count(before)==1, 'unexpected Java mapping source; refuse edit'
+          src=src.replace(before,after,1)
+          p.write_text(src)
+          print('FIXED: Minecraft 26.2 ColorCollection<Block> WOOL.white()')
+          PY
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
