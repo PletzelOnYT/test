@@ -14,9 +14,9 @@ out=Path("smoke-evidence");out.mkdir(parents=True,exist_ok=True)
 # Never publish this smoke-test HTML as the playable client.
 import re,base64
 test_source=source.read_text('utf8')
-m=re.search(r'<script\\b(?=[^>]*\\bid="eag-inline-assets")[^>]*>(.*?)</script>',test_source,re.S)
+m=re.search(r'<script\b(?=[^>]*\bid="eag-inline-assets")[^>]*>(.*?)</script>',test_source,re.S)
 assert m, 'missing built-in asset archive'
-assets=base64.b64decode(re.sub(r'\\s+','',m.group(1)))
+assets=base64.b64decode(re.sub(r'\s+','',m.group(1)))
 assert assets.startswith(b'EAGPKG$'), assets[:20]
 (source.parent/'assets.epk').write_bytes(assets)
 # Prior CI intermediate intentionally contains a 48-byte placeholder sound EPK.
