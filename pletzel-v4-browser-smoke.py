@@ -9,6 +9,25 @@ htmls = list(root.rglob("*Schematica*CANDIDATE.html"))
 assert len(htmls)==1, [str(p) for p in htmls]
 source=htmls[0]
 out=Path("smoke-evidence");out.mkdir(parents=True,exist_ok=True)
+# CI test-only: serve real EPK bytes over same-origin HTTP rather than using the
+# standalone custom URL (not valid as XMLHttpRequest origin in Chromium HTTP mode).
+# Never publish this smoke-test HTML as the playable client.
+import re,base64
+test_source=source.read_text('utf8')
+m=re.search(r'<script\\b(?=[^>]*\\bid="eag-inline-assets")[^>]*>(.*?)</script>',test_source,re.S)
+assert m, 'missing built-in asset archive'
+assets=base64.b64decode(re.sub(r'\\s+','',m.group(1)))
+assert assets.startswith(b'EAGPKG$'), assets[:20]
+(source.parent/'assets.epk').write_bytes(assets)
+# Prior CI intermediate intentionally contains a 48-byte placeholder sound EPK.
+# Use valid base asset EPK as a soundless substitute ONLY for this CI rendering test;
+# user-delivered final HTML restores the full V3 sound library locally.
+(source.parent/'sounds.epk').write_bytes(assets)
+anchor='entries[i].url = inlinePayloadPrefix + name;'
+assert test_source.count(anchor)==1, 'unknown standalone asset shim'
+test_source=test_source.replace(anchor,'entries[i].url = name;',1)
+source.write_text(test_source)
+print('CI TEST ONLY: replaced custom asset URLs with same-origin EPKs',len(assets),'bytes',flush=True)
 class Server(http.server.SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,directory=str(source.parent),**kwargs)
