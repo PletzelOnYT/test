@@ -1,0 +1,283 @@
+name: Pletzel V4 SINGLEPLAYER - bounded inbound backpressure and cooperative yields
+on:
+  push:
+    branches: [pletzel-v4-singleplayer-stream-backpressure]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      EAGLER_BUILD_CAP_MIB: '13312'
+      EAGLER_LINK_HEAP_MIB: '12288'
+      CANDIDATE: eaglercraft-26.2-Pletzel-v4-SINGLEPLAYER-STREAM-REPAIR.html
+    steps:
+      - name: Checkout isolated integration kit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned public 26.2 source
+        uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Record runtime resources and source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          { java -version; node --version; free -h; df -h .; git -C engine rev-parse HEAD; cat engine/gradle/wrapper/gradle-wrapper.properties; } 2>&1 | tee logs/environment.log
+          test "$(git -C engine rev-parse HEAD)" = "f73bff91f0f0840bc958c09ab536dbba1e146b2e"
+          mem=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+          disk=$(df -Pm . | awk 'NR==2 {print $4}')
+          if (( mem < 14500 || disk < 10000 )); then
+            echo "INSUFFICIENT_RESOURCES: RAM=${mem}MiB DISK=${disk}MiB" | tee logs/preflight-failure.log
+            exit 3
+          fi
+      - name: Verify and extract the existing Pletzel V4 Java source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require('node:fs');
+          const zlib = require('node:zlib');
+          const crypto = require('node:crypto');
+          const payload = Buffer.from(fs.readFileSync('pletzel-v4/native-patches.tar.br.b64', 'utf8').trim(), 'base64');
+          const hash = crypto.createHash('sha256').update(payload).digest('hex');
+          const expected = 'bc622e01aafba87d52b50556972e3819a8ae58fad3273818aca7e3c3ddc84af5';
+          if (hash !== expected) throw new Error('Patch archive sha256 mismatch: '+hash);
+          fs.writeFileSync('pletzel-v4/native-patches.tar',zlib.brotliDecompressSync(payload));
+          console.log('Verified pre-existing native patch archive:',payload.length,'B, sha256',hash);
+          JS
+          tar -tf pletzel-v4/native-patches.tar | tee logs/native-source-list.txt
+          tar -xf pletzel-v4/native-patches.tar -C pletzel-v4/
+      - name: Dry-run and apply original native renderer/menu patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/apply_to_26_2_source.py engine --dry-run 2>&1 | tee logs/patch-dry-run.log
+          python3 pletzel-v4/apply_to_26_2_source.py engine 2>&1 | tee logs/patch-apply.log
+          grep -F 'SchematicaWorldRenderer.submit(' engine/game/src/main/java/net/minecraft/client/renderer/LevelRenderer.java
+          grep -F 'Optimized by Pletzel' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+      - name: Fix verified 26.2 colored block API difference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          src=p.read_text()
+          before='Blocks.WHITE_WOOL.defaultBlockState()'
+          after='Blocks.WOOL.white().defaultBlockState()'
+          assert src.count(before)==1, 'unexpected Java mapping source; refuse edit'
+          src=src.replace(before,after,1)
+          p.write_text(src)
+          print('FIXED: Minecraft 26.2 ColorCollection<Block> WOOL.white()')
+          PY
+      - name: Apply native Schematica GUI and file-picker source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto'),zlib=require('node:zlib');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/gui-hotfix.py.br.b64','utf8').trim(),'base64');
+          const hash=crypto.createHash('sha256').update(b).digest('hex');
+          if(hash!=='690542eb0f12742026a08ca4815a210dc67a371c241014c4691f636ea53374b4')
+            throw new Error('GUI hotfix source archive SHA mismatch: '+hash);
+          fs.writeFileSync('pletzel-v4/gui-hotfix.py',zlib.brotliDecompressSync(b));
+          console.log('Verified GUI and file-chooser hotfix payload',hash);
+          JS
+          python3 pletzel-v4/gui-hotfix.py engine 2>&1 | tee logs/gui-hotfix.log
+          grep -F 'Dedicated top-of-screen status' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'File selection cancelled' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'fileChooserElement == inputElement' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/internal/PlatformApplication.java
+      - name: Apply depth-stable hologram and live-world comparison patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip,base64
+          p=Path('pletzel-v4/engine-render-repair.py.gz.b64')
+          Path('pletzel-v4/engine-render-repair.py').write_bytes(gzip.decompress(base64.b64decode(p.read_text().strip())))
+          PY
+          python3 pletzel-v4/engine-render-repair.py engine 2>&1 | tee logs/render-repair.log
+          grep -F 'pletzelHologram' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          grep -F 'actual.equals(cell.expected)' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+      - name: Restore real vanilla colored worldgen chunk grid from server IPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip,base64
+          p=Path('pletzel-v4/real-chunk-grid.py.gz.b64')
+          data=base64.b64decode(p.read_text().strip())
+          Path('pletzel-v4/real-chunk-grid.py').write_bytes(gzip.decompress(data))
+          PY
+          python3 pletzel-v4/real-chunk-grid.py engine 2>&1 | tee logs/real-chunk-grid.log
+          grep -Fq 'IPCPacket23ChunkStatusGrid' engine/platform/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/ipc/IPCPacketManager.java
+      - name: Fix WasmGC server worker selection mismatch with world metadata initialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/internal/ClientPlatformSingleplayer.java')
+          src=p.read_text()
+          old='return isServerWorkerFlagJS() && workerSupportedJS();'
+          new='return workerSupportedJS() && (net.lax1dude.eaglercraft.v1_8.internal.teavm.WasmWorkerBootstrap.isWasmGC() || isServerWorkerFlagJS());'
+          assert src.count(old)==1, 'worker metadata preflight semantics unexpectedly changed'
+          p.write_text(src.replace(old,new,1))
+          print('Fixed serverWorkerModeRequested to match actual WasmGC dedicated-worker selection')
+          PY
+          grep -F 'WasmWorkerBootstrap.isWasmGC() || isServerWorkerFlagJS()' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/internal/ClientPlatformSingleplayer.java
+      - name: Fix confirmed TeaVM inline worldgen/biome executor scheduling defect
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-worldgen-async.py engine 2>&1 | tee logs/worldgen-async-repair.log
+          grep -Fq 'EaglerWorldgenExecutor.INSTANCE' engine/game/src/main/java/net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator.java
+          grep -Fq 'EaglerWorldgenExecutor.INSTANCE' engine/game/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java
+          git -C engine diff --check
+      - name: Isolate web worldgen and live-tick coroutine checkpoint deadlines
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-worldgen-fair-slices.py engine 2>&1 | tee logs/fair-slices-repair.log
+          grep -Fq 'worldgenNextYieldAt' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerWorldgenYield.java
+          grep -Fq 'serverNextYieldAt' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerWorldgenYield.java
+          git -C engine diff --check
+      - name: Honor real chunk-decode ACKs and bound stale client packet backlog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-singleplayer-stream-backpressure.py engine 2>&1 | tee logs/singleplayer-stream-backpressure.log
+          grep -Fq 'WEB_MIN_CHUNKS_PER_TICK = 0.25F' engine/game/src/main/java/net/minecraft/server/network/PlayerChunkSender.java
+          grep -Fq 'EMERGENCY_BACKLOG_BUDGET_MILLIS = 32.0' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/SingleplayerInboundPumpPolicy.java
+          git -C engine diff --check
+      - name: Install npm lockfile dependencies
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee ../logs/npm.log
+      - name: Compile game with native Schematica
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          bash ./gradlew :game:jar :platform-teavm:compileJava --console=plain --no-daemon --stacktrace 2>&1 | tee ../logs/game-compile.log
+      - name: Verify compiled Schematica classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          jarfile=$(find engine/game/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$jarfile"
+          jar tf "$jarfile" > logs/compiled-jar-entries.txt
+          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen; do
+            grep -Fx "net/pletzel/schematica/${cls}.class" logs/compiled-jar-entries.txt
+          done
+          echo "All native Schematica classes compiled into game JAR"
+      - name: Install real 26.2 EPK sounds and keep optional music disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p engine/target_teavm/build/web
+          curl -fL --retry 3 'https://raw.githubusercontent.com/melonman106/Eagler-26.2-Client/main/sounds.epk' -o engine/target_teavm/build/web/sounds.epk
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          s=Path('engine/target_teavm/build/web/sounds.epk').read_bytes()
+          assert len(s)>1000000 and s.startswith(b'EAGPKG$$'), 'invalid real sound archive'
+          print('real sound archive',len(s),'sha256',hashlib.sha256(s).hexdigest())
+          p=Path('engine/wasm-toolchain/build-single-html.js')
+          source=p.read_text()
+          old='if (!fs.existsSync(musicSource)) {'
+          assert source.count(old)==1
+          source=source.replace(old,'if (withMusic && !fs.existsSync(musicSource)) {',1)
+          marker='  const musicPack = spawnSync('
+          pos=source.index(marker)
+          start=source.rfind('if (withoutMusic) {',0,pos)
+          assert start>=0
+          source=source[:start]+source[start:].replace('if (withoutMusic) {',
+                'if (withoutMusic && fs.existsSync(musicSource)) {',1)
+          p.write_text(source)
+          PY
+          sha256sum engine/target_teavm/build/web/sounds.epk | tee logs/sounds-real-sha256.txt
+      - name: Link precise TeaVM/Wasm-GC and package standalone HTML
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          node wasm-toolchain/build-single-html.js --fast-package --output "$CANDIDATE" 2>&1 | tee ../logs/full-wasm-link.log
+      - name: Install permanent inline XMLHttpRequest bridge into compiled standalone HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,gzip
+          from pathlib import Path
+          b=base64.b64decode(Path('pletzel-v4/repair_packaging.py.gz.b64').read_text().strip())
+          Path('pletzel-v4/repair_packaging.py').write_bytes(gzip.decompress(b))
+          PY
+          python3 pletzel-v4/repair_packaging.py --input "engine/$CANDIDATE" --sounds engine/target_teavm/build/web/sounds.epk --output engine/repaired-standalone.html
+          mv engine/repaired-standalone.html "engine/$CANDIDATE"
+          grep -Fq '__pletzelNativeXHR' "engine/$CANDIDATE"
+      - name: Validate compiled WebAssembly and record candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          wasm=engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
+          test -s "$wasm"
+          node - "$wasm" <<'JS' | tee logs/wasm-validation.log
+          const fs = require('node:fs'),crypto=require('node:crypto');
+          const bytes=fs.readFileSync(process.argv[2]);
+          const mod=new WebAssembly.Module(bytes);
+          console.log('VALID WASM',bytes.length,'sha256',crypto.createHash('sha256').update(bytes).digest('hex'));
+          console.log('imports',WebAssembly.Module.imports(mod).length,'exports',WebAssembly.Module.exports(mod).length);
+          console.log('WARNING: compatibility with Pletzel V3 and hologram gameplay NOT VERIFIED');
+          JS
+          cp "$wasm" engine/Pletzel-v4-compiled.wasm
+          test -s "engine/$CANDIDATE"
+          sha256sum "$wasm" "engine/$CANDIDATE" | tee logs/artifact-sha256.txt
+      - name: Preserve generated Wasm even if packaging fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-stream-backpressure-wasm-modules
+          path: |
+            engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
+            engine/target_teavm_wasm_gc_mesh/build/generated/teavm/wasm-gc/mesh-worker.wasm
+            engine/target_teavm_wasm_gc_server/build/generated/teavm/wasm-gc/server-worker.wasm
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Upload actual logs even on build failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-stream-backpressure-compile-logs
+          path: logs/
+          if-no-files-found: warn
+      - name: Upload candidate only when compiler and linker succeed
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-stream-backpressure-html-candidate
+          path: |
+            engine/${{ env.CANDIDATE }}
+            engine/Pletzel-v4-compiled.wasm
+            logs/sounds-real-sha256.txt
+          retention-days: 14
+          if-no-files-found: error
