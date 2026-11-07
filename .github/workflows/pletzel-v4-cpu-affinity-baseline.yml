@@ -1,0 +1,52 @@
+name: Pletzel V4 Real Survival Worker TPS - One CPU Baseline
+on:
+  push:
+    branches: [pletzel-v4-cpu-affinity-baseline]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  survival-one-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch EXACT untouched compiled original V4 rootfix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 42392345185 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-singleplayer-root-fixed-html-candidate -D candidate
+          f=$(find candidate -name '*.html' | head -1)
+          echo "510c41635be41ff62ac1ebe05eb0b810ca7d6dcacfcfc0d2150c3e56378f0e5d  $f" | sha256sum -c -
+      - name: Install real Chromium WebGL2 IndexedDB environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Run Survival for 185 sec with entire Chromium worker on ONE CPU
+        env:
+          PIN_ONE_CPU: '1'
+          CPU_SLOWDOWN: '1'
+          GAMEPLAY_SECONDS: '185'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-singleplayer-pressure.py 2>&1 | tee baseline-one-cpu.log
+      - name: Upload actual TPS and chunk logs and screenshots even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-old-rootfix-ONECPU-survival
+          path: |
+            singleplayer-pressure-evidence/
+            baseline-one-cpu.log
+          retention-days: 7
+          if-no-files-found: warn
