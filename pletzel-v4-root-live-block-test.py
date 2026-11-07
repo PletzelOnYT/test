@@ -72,35 +72,35 @@ try:
   snap('07-cheats-default-creative')
   click(397,671,'08-create-click',92)
   snap('09-game-loaded')
-  # All placements at fixed coordinates high above terrain, on actual server blocks.
-  command('/setblock 0 249 0 minecraft:stone')
-  command('/setblock 0 249 5 minecraft:stone')
-  command('/setblock 0 250 0 minecraft:air')
-  command('/tp 0 250 0')
+  # Keep the schematic at the actual player's already-loaded spawn block.
+  # No remote absolute teleport: remote chunks can take seconds to stream,
+  # which otherwise races with SchematicaSession's player.blockPosition().
+  command('/tp @s ~ ~ ~ 180 18',3)
   snap('10-at-target')
   open_schema('11')
   selection[0]=0
   click(408,184,'12-import-stone',6)
   snap('13-stone-loaded')
   exit_schema()
-  command('/tp @s 0 250 5 180 18',3)
+  command('/tp @s ~ ~ ~5 180 18',3)
   snap('14-missing-translucent-ghost')
-  command('/setblock 0 250 0 minecraft:dirt',3)
+  command('/setblock ~ ~ ~-5 minecraft:dirt',3)
   snap('15-incorrect-dirt-red')
-  command('/setblock 0 250 0 minecraft:stone',3)
+  command('/setblock ~ ~ ~-5 minecraft:stone',3)
   snap('16-correct-stone-no-ghost')
-  command('/setblock 0 250 0 minecraft:air',3)
+  command('/setblock ~ ~ ~-5 minecraft:air',3)
   snap('17-removed-stone-ghost-back')
-  command('/tp 0 250 0',2)
+  # Import the second one-block schematic in-place at the currently loaded
+  # player block; view it from another five blocks back.
   open_schema('18')
   selection[0]=1
   click(405,183,'19-import-oak-log',6)
   snap('20-log-loaded')
   exit_schema()
-  command('/tp @s 0 250 5 180 18')
-  command('/setblock 0 250 0 minecraft:oak_log[axis=x]',3)
+  command('/tp @s ~ ~ ~5 180 18',3)
+  command('/setblock ~ ~ ~-5 minecraft:oak_log[axis=x]',3)
   snap('21-oak-log-wrong-orientation-orange')
-  command('/setblock 0 250 0 minecraft:oak_log[axis=y]',3)
+  command('/setblock ~ ~ ~-5 minecraft:oak_log[axis=y]',3)
   snap('22-oak-log-correct-orientation-hidden')
   page.keyboard.press('Escape')
   click(480,393,'23-return-options',1)
