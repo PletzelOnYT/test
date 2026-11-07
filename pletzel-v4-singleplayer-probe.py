@@ -61,7 +61,7 @@ with sync_playwright() as p:
         time.sleep(wait)
         capture(label)
     try:
-        url=f"http://127.0.0.1:{server.server_address[1]}/{source.name}"
+        url=f"http://127.0.0.1:{server.server_address[1]}/{source.name}?perfdebug"
         page.goto(url,wait_until="domcontentloaded",timeout=120000)
         time.sleep(25);capture("01-boot")
         click("02-profile",638,618,8)
