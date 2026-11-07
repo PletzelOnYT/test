@@ -92,5 +92,16 @@ phases=[e for e in events if "[EagPerf] slow phase" in e["text"]]
 result={"rate":rate,"first_world_tick_at_s":None if first_time is None else round(first_time-started,1),"tick_min":min(seq) if seq else None,"tick_max":max(seq) if seq else None,"tick_after_spawn":seq[-1]-seq[0] if len(seq)>=2 else None,"readings":metrics,"screenshots":screens,"long_chunk_waits":waits[-80:],"slow_phases":phases[-80:],"fatal":err,"errors":[e for e in events if e["kind"] in ("error","pageerror")][-40:]}
 (out/"result.json").write_text(json.dumps(result,indent=2))
 (out/"events.json").write_text(json.dumps(events,indent=2))
-assert not err and first_time is not None and len(metrics)>5, "failed to reach sustained gameplay"
+assert not err and first_time is not None and len(metrics)>=12, "failed to reach sustained gameplay"
+assert all(m["browser"]["webgl2"] and m["browser"]["storage"] for m in metrics),"WebGL2 or IndexedDB unavailable"
+assert all(m["browser"]["worker"]["errors"]==0 for m in metrics),"worker errors"
+live=[m for m in metrics if m["lastTick"] is not None]
+assert len(live)>10,"server tick telemetry missing"
+rate=(live[-1]["lastTick"]-live[0]["lastTick"])/(live[-1]["elapsed"]-live[0]["elapsed"])
+result["actual_tick_rate"]=round(rate,2)
+result["max_since_completed_ms"]=max(m["sinceCompleted"] or 0 for m in metrics)
+(out/"result.json").write_text(json.dumps(result,indent=2))
+min_rate=3.0 if os.getenv("PIN_ONE_CPU","0")=="1" else 12.0
+assert rate>=min_rate,f"server progressed at only {rate:.2f} TPS (minimum {min_rate})"
+assert result["max_since_completed_ms"]<15000,"persistent server stalled >15s"
 print("BASELINE COMPLETE",json.dumps({"first_tick":result["first_world_tick_at_s"],"tick_max":result["tick_max"],"n_metrics":len(metrics),"max_stall":max((m["sinceCompleted"] or 0 for m in metrics),default=0)}),flush=True)
