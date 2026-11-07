@@ -5,7 +5,6 @@ Exit != 0 unless real ticks and chunk transfer are proven.
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-from PIL import Image
 import json,threading,http.server,time,re,traceback,sys
 out=Path('singleplayer-inworld-evidence');out.mkdir(exist_ok=True)
 html=list(Path('candidate').rglob('*.html'));assert len(html)==1,html
