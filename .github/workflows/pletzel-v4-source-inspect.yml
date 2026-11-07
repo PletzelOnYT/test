@@ -41,7 +41,7 @@ jobs:
       - name: Package V4 source and original build scripts for offline analysis
         run: |
           set -euo pipefail
-          tar -czf pletzel-v4-source-snapshot.tar.gz \
+          tar -czf pletzel-v4-source-snapshot.tar.gz --exclude='*/build' --exclude='*.jar' --exclude='*.wasm' \
             engine/game/src/main/java \
             engine/platform/src \
             engine/platform-teavm/src \
@@ -52,8 +52,7 @@ jobs:
             engine/wasm-toolchain \
             engine/build.gradle.kts \
             engine/game/build.gradle.kts \
-            pletzel-v4 \
-            --exclude='*/build' --exclude='*.jar' --exclude='*.wasm'
+            pletzel-v4
           ls -lh pletzel-v4-source-snapshot.tar.gz
       - uses: actions/upload-artifact@v4
         with:
