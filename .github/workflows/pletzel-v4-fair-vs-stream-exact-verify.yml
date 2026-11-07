@@ -1,0 +1,139 @@
+name: Pletzel V4 - Compare EXACT fair vs stream binaries, real Chromium
+on:
+  push:
+    branches: [pletzel-v4-fair-vs-stream-exact-verify]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  genuine-browser:
+    name: ${{ matrix.variant }} / ${{ matrix.test }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 21
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [fair, stream]
+        test: [survival, onecpu, entity]
+    steps:
+      - name: Checkout unchanged test harness
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Obtain EXACT precompiled binary; verify independent SHA256
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -euo pipefail
+          case "$VARIANT" in
+            fair)
+              run=42420884116
+              artifact=pletzel-v4-fair-slices-html-candidate
+              sha=32ac8e26581ac373f1b5f9f9e5e25a7eb59752a829f011a968c32cf7b3f7fa6f
+              commit=3172fdefbee419b5af00869dc1ff3318722788c1
+              ;;
+            stream)
+              run=42421588633
+              artifact=pletzel-v4-stream-backpressure-html-candidate
+              sha=2c7de33e3b455b6c2bbca67f67963bf13cd81c04a468aa2de242ec12f8003b4d
+              commit=938dbf18e6be53c4b84d27c26be5d6e69d3f2b8f
+              ;;
+          esac
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          mapfile -t htmls < <(find candidate -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          printf '%s  %s\n' "$sha" "${htmls[0]}" | sha256sum -c -
+          sha256sum "${htmls[0]}" | tee candidate-sha256.txt
+          test "$(stat -c '%s' "${htmls[0]}")" -gt 50000000
+          python - "$commit" "$run" "$artifact" "$sha" <<'PY'
+          import json,sys
+          commit,run,artifact,sha=sys.argv[1:]
+          with open("candidate-identity.json","w") as f:
+              json.dump(dict(pinned_upstream="f73bff91f0f0840bc958c09ab536dbba1e146b2e",
+                integration_commit=commit,build_run=int(run),artifact=artifact,html_sha256=sha,
+                binary_modified=False),f,indent=2)
+          PY
+      - name: Install real Chromium with WebGL2 and IndexedDB
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Run independent gameplay and entity test without modifying client
+        shell: bash
+        env:
+          TEST_KIND: ${{ matrix.test }}
+          GAMEPLAY_SECONDS: '185'
+          CPU_SLOWDOWN: '1'
+          PIN_ONE_CPU: ${{ matrix.test == 'onecpu' && '1' || '0' }}
+        run: |
+          set -o pipefail
+          case "$TEST_KIND" in
+            survival|onecpu) script=pletzel-v4-singleplayer-pressure.py ;;
+            entity) script=pletzel-v4-cheats-entity-proof.py ;;
+            *) exit 3 ;;
+          esac
+          xvfb-run -a -s '-screen 0 1280x720x24' python "$script" 2>&1 | tee browser-test-console.log
+      - name: Aggregate actual heartbeat and chunk-backlog metrics
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,re,statistics
+          from pathlib import Path
+          paths=[Path('singleplayer-pressure-evidence/events.json'),Path('cheats-entity-evidence/all-events.json')]
+          data=[]
+          for p in paths:
+              if p.exists():
+                  try: data=json.loads(p.read_text())
+                  except Exception: pass
+          hb=[];pumps=[];chunks=[];server_entities=[];errors=[]
+          for ev in data:
+              msg=ev.get('text','')
+              if '[EagPerfHeartbeat]' in msg:
+                  m=re.search(r'lastTick=(\d+)',msg)
+                  if m:hb.append({'t':ev.get('t'),'tick':int(m.group(1)), 'sinceCompleted':int((re.search(r'sinceCompleted=(\d+)',msg) or [None,'0'])[1])})
+              if 'singleplayer inbound pumps=' in msg:
+                  m=re.search(r'queue=(\d+)/(\d+) oldest=([\d.]+)/([\d.]+)ms',msg)
+                  if m:pumps.append(dict(t=ev.get('t'),queue=int(m.group(1)),queue_peak=int(m.group(2)),oldest_ms=float(m.group(3)),oldest_peak_ms=float(m.group(4))))
+              if '[EagPerfChunkWait]' in msg: chunks.append(msg[:1500])
+              if '[EagPerf] entity type=minecraft:chicken' in msg: server_entities.append(msg[:1000])
+              if ev.get('kind')=='pageerror':errors.append(msg)
+          intervals=[(b['tick']-a['tick'])/(b['t']-a['t']) for a,b in zip(hb,hb[1:]) if b['t'] is not None and a['t'] is not None and b['t']>a['t'] and a['tick']>40]
+          summary={'source_event_count':len(data),'heartbeat_samples':len(hb),'tick_first':hb[0] if hb else None,'tick_last':hb[-1] if hb else None,
+           'tick_rate_median':statistics.median(intervals) if intervals else None,'tick_rate_min':min(intervals) if intervals else None,
+           'tick_rate_below_2_intervals':sum(x<2 for x in intervals),'inbound_samples':len(pumps),
+           'inbound_max_peak_queue':max((x['queue_peak'] for x in pumps),default=None),
+           'inbound_max_peak_age_ms':max((x['oldest_peak_ms'] for x in pumps),default=None),
+           'inbound_last_5':pumps[-5:],'server_chicken_tick_reports':len(server_entities),'chunk_wait_reports':len(chunks),
+           'chunk_wait_samples':chunks[-5:],'page_errors':errors[-10:]}
+          for path in [Path('singleplayer-pressure-evidence/result.json'),Path('cheats-entity-evidence/result.json')]:
+              if path.exists():
+                  try:summary['test_result']=json.loads(path.read_text())
+                  except Exception:pass
+          Path('aggregate-metrics.json').write_text(json.dumps(summary,indent=2))
+          print('METRICS',json.dumps({k:v for k,v in summary.items() if k not in ['test_result','chunk_wait_samples']}),flush=True)
+          PY
+      - name: Preserve actual screenshots, logs, checksums, game state commands
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-compare-${{ matrix.variant }}-${{ matrix.test }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            candidate-identity.json
+            candidate-sha256.txt
+            aggregate-metrics.json
+            browser-test-console.log
+            singleplayer-pressure-evidence/
+            cheats-entity-evidence/
