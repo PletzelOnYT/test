@@ -85,6 +85,23 @@ jobs:
           p.write_text(src)
           print('FIXED: Minecraft 26.2 ColorCollection<Block> WOOL.white()')
           PY
+      - name: Apply native Schematica GUI and file-picker source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto'),zlib=require('node:zlib');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/gui-hotfix.py.br.b64','utf8').trim(),'base64');
+          const hash=crypto.createHash('sha256').update(b).digest('hex');
+          if(hash!=='690542eb0f12742026a08ca4815a210dc67a371c241014c4691f636ea53374b4')
+            throw new Error('GUI hotfix source archive SHA mismatch: '+hash);
+          fs.writeFileSync('pletzel-v4/gui-hotfix.py',zlib.brotliDecompressSync(b));
+          console.log('Verified GUI and file-chooser hotfix payload',hash);
+          JS
+          python3 pletzel-v4/gui-hotfix.py engine 2>&1 | tee logs/gui-hotfix.log
+          grep -F 'Dedicated top-of-screen status' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'File selection cancelled' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'fileChooserElement == inputElement' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/internal/PlatformApplication.java
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
@@ -96,7 +113,7 @@ jobs:
         working-directory: engine
         run: |
           set -o pipefail
-          bash ./gradlew :game:jar --console=plain --no-daemon --stacktrace 2>&1 | tee ../logs/game-compile.log
+          bash ./gradlew :game:jar :platform-teavm:compileJava --console=plain --no-daemon --stacktrace 2>&1 | tee ../logs/game-compile.log
       - name: Verify compiled Schematica classes
         shell: bash
         run: |
