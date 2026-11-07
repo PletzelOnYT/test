@@ -75,8 +75,10 @@ try:
   page.mouse.click(638,618);page.wait_for_timeout(7000);snap("ui-02-profile-warning")
   page.mouse.click(638,572);page.wait_for_timeout(7000);snap("ui-03-main-menu")
   page.mouse.click(638,353);page.wait_for_timeout(16000);snap("ui-04-select-world")
-  page.mouse.click(638,282);page.wait_for_timeout(27000);snap("ui-05-world-choice")
-  page.mouse.click(638,282);page.wait_for_timeout(11000);snap("ui-06-create-world-options")
+  page.mouse.click(638,282);page.wait_for_timeout(27000);snap("ui-05-create-world-options")
+  # The first click ALREADY enters Create World. A second click at y=282 toggled
+  # game mode to Hardcore in a previous run, silently disabling cheats.
+  page.wait_for_timeout(1500);snap("ui-06-confirm-survival-before-cheats")
   # The game settings screen from an existing artifact (not guessed) has Allow Cheats at (640,426).
   page.mouse.click(640,426);page.wait_for_timeout(1800);snap("ui-07-enable-cheats")
   page.mouse.click(404,672);page.wait_for_timeout(7000);snap("ui-08-creating-world")
@@ -95,6 +97,11 @@ try:
   snap("01-time-query")
   send("/scoreboard objectives add pletzelLive dummy")
   send("/scoreboard objectives setdisplay sidebar pletzelLive")
+  # Make a small safe 7x7 local stone arena to remove cliff/tree pathfinding
+  # ambiguity. This modifies the disposable test world, never the game binary.
+  send("/fill ~-3 ~ ~-3 ~3 ~3 ~3 minecraft:air",2)
+  send("/fill ~-3 ~-1 ~-3 ~3 ~-1 ~3 minecraft:stone",2)
+  snap("02a-local-surface-fixture")
   send('/summon minecraft:chicken ~2 ~ ~2 {Tags:["PletzelProbe"],NoAI:0b}')
   snap("02-summon-chicken")
   send("/execute store result score worldTime pletzelLive run time query gametime")
