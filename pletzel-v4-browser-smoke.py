@@ -107,7 +107,7 @@ for n,values in [("Blocks",blocks),("Data",[0]*100)]:
 tag("Materials",8,struct.pack(">H",5)+b"Alpha")
 b.append(0);fixture.write_bytes(gzip.compress(b,mtime=0))
 assert len(blocks)==100
-errors=[];steps=[];file_select=[]
+errors=[];steps=[];file_select=[];import_debug=[]
 with sync_playwright() as p:
   browser=p.chromium.launch(headless=False,args=[
       "--no-sandbox","--disable-dev-shm-usage","--enable-webgl",
@@ -121,6 +121,23 @@ with sync_playwright() as p:
       try:fc.set_files(str(fixture.resolve()));file_select.append("filled 5x4x5 NBT")
       except Exception as e:file_select.append("file picker error "+str(e))
   page.on("filechooser",picked)
+  page.on("console",lambda m:import_debug.append(m.text[:800]) if "[SMOKE]" in m.text else None)
+  page.add_init_script("""
+  (() => {
+    var NativeFR = window.FileReader;
+    window.FileReader=function(){
+      var r=new NativeFR();
+      r.addEventListener('load',function(){
+        console.log('[SMOKE] FileReader load bytes='+(r.result&&r.result.byteLength));
+      });
+      r.addEventListener('error',function(){
+        console.log('[SMOKE] FileReader error '+(r.error&&r.error.message));
+      });
+      return r;
+    };
+    window.FileReader.prototype=NativeFR.prototype;
+  })();
+  """)
   def snapshot(name):
       try:
           page.screenshot(path=str(out/(name+".png")),timeout=12000)
@@ -138,21 +155,20 @@ with sync_playwright() as p:
       time.sleep(25);snapshot("01-boot")
       click("02-profile",638,618,8)
       click("03-continue",638,572,8)
-      click("04-title",638,353,7) # Singleplayer
-      click("05-new-world-choice",638,282,7)
-      click("06-create-world",400,670,90)
-      snapshot("07-world-maybe")
-      page.keyboard.press("Escape");time.sleep(4);snapshot("08-pause")
       click("09-options",480,570,6)
-      click("10-schematica",895,577,5)
-      click("11-load-file",405,183,12)
-      page.keyboard.press("Escape");time.sleep(3);snapshot("12-after-escape")
+      click("10-schematica",876,578,6)
+      click("11-load-file",405,174,12)
+      page.mouse.click(119,89);time.sleep(5);snapshot("12-refocused-after-import")
   except Exception as e:errors.append("TEST: "+str(e)[:1200])
   try:
       diag=page.evaluate("""() => ({origin:location.origin,webgl2:!!document.createElement('canvas').getContext('webgl2'),canvas:document.querySelectorAll('canvas').length,hasWasm:!!window.__eaglerWasmModule})""")
   except Exception as e:diag={"error":str(e)[:250]}
+  try:
+      gameLogTail=page.evaluate("""() => (window.__log||[]).filter(x=>/schematica|schematic|FileChooser|NBT|load/i.test(x)).slice(-70)""")
+  except Exception as e:
+      gameLogTail=["log probe failed: "+str(e)[:300]]
   (out/"results.json").write_text(json.dumps({"steps":steps,"errors":errors[-80:],
-     "fileChooser":file_select,"diagnostic":diag,"proofOfHologram":False,
+     "fileChooser":file_select,"importDebug":import_debug,"inGameLogTail":gameLogTail, "diagnostic":diag,"proofOfHologram":False,
      "note":"Screenshot must be visually inspected; fixture import does not prove rendering."},indent=2))
   browser.close()
 server.shutdown()
