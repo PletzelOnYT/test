@@ -27,7 +27,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh run download 42336360928 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-build-intermediate-needs-v3-sounds -D candidate
+          gh run download 42342196510 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-build-intermediate-needs-v3-sounds -D candidate
           find candidate -maxdepth 3 -type f -printf '%p %s bytes\\n' | head -15
           test "$(find candidate -type f -name '*Schematica*CANDIDATE.html' | wc -l)" -eq 1
       - name: Test Minecraft in true localhost origin with WebGL2 and IndexedDB
