@@ -24,7 +24,7 @@ assert removed_slowness is not None and removed_slowness>applied_slowness, "Slow
 assert command_damage is not None and command_damage>removed_slowness, "control command damage ordering not verified"
 server_data=texts[applied_slowness:command_damage]
 def matches(field):
-    pat=re.compile(re.escape(field)+r" on Chicken after scale factor of 100[.]00 is (-?\\d+)")
+    pat=re.compile(re.escape(field)+r" on Chicken after scale factor of 100[.]00 is (-?\d+)")
     out=[]
     for line in server_data:
         m=pat.search(line)
