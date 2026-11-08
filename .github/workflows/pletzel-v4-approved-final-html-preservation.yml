@@ -1,0 +1,84 @@
+name: Pletzel V4 - Preserve approved playable final HTML for 90 days
+on:
+  push:
+    branches: [pletzel-v4-approved-final-html-preservation]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish-approved-final:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Gate FINAL label on eight completed gameplay jobs from exact source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          build=42448109863
+          tests=42448255083
+          [ "$(gh api "repos/$repo/actions/runs/$build" --jq '.conclusion')" = success ]
+          [ "$(gh api "repos/$repo/actions/runs/$tests" --jq '.conclusion')" = success ]
+          # Require the original exact-provenance job + all eight browser jobs
+          # to pass; do not trust the run's label alone.
+          gh api "repos/$repo/actions/runs/$tests/jobs?per_page=100" > /tmp/jobs.json
+          python3 - <<'PY'
+          import json
+          jobs=json.load(open('/tmp/jobs.json'))['jobs']
+          expected={'survival','onecpu','remote','remote2','chicken','vault','lifecycle','schematica'}
+          for name in expected:
+              matches=[j for j in jobs if j['name']==f'final / {name}']
+              assert len(matches)==1 and matches[0]['conclusion']=='success',(name,matches)
+          prepared=[j for j in jobs if j['name'].startswith('Verify EXACT new release-candidate')]
+          assert len(prepared)==1 and prepared[0]['conclusion']=='success'
+          print('All eight exact compiled browser checks + independent SHA provenance succeeded')
+          PY
+      - name: Recover and independently verify final HTML bytes against compiler log
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          mkdir -p original compiler source archive
+          gh run download 42448109863 -R "$repo" -n pletzel-v4-release-candidate-standalone-html -D original
+          gh run download 42448109863 -R "$repo" -n pletzel-v4-release-candidate-compile-logs -D compiler
+          gh run download 42448109863 -R "$repo" -n pletzel-v4-final-integrated-native-source-diff -D source
+          mapfile -t htmls < <(find original -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          expected="$(awk '$2 ~ /\.html$/ {print $1}' compiler/artifact-sha256.txt)"
+          test "${#expected}" -eq 64
+          cp "${htmls[0]}" archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html
+          printf '%s  %s\n' "$expected" archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html | sha256sum -c -
+          test "$(stat -c '%s' archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html)" -gt 85000000
+          sha256sum archive/*.html > archive/FINAL-PLAYABLE-sha256.txt
+          cp compiler/artifact-sha256.txt archive/compiler-hashes.txt
+          cp source/pletzel-v4-integrated-native-source.diff.gz archive/
+          cp source/native-source-diff-sha256.txt archive/
+          cp source/source-change-manifest.txt archive/
+          cat > archive/README.txt <<'TEXT'
+          PLETZEL V4 Eaglercraft 26.2 standalone browser client.
+          Exact native Java/Wasm-GC build GitHub Actions run 42448109863.
+          Eight strict Chromium gameplay tests from run 42448255083 PASSED:
+          survival, onecpu, remote, remote2, chicken, vault, lifecycle, schematica.
+          Source: pinned dicestack88/Eaglercraft-26.2-source f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          plus committed reproducible patch scripts and exact integrated native source diff.
+          Native Minecraft 26.2 loading-screen chunk/status pixels use actual
+          server ChunkStatus IPC; progress bar uses genuine worker IPC stage fraction.
+          Diagnostic EAGLER_TELEPORT future tracing omitted.
+          Known limits: startup world preparation slow on constrained one-core systems;
+          sculk deep-dark feature can issue vanilla write-radius cross-chunk read warnings.
+          HTML original binary not recompiled or modified, only renamed.
+          Final evidence: https://github.com/PletzelOnYT/test/issues/1
+          TEXT
+          ls -lh archive/
+      - name: Preserve exact playable standalone HTML + source and checksums 90 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE
+          path: archive/
+          retention-days: 90
+          if-no-files-found: error
