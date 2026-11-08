@@ -30,6 +30,27 @@ jobs:
           console.log('Verified exact existing profile GUI patch, SHA256',h);
           JS
           python3 -m py_compile pletzel-v4/gui-hotfix.py
+      - name: Reproduce original fully compiled source setup before GUI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'),zlib=require('node:zlib'),crypto=require('node:crypto');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/native-patches.tar.br.b64','utf8').trim(),'base64');
+          const h=crypto.createHash('sha256').update(b).digest('hex');
+          if(h!=='bc622e01aafba87d52b50556972e3819a8ae58fad3273818aca7e3c3ddc84af5')throw Error('Wrong existing native patch payload');
+          fs.writeFileSync('pletzel-v4/native-patches.tar',zlib.brotliDecompressSync(b));
+          JS
+          tar -xf pletzel-v4/native-patches.tar -C pletzel-v4/
+          python3 pletzel-v4/apply_to_26_2_source.py engine
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          s=p.read_text()
+          old='Blocks.WHITE_WOOL.defaultBlockState()'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,'Blocks.WOOL.white().defaultBlockState()',1))
+          PY
       - name: Apply EXISTING GUI patch then new native wake and model fixes
         shell: bash
         run: |
