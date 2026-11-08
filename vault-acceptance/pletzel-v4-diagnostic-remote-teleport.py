@@ -121,6 +121,22 @@ try:
    send("/execute store result score playerX pletzelPos run data get entity @p Pos[0] 100")
    send("/execute store result score playerZ pletzelPos run data get entity @p Pos[2] 100")
    snap(f"client-f3-single-teleport-after-{(step+1)*30}s")
+  # Only schedule another distant teleport if the first FULL future truly
+  # delivered the player. Otherwise preserve the original pending future for
+  # diagnosis rather than artificially superseding its sequence.
+  first_positions=[]
+  for ev in events:
+   m=re.search(r'Pos\\[0\\] on .+? after scale factor of 100\\.00 is (-?\\d+)',ev.get('text',''))
+   if m:first_positions.append(int(m.group(1)))
+  first_arrived=bool(first_positions) and abs(first_positions[-1]-9650)<=100
+  if first_arrived:
+   send("/tp @p 192 190 192 0 80",2)
+   snap("remote-second-tp-issued")
+   for step in range(4):
+    page.wait_for_timeout(30000)
+    send("/execute store result score playerX pletzelPos run data get entity @p Pos[0] 100")
+    send("/execute store result score playerZ pletzelPos run data get entity @p Pos[2] 100")
+    snap(f"client-f3-second-teleport-after-{(step+1)*30}s")
   snap("client-f3-final")
   send("/seed",1)
   snap("client-f3-seed-confirmation")
@@ -143,8 +159,10 @@ for ev in events:
  m=re.search(r'Pos\[0\] on .+? after scale factor of 100\.00 is (-?\d+)',ev.get('text',''))
  if m:posx.append(int(m.group(1)))
 result['server_player_x_samples_scaled100']=posx
-result['destination_x_reached']=bool(posx) and abs(posx[-1]-9650)<=100
-result['destination_requirement']='Require x approximately 96.5 and F3 render confirmation; text /tp alone is NOT acceptable'
+result['first_destination_x_reached']=any(abs(x-9650)<=100 for x in posx)
+result['second_destination_x_reached']=bool(posx) and abs(posx[-1]-19250)<=100
+result['destination_x_reached']=result['first_destination_x_reached'] and result['second_destination_x_reached']
+result['destination_requirement']='Require BOTH x approximately 96.5 and 192.5 in order, plus F3 terrain render; /tp text alone is NOT acceptable'
 (out/"result.json").write_text(json.dumps(result,indent=2))
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
 print("RESULT",json.dumps({"screens":len(shots),"commands":len(cmds),"chickenReports":len(chicken),"heartbeatCount":len(beats),"fault":fault})[:3000],flush=True)
