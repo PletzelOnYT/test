@@ -45,8 +45,20 @@ try:
   url=f"http://127.0.0.1:{httpd.server_address[1]}/{html.name}?perfdebug"
   page.goto(url,wait_until="domcontentloaded",timeout=150000)
   first_time=None
+  next_load_screen_capture=18.0
+  # Real native 26.2 loading UI: capture original chunk-status colored cells
+  # at several timepoints before game starts. Do not fake progress or modify
+  # the game. Capture only at most 5 frames to avoid burdening worldgen.
   # A nonzero tick in EagPerfHeartbeat proves the integrated server has entered gameplay.
   while time.monotonic()-started < 325:
+   elapsed_loading=time.monotonic()-started
+   if elapsed_loading >= next_load_screen_capture and next_load_screen_capture <= 90:
+    try:
+     page.screenshot(path=str(out/f"native-loading-{int(next_load_screen_capture):03d}s.png"),timeout=30000)
+     screens.append(f"native-loading-{int(next_load_screen_capture):03d}s")
+    except Exception as screenshot_error:
+     print("LOADING SCREEN SNAPSHOT FAILED",repr(screenshot_error),flush=True)
+    next_load_screen_capture+=18.0
    beats=[x["text"] for x in events if "[EagPerfHeartbeat]" in x["text"]]
    if any((m:=re.search(r"lastTick=(\d+)",b)) and int(m.group(1))>40 for b in beats):
     first_time=time.monotonic();break
