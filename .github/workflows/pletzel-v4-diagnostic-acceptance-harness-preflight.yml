@@ -1,0 +1,66 @@
+name: Pletzel V4 - Validate strict gameplay acceptance harness against known old results (NO GAME BUILD)
+on:
+  push:
+    branches: [pletzel-v4-diagnostic-acceptance-harness-preflight]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate-parser-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax-check all tests without launching Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile vault-acceptance/*.py pletzel-v4-vault-mechanics-real-browser.py pletzel-v4-inworld-schematica-test.py
+          python3 - <<'PY'
+          import re
+          s="Pos[0] on DarverDeev6530 after scale factor of 100.00 is 9650"
+          m=re.search(r'Pos\[0\] on .+? after scale factor of 100\.00 is (-?\d+)',s)
+          assert m and int(m.group(1))==9650, "numeric destination parser broken"
+          print("F3/server NBT regex proved with known successful old combined event")
+          PY
+      - name: Download previously verified real chicken hit evidence, no client binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 42436731487 -R "$GITHUB_REPOSITORY" -n pletzel-v4-guard-verify-combined-chicken -D chicken-fixture
+          test -s chicken-fixture/cheats-entity-evidence/all-events.json
+          mkdir -p cheats-entity-evidence
+          cp chicken-fixture/cheats-entity-evidence/all-events.json cheats-entity-evidence/all-events.json
+          TEST_KIND=chicken python3 vault-acceptance/strict-evidence-gate.py
+          cat strict-evidence-gate.json
+          test "$(python3 -c 'import json;print(json.load(open("strict-evidence-gate.json"))["automatic_gate_pass"])')" = True
+      - name: Negative control — reject original known 4.4-second Vault server stall
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 42436731487 -R "$GITHUB_REPOSITORY" -n pletzel-v4-guard-verify-combined-survival -D survival-fixture
+          test -s survival-fixture/singleplayer-pressure-evidence/events.json
+          mkdir -p singleplayer-pressure-evidence
+          cp survival-fixture/singleplayer-pressure-evidence/events.json singleplayer-pressure-evidence/events.json
+          set +e
+          TEST_KIND=survival python3 vault-acceptance/strict-evidence-gate.py
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python3 - <<'PY'
+          import json
+          d=json.load(open('strict-evidence-gate.json'))
+          assert not d['automatic_gate_pass'] and any('VAULT' in s for s in d['failures']), d
+          print('Correctly rejected existing 4–6 second Vault stall',d['failures'])
+          PY
+      - name: Preserve parser and negative-control evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-strict-acceptance-harness-preflight
+          path: strict-evidence-gate.json
+          if-no-files-found: warn
