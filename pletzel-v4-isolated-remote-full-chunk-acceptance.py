@@ -140,10 +140,10 @@ result={"screenshots":shots,"commandsSent":cmds,"heartbeatCount":len(beats),
 # This is a real server-authoritative acceptance check, not a chat command claim.
 posx=[]
 for ev in events:
- m=re.search(r'Pos\\[0\\] on .+? after scale factor of 100\\.00 is (-?\\d+)',ev.get('text',''))
+ m=re.search(r'Pos\[0\] on .+? after scale factor of 100\.00 is (-?\d+)',ev.get('text',''))
  if m:posx.append(int(m.group(1)))
 result['server_player_x_samples_scaled100']=posx
-result['destination_x_reached']=any(abs(x-9650)<=100 for x in posx)
+result['destination_x_reached']=bool(posx) and abs(posx[-1]-9650)<=100
 result['destination_requirement']='Require x approximately 96.5 and F3 render confirmation; text /tp alone is NOT acceptable'
 (out/"result.json").write_text(json.dumps(result,indent=2))
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
