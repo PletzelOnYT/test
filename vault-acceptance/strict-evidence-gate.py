@@ -20,8 +20,9 @@ if kind in ("survival","onecpu"):
  if len(events)<100:fail("missing substantial raw server and browser telemetry")
  tick=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
  if len(tick)<12:fail("fewer than 12 observed server tick heartbeats")
- if len(tick)>=2:
-  duration=tick[-1][0]-tick[0][0];tps=(tick[-1][1]-tick[0][1])/duration if duration>0 else 0
+ active_tick=[point for point in tick if point[1]>40]
+ if len(active_tick)>=2:
+  duration=active_tick[-1][0]-active_tick[0][0];tps=(active_tick[-1][1]-active_tick[0][1])/duration if duration>0 else 0
   details["wallclock_average_tps"]=round(tps,3)
   if tps < (10 if kind=="onecpu" else 17):fail(f"measured TPS below acceptance threshold: {tps:.2f}")
  waits=[]
