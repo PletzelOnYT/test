@@ -76,7 +76,7 @@ patch("world/level/StructureManager.java",
       }
       ServerChunkCache cache = serverLevel.getChunkSource();
       ChunkPos center = ChunkPos.containing(pos);
-      LevelChunk current = cache.getChunkNow(center.x, center.z);
+      LevelChunk current = cache.getChunkNow(center.x(), center.z());
       if (current == null) {
          // Player's own FULL center chunk is supplied by existing player
          // tickets; it is never synthesized or forced ready.
@@ -93,8 +93,8 @@ patch("world/level/StructureManager.java",
          LongIterator cursor = entry.getValue().iterator();
          while (cursor.hasNext()) {
             ChunkPos referenced = ChunkPos.unpack(cursor.nextLong());
-            if (cache.eaglerGetChunkStatusIfPresent(referenced.x, referenced.z, ChunkStatus.STRUCTURE_STARTS) == null) {
-               cache.eaglerRequestChunkStatusNoWait(referenced.x, referenced.z, ChunkStatus.STRUCTURE_STARTS);
+            if (cache.eaglerGetChunkStatusIfPresent(referenced.x(), referenced.z(), ChunkStatus.STRUCTURE_STARTS) == null) {
+               cache.eaglerRequestChunkStatusNoWait(referenced.x(), referenced.z(), ChunkStatus.STRUCTURE_STARTS);
                allReady = false;
             }
          }
