@@ -1,0 +1,44 @@
+name: Pletzel V4 - Verify true 26.2 stage colors and 0x0D progress bar source (NO BUILD)
+on:
+  push:
+    branches: [pletzel-v4-authentic-loading-progress-preflight]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authentic-native-loading-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+      - name: Reproduce genuine server status grid and progress mapping without Java compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p loading-audit
+          python3 - <<'PY'
+          import base64,gzip
+          from pathlib import Path
+          b=Path('pletzel-v4/real-chunk-grid.py.gz.b64').read_text().strip()
+          Path('loading-audit/real-chunk-grid.py').write_bytes(gzip.decompress(base64.b64decode(b)))
+          PY
+          python3 loading-audit/real-chunk-grid.py engine
+          python3 pletzel-v4/repair-native-loading-progress-ipc.py engine
+          grep -F 'IPCPacket23ChunkStatusGrid' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -F 'actualServerProgress' engine/game/src/main/java/net/minecraft/client/multiplayer/LevelLoadTracker.java
+          grep -F 'worldStatusProgress() >= 0.0F' engine/game/src/main/java/net/minecraft/client/multiplayer/LevelLoadTracker.java
+          git -C engine diff --check
+          git -C engine diff --stat | tee loading-audit/native-source-diff-stat.txt
+          git -C engine diff | gzip -9 > loading-audit/native-26-2-loading-stage-progress.patch.gz
+          sha256sum loading-audit/native-26-2-loading-stage-progress.patch.gz | tee loading-audit/source-diff-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-vanilla-26-2-stage-progress-real-ipc-source
+          path: loading-audit/
+          retention-days: 30
+          if-no-files-found: error
