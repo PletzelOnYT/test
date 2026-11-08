@@ -1,0 +1,52 @@
+name: Pletzel V4 - Archive real Mac field-diagnostics HTML from exact existing binary (NO ENGINE BUILD)
+on:
+  push:
+    branches: [pletzel-v4-mac-field-diagnostics-harness]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  immutable-diagnostic-html:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact original 4-bug compiled standalone HTML without recompiling
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          gh run download 42509653180 -R "$GITHUB_REPOSITORY" -n pletzel-v4-four-bug-experimental-standalone-html -D input
+          mapfile -t htmls < <(find input -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          printf '%s  %s\n' 3c149fa6dc419ba97f20387250458d715ba6a46b6fef49883e9ad9024abc1deb "${htmls[0]}" | sha256sum -c -
+          echo "${htmls[0]}" > input-file-path.txt
+      - name: Reproduce exact opt-in Mac overlay byte-for-byte, syntax check only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check pletzel-v4/field-diagnostics/pletzel-field-diagnostics.js
+          printf '%s  %s\n' 13f37428e78e5bb9d09fb6bf2a00c3f7e7aa48ca3ebea2223cab839d1ef1f2c0 pletzel-v4/field-diagnostics/pletzel-field-diagnostics.js | sha256sum -c -
+          mkdir -p output
+          python3 pletzel-v4/field-diagnostics/inject.py "$(cat input-file-path.txt)" pletzel-v4/field-diagnostics/pletzel-field-diagnostics.js output/eaglercraft-26.2-Pletzel-v4-MAC-DIAGNOSTICS-EXPERIMENTAL.html
+          printf '%s  %s\n' 5c3a8d680977ecd359a0bba7ff8f94515c0db4e43bcda567371fcf273d7979ec output/eaglercraft-26.2-Pletzel-v4-MAC-DIAGNOSTICS-EXPERIMENTAL.html | sha256sum -c -
+          cat > output/VERIFICATION.txt <<'TEXT'
+          Experimental actual Eaglercraft 26.2 game, not a fixed/final release.
+          Engine original: 42509653180, unchanged WASM and all Minecraft gameplay bytes.
+          Original HTML SHA256 3c149fa6dc419ba97f20387250458d715ba6a46b6fef49883e9ad9024abc1deb.
+          Opt-in overlay JS SHA256 13f37428e78e5bb9d09fb6bf2a00c3f7e7aa48ca3ebea2223cab839d1ef1f2c0.
+          Complete diagnostic HTML SHA256 5c3a8d680977ecd359a0bba7ff8f94515c0db4e43bcda567371fcf273d7979ec.
+          Open in Mac Chrome with ?pletzeldiag=1&perfdebug&workerlog.
+          Export JSON when a gameplay issue occurs.
+          A successful overlay does not prove multiplayer server position or native terrain fixes.
+          TEXT
+          cp pletzel-v4/field-diagnostics/pletzel-field-diagnostics.js output/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-REAL-MAC-diagnostics-standalone-html-90day
+          retention-days: 90
+          path: output/
+          if-no-files-found: error
