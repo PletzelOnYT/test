@@ -101,7 +101,7 @@ try:
   send("/setblock ~ ~ ~2 minecraft:vault[facing=north]",2)
   snap("01-vault-created-close-to-player")
   page.wait_for_timeout(35000)
-  send("/execute if block ~ ~ ~2 minecraft:vault[state=active] run say PLETZEL_VAULT_ACTIVATED",1)
+  send("/execute if block ~ ~ ~2 minecraft:vault[vault_state=active] run say PLETZEL_VAULT_ACTIVATED",1)
   snap("02-vault-state-after-35s")
   send("/data get block ~ ~ ~2",1)
   send("/item replace entity @p weapon.mainhand with minecraft:trial_key",1)
@@ -110,8 +110,8 @@ try:
    page.mouse.click(640,353,button="right")
    page.wait_for_timeout(1400)
   snap("04-real-rightclick-vault")
-  send("/execute if block ~ ~ ~2 minecraft:vault[state=unlocking] run say PLETZEL_VAULT_UNLOCKING",1)
-  send("/execute if block ~ ~ ~2 minecraft:vault[state=ejecting] run say PLETZEL_VAULT_EJECTING",1)
+  send("/execute if block ~ ~ ~2 minecraft:vault[vault_state=unlocking] run say PLETZEL_VAULT_UNLOCKING",1)
+  send("/execute if block ~ ~ ~2 minecraft:vault[vault_state=ejecting] run say PLETZEL_VAULT_EJECTING",1)
   send("/data get block ~ ~ ~2",1)
   snap("05-vault-server-state-after-key")
   page.wait_for_timeout(15000)
@@ -138,7 +138,13 @@ result={"screenshots":shots,"commandsSent":cmds,"heartbeatCount":len(beats),
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
 print("RESULT",json.dumps({"screens":len(shots),"commands":len(cmds),"chickenReports":len(chicken),"heartbeatCount":len(beats),"fault":fault})[:3000],flush=True)
 logs="\\n".join(e.get("text","") for e in events)
-activated="PLETZEL_VAULT_ACTIVATED" in logs
-(out/"vault-assertions.json").write_text(json.dumps({"vault_active_evidence":activated,
+activated=any(re.search(r'\[CHAT\] \[[^\]]+\] PLETZEL_VAULT_ACTIVATED\b',e.get('text','')) for e in events)
+unlocked='has made the advancement [Under Lock and Key]' in logs
+reward=any(re.search(r'\[CHAT\] \[[^\]]+\] PLETZEL_VAULT_DROPPED_ITEM\b',e.get('text','')) for e in events)
+(out/"vault-assertions.json").write_text(json.dumps({
+ "vault_active_evidence":activated,
+ "authentic_trial_key_advancement":unlocked,
+ "server_verified_reward_entity":reward,
+ "raw_chat_markers_not_error_snippets":True,
  "manual_reward_item_and_state_verification_required":True},indent=2))
-if fault or len(shots)<8 or not activated:raise SystemExit(2)
+if fault or len(shots)<8 or not (activated and unlocked and reward):raise SystemExit(2)
