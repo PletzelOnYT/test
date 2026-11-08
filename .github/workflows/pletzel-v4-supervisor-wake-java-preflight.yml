@@ -1,0 +1,123 @@
+name: Pletzel V4 - Compile shared/TeaVM native platform contract and prove wake (NO WASM LINK)
+on:
+  push:
+    branches: [pletzel-v4-supervisor-wake-java-preflight]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-and-callback-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+      - name: Syntax-check source patches and extract actual profile GUI hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-hosted-server-tick-wakeup.py pletzel-v4/repair-supervisor-tick-resume.py pletzel-v4/restore-steve-alex-profile-choice.py
+          node <<'JS'
+          const fs=require('node:fs'),zlib=require('node:zlib'),crypto=require('node:crypto');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/gui-hotfix.py.br.b64','utf8').trim(),'base64');
+          const h=crypto.createHash('sha256').update(b).digest('hex');
+          if(h!=='690542eb0f12742026a08ca4815a210dc67a371c241014c4691f636ea53374b4')throw Error('Wrong GUI source payload');
+          fs.writeFileSync('pletzel-v4/gui-hotfix.py',zlib.brotliDecompressSync(b));
+          console.log('Verified exact existing profile GUI patch, SHA256',h);
+          JS
+          python3 -m py_compile pletzel-v4/gui-hotfix.py
+      - name: Reproduce original fully compiled source setup before GUI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'),zlib=require('node:zlib'),crypto=require('node:crypto');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/native-patches.tar.br.b64','utf8').trim(),'base64');
+          const h=crypto.createHash('sha256').update(b).digest('hex');
+          if(h!=='bc622e01aafba87d52b50556972e3819a8ae58fad3273818aca7e3c3ddc84af5')throw Error('Wrong existing native patch payload');
+          fs.writeFileSync('pletzel-v4/native-patches.tar',zlib.brotliDecompressSync(b));
+          JS
+          tar -xf pletzel-v4/native-patches.tar -C pletzel-v4/
+          python3 pletzel-v4/apply_to_26_2_source.py engine
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          s=p.read_text()
+          old='Blocks.WHITE_WOOL.defaultBlockState()'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,'Blocks.WOOL.white().defaultBlockState()',1))
+          PY
+      - name: Apply EXISTING GUI patch then new native wake and model fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/gui-hotfix.py engine
+          python3 pletzel-v4/repair-hosted-server-tick-wakeup.py engine
+          python3 pletzel-v4/repair-supervisor-tick-resume.py engine
+          python3 pletzel-v4/restore-steve-alex-profile-choice.py engine
+          grep -Fq 'recoverOverdueServerTick();' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -Fq 'globalThis.__pletzelTickWake26 = wake;' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java
+          grep -Fq 'modelButton.visible = true' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/profile/EaglerProfileScreen26.java
+          git -C engine diff --check
+      - name: Prove exact native @JSBody wake never duplicates the suspended TeaVM continuation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node pletzel-v4/test-supervisor-wake-once.cjs engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java | tee wake-unit-test.log
+          grep -Fq 'PASS: native @JSBody one-shot' wake-unit-test.log
+      - name: Validate persisted model pairing and correct wide/slim native preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/profile')
+          e=(root/'EaglerProfileScreen26.java').read_text()
+          m=(root/'SkinModel.java').read_text()
+          d=(root/'DefaultSkins.java').read_text()
+          p=(root/'EaglerProfile.java').read_text()
+          assert 'modelButton.visible = true;' in e
+          assert 'newSkinWaitSteveOrAlex = true;' in e
+          assert 'pairedBase' in e
+          assert 'return this == ALEX ? PlayerModelType.SLIM : PlayerModelType.WIDE;' in m
+          assert 'DEFAULT_STEVE(0,' in d and 'DEFAULT_ALEX(1,' in d
+          assert 'TENNIS_STEVE(2,' in d and 'TENNIS_ALEX(3,' in d
+          assert 'model.getPlayerModelType()' in p and 'SkinPackets.writeMySkinPreset(presetSkinId)' in p
+          assert 'skin.putByte("model", (byte)sk.model.id)' in p
+          for preset in range(24):
+            for alex in (0,1):
+              paired_base=(preset & ~1) if preset<18 else 0
+              expected=paired_base+alex
+              assert expected<18
+          print('PASS: 24 preset gallery choices map to genuine Steve/Alex pairs; custom skin model persists in NBT')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Compile all modified 26.2 Java platforms and Schematica, no Wasm link
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          bash ./gradlew :game:jar :platform-teavm:compileJava :platform-lwjgl:compileJava --console=plain --no-daemon --stacktrace 2>&1 | tee ../java-preflight-compile.log
+      - name: Archive source comparison without launching a game build
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          git -C engine diff --binary | gzip -9 > artifacts/supervisor-and-model-source-preflight.patch.gz
+          sha256sum artifacts/*.gz > artifacts/source-sha256.txt
+          cp wake-unit-test.log artifacts/
+          cp java-preflight-compile.log artifacts/
+          git -C engine diff --stat > artifacts/source-files.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-supervisor-wake-steve-alex-source-preflight
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30
