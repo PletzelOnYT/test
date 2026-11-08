@@ -126,7 +126,7 @@ try:
   # diagnosis rather than artificially superseding its sequence.
   first_positions=[]
   for ev in events:
-   m=re.search(r'Pos\\[0\\] on .+? after scale factor of 100\\.00 is (-?\\d+)',ev.get('text',''))
+   m=re.search(r'Pos\[0\] on .+? after scale factor of 100\.00 is (-?\d+)',ev.get('text',''))
    if m:first_positions.append(int(m.group(1)))
   first_arrived=bool(first_positions) and abs(first_positions[-1]-9650)<=100
   if first_arrived:
@@ -152,7 +152,7 @@ result={"traceEvents":[e for e in events if "[PletzelTeleportTrace]" in e.get("t
  "chickenTickReports":len(chicken),"recentChickenReports":chicken[-5:],
  "recentHeartbeat":beats[-3:],"fatal":fault,
  "pageErrors":[e for e in events if e["kind"]=="pageerror"][-20:],
- "disclaimer":"The script sends vanilla creative-mode and remote teleport commands to force new chunk generation, but command send != command success. Validate actual [CHAT] teleport acceptance, world seed screenshot, terrain screenshots and chunk telemetry before claiming exploration success."}
+ "disclaimer":"The script sends vanilla spectator-mode and remote teleport commands to force new chunk generation, but command send != command success. Validate actual [CHAT] teleport acceptance, world seed screenshot, terrain screenshots and chunk telemetry before claiming exploration success."}
 # This is a real server-authoritative acceptance check, not a chat command claim.
 posx=[]
 for ev in events:
