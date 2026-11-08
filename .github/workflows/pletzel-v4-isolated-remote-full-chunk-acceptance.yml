@@ -1,7 +1,7 @@
 name: Pletzel V4 - Isolated single distant FULL-chunk teleport (NO COMPILATION)
 on:
   push:
-    branches: [pletzel-v4-isolated-remote-full-chunk-acceptance]
+    branches: [pletzel-v4-isolated-remote-full-chunk-acceptance-v2]
   workflow_dispatch:
 permissions:
   contents: read
