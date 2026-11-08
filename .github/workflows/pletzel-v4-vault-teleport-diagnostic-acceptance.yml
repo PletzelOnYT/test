@@ -7,7 +7,73 @@ permissions:
   contents: read
   actions: read
 jobs:
+  prepare-provenance:
+    name: Wait for EXACT prior diagnostic compile and verify its immutable SHA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 145
+    outputs:
+      sha: ${{ steps.identity.outputs.sha }}
+      upstream_commit: ${{ steps.identity.outputs.upstream_commit }}
+    steps:
+      - name: Wait for existing single diagnostic link, do NOT launch a build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42439505642
+          expected_commit=96c1885022a287e944f0975e2fe1ea296a29a398
+          upstream_commit="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.head_sha')"
+          test "$upstream_commit" = "$expected_commit"
+          deadline=$(( $(date +%s) + 8400 ))
+          while true; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.status')"
+            echo "existing build $run state=$state"
+            if [ "$state" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.conclusion')"
+              test "$conclusion" = success || { echo "Existing diagnostic compile failed: $conclusion"; exit 2; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo 'Existing compile exceeded provenance gate'; exit 3; }
+            sleep 30
+          done
+      - name: Independently compare exact HTML bytes with SHA published by compiler
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=42439505642
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-vault-teleport-diagnostic-compile-logs -D compiler-evidence
+          expected_file="$(find compiler-evidence -type f -name artifact-sha256.txt)"
+          test -s "$expected_file"
+          sha="$(awk '$2 ~ /\.html$/ {print $1}' "$expected_file")"
+          test "${#sha}" -eq 64
+          mkdir -p prepared-candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-vault-teleport-diagnostic-html-candidate -D prepared-candidate
+          mapfile -t htmls < <(find prepared-candidate -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          printf '%s  %s\n' "$sha" "${htmls[0]}" | sha256sum -c -
+          test "$(stat -c '%s' "${htmls[0]}")" -gt 85000000
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "upstream_commit=96c1885022a287e944f0975e2fe1ea296a29a398" >> "$GITHUB_OUTPUT"
+          cp "$expected_file" compiler-published-artifact-sha256.txt
+          sha256sum "${htmls[0]}" > independently-verified-html.sha256
+          printf '%s\n' "$sha" > pinned-html.sha256
+          echo "SHA verified against independently uploaded compilation log: $sha"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-diagnostic-immutable-input-provenance
+          path: |
+            compiler-published-artifact-sha256.txt
+            independently-verified-html.sha256
+            pinned-html.sha256
+          retention-days: 30
+          if-no-files-found: error
   compiled-html-browser:
+    needs: prepare-provenance
+
     name: diagnostic / ${{ matrix.test }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -36,7 +102,7 @@ jobs:
           set -euo pipefail
           run=42439505642
           artifact=pletzel-v4-vault-teleport-diagnostic-html-candidate
-          sha="$(tr -d ' \n\r' < vault-acceptance/diagnostic-html.sha256)"
+          sha="${{ needs.prepare-provenance.outputs.sha }}"
           test "${#sha}" -eq 64
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
