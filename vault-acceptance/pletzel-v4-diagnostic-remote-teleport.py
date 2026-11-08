@@ -82,7 +82,7 @@ try:
   # Explicitly set a reproducible world seed using the real World tab, not game code.
   # Screenshots preserve verification if the UI widget moves in future source versions.
   page.mouse.click(640,34);page.wait_for_timeout(2000);snap("ui-06a-world-tab")
-  page.mouse.click(620,256);page.keyboard.press("Control+A");page.keyboard.type("246813579",delay=110)
+  page.mouse.click(620,256);page.keyboard.press("Control+A");page.keyboard.type(os.environ.get("WORLD_SEED","246813579"),delay=110)
   page.wait_for_timeout(2000);snap("ui-06b-seed-field-attempt")
   page.mouse.click(267,34);page.wait_for_timeout(2000);snap("ui-06c-game-tab-return")
   # The game settings screen from an existing artifact (not guessed) has Allow Cheats at (640,426).
