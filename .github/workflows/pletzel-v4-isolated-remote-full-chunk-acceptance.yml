@@ -1,0 +1,75 @@
+name: Pletzel V4 - Isolated single distant FULL-chunk teleport (NO COMPILATION)
+on:
+  push:
+    branches: [pletzel-v4-isolated-remote-full-chunk-acceptance]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  single-teleport:
+    name: ${{ matrix.variant }} controlled 120-second remote teleport
+    runs-on: ubuntu-24.04
+    timeout-minutes: 26
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        variant: [stream, trial, combined]
+    steps:
+      - name: Checkout real browser test harness
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download SHA-pinned exact old or guard HTML without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$VARIANT" in
+            stream)
+              run=42421588633
+              artifact=pletzel-v4-stream-backpressure-html-candidate
+              sha=2c7de33e3b455b6c2bbca67f67963bf13cd81c04a468aa2de242ec12f8003b4d ;;
+            trial)
+              run=42427945133
+              artifact=pletzel-v4-trial-spawner-guard-html-candidate
+              sha=f06b180cd3dc21f1e9c5b4846873b57d4d784e6a4e176275a30920eade91afd8 ;;
+            combined)
+              run=42428948452
+              artifact=pletzel-v4-trial-villager-guard-html-candidate
+              sha=4bcc2a96cb8f5a51ec937578e6539f5cd374ac375fb3e3d576de864f40a42a5a ;;
+          esac
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          mapfile -t htmls < <(find candidate -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          printf '%s  %s\n' "$sha" "${htmls[0]}" | sha256sum -c -
+          sha256sum "${htmls[0]}" | tee candidate-sha256.txt
+          echo "Source build $run artifact $artifact" | tee candidate-source.txt
+      - name: Install Chromium WebGL2 WebAssembly-GC and IndexedDB
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: One distant async EAGLER_TELEPORT only, 120s no superseding
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-isolated-remote-full-chunk-acceptance.py 2>&1 | tee browser-console.log
+      - name: Archive actual server/client F3 coordinates and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-isolated-remote-${{ matrix.variant }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            candidate-sha256.txt
+            candidate-source.txt
+            browser-console.log
+            cheats-entity-evidence/
