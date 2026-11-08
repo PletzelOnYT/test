@@ -32,7 +32,7 @@ if old.count('globalThis.setTimeout(handler, d)') != 2 or 'scheduler' not in old
     raise AssertionError("Unexpected pinned browser scheduler; refuse speculative patch")
 new='''\t@JSBody(params = { "handler", "millis" }, script = "var d = Math.max(0, millis | 0);"
 \t\t\t+ "var done = false;"
-\t\t\t+ "var wake = function() { if (!done) { done = true; handler(); } };"
+\t\t\t+ "var wake = function() { if (!done) { done = true; globalThis.clearTimeout(fallback); handler(); } };"
 \t\t\t+ "var fallback = globalThis.setTimeout(wake, d + 100);"
 \t\t\t+ "try { var s = globalThis.scheduler;"
 \t\t\t+ " if (s && typeof s.postTask === 'function') {"
