@@ -1,7 +1,7 @@
-name: Pletzel V4 Mac field-rooted player structure-starts async / render stall diagnostics native build
+name: Pletzel V4 native vanilla 26.2 loading / truthful startup status experimental
 on:
   push:
-    branches: [pletzel-v4-mac-structure-starts-native-link]
+    branches: [pletzel-v4-vanilla-loading-and-startup-evidence]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +12,7 @@ jobs:
     env:
       EAGLER_BUILD_CAP_MIB: '13312'
       EAGLER_LINK_HEAP_MIB: '12288'
-      CANDIDATE: eaglercraft-26.2-Pletzel-v4-MAC-STRUCTURE-STARTS-ENGINE-CANDIDATE.html
+      CANDIDATE: eaglercraft-26.2-Pletzel-v4-NATIVE-VANILLA-LOADING-EXPERIMENTAL.html
     steps:
       - name: Checkout isolated integration kit
         uses: actions/checkout@v4
@@ -247,6 +247,42 @@ jobs:
           python3 pletzel-v4/trace-client-present-stall.py engine 2>&1 | tee logs/mac-client-present-subphases.log
           grep -F '[PletzelPresentStall]' engine/game/src/main/java/net/minecraft/client/Minecraft.java
           git -C engine diff --check
+      - name: Restore native 26.2 vanilla loading throughout server startup and expose real stage grid
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-vanilla-loading-startup.py engine 2>&1 | tee logs/vanilla-loading-startup.log
+          grep -Fq 'this.gui.setScreen(screen);' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+          ! grep -Fq 'eaglerBusyScreen = new' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+          grep -Fq 'currentFocusChunk()' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -Fq 'ChunkLevel.RADIUS_AROUND_FULL_CHUNK + 1' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -Fq 'spawn.validatedFullChunk' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'eaglerStructureStartsAvailableWithoutBlocking' engine/game/src/main/java/net/minecraft/advancements/predicates/LocationPredicate.java
+          grep -Fq 'fillToCurrentLayer' engine/game/src/main/java/net/minecraft/client/gui/screens/LevelLoadingScreen.java
+          git -C engine diff --check
+      - name: Assert vanilla 26.2 color mapping and chunk stage order at SOURCE (not invented screenshot)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('engine/game/src/main/java/net/minecraft')
+          src=(root/'client/gui/screens/LevelLoadingScreen.java').read_text()
+          sta=(root/'world/level/chunk/status/ChunkStatus.java').read_text()
+          expected=[('EMPTY',5526612),('STRUCTURE_STARTS',10066329),('STRUCTURE_REFERENCES',6250897),
+            ('BIOMES',8434258),('NOISE',13750737),('SURFACE',7497737),('CARVERS',3159410),
+            ('FEATURES',2213376),('INITIALIZE_LIGHT',13421772),('LIGHT',16769184),
+            ('SPAWN',15884384),('FULL',16777215)]
+          actual=[(a,int(b)) for a,b in re.findall(r'map.put\(ChunkStatus\.(\w+), (\d+)\)',src)]
+          assert actual==expected,(actual,expected)
+          statuses=re.findall(r'public static final ChunkStatus (\w+) = register\(',sta)
+          assert statuses==[x[0] for x in expected], statuses
+          assert 'extractChunksForRendering(graphics, xCenter, yCenter, 2, 0, statusView)' in src
+          assert 'this.extractPanorama(graphics, a)' in src
+          assert 'this.extractBlurredBackground(graphics)' in src
+          print('SOURCE PARITY:',len(expected),'native statuses and 26.2 GUI geometry preserved')
+          PY
       - name: Save complete integrated native source patch and precise provenance
         shell: bash
         run: |
@@ -356,7 +392,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-mac-structure-starts-native-source-diff
+          name: pletzel-v4-native-vanilla-loading-source-diff
           path: |
             logs/pletzel-v4-integrated-native-source.diff.gz
             logs/native-source-diff-sha256.txt
@@ -368,7 +404,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-mac-structure-starts-wasm-modules
+          name: pletzel-v4-native-vanilla-loading-wasm-modules
           path: |
             engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
             engine/target_teavm_wasm_gc_mesh/build/generated/teavm/wasm-gc/mesh-worker.wasm
@@ -379,14 +415,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-mac-structure-starts-compile-logs
+          name: pletzel-v4-native-vanilla-loading-compile-logs
           path: logs/
           if-no-files-found: warn
       - name: Upload candidate only when compiler and linker succeed
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-mac-structure-starts-complete-html
+          name: pletzel-v4-native-vanilla-loading-complete-html
           path: |
             engine/${{ env.CANDIDATE }}
             engine/Pletzel-v4-compiled.wasm
