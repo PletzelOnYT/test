@@ -1,0 +1,45 @@
+name: Pletzel V4 - Validate new vault guard and remote future telemetry source (NO ENGINE BUILD)
+on:
+  push:
+    branches: [pletzel-v4-vault-teleport-preflight-ci]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  patch-structure-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Checkout cumulative combined V4 source patches
+        uses: actions/checkout@v4
+      - name: Checkout identical pinned vanilla 26.2 engine
+        uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+      - name: Apply only staged vault and teleport diagnostics and verify anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-vault-full-neighbor-guard.py pletzel-v4/trace-remote-full-future.py
+          python3 pletzel-v4/repair-vault-full-neighbor-guard.py engine
+          python3 pletzel-v4/trace-remote-full-future.py engine
+          grep -F 'eaglerDescribeFutures' engine/game/src/main/java/net/minecraft/server/level/GenerationChunkHolder.java
+          grep -F 'eaglerDescribeTask' engine/game/src/main/java/net/minecraft/server/level/ChunkGenerationTask.java
+          grep -F 'getChunkNow(cx, cz)' engine/game/src/main/java/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
+          grep -F 'eaglerTracePendingTeleports' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          git -C engine diff --check
+          git -C engine diff --stat | tee source-patch-stat.txt
+          git -C engine diff | gzip -9 > staged-source-diff.patch.gz
+          sha256sum staged-source-diff.patch.gz | tee staged-source-diff.sha256
+      - name: Archive exact reproducible source patch diff; not a game build
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-teleport-vault-source-preflight
+          path: |
+            staged-source-diff.patch.gz
+            staged-source-diff.sha256
+            source-patch-stat.txt
+          retention-days: 30
+          if-no-files-found: error
