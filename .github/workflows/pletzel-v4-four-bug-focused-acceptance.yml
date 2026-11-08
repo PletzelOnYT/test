@@ -153,10 +153,22 @@ jobs:
             python3 - <<'PY'
           import json
           d=json.load(open("profile-model-evidence/results.json"))
-          assert len(d["screens"])==10
-          assert not d["page_errors"]
-          assert all(m["changed_pixels"]>=100 for m in d["model_widget_pixel_differences"].values())
-          print("Real Steve/Alex GUI + multiplayer menu screenshots saved; manual review still required")
+          expected={
+            "01-original-profile-and-selected-preset",
+            "02-model-chooser-open-on-preset",
+            "03-native-alex-model-selected",
+            "04-native-model-chooser-reopened",
+            "05-native-steve-model-selected",
+            "06-native-chooser-still-accessible",
+            "07-chooser-exit-preserves-selection",
+          }
+          actual=set(d["screens"])
+          assert actual==expected, {"missing":sorted(expected-actual),"unexpected":sorted(actual-expected)}
+          assert not d["page_errors"] and d["error"] is None, d.get("error")
+          metrics=d["model_widget_pixel_differences"]
+          for key in ("model_button_visible_vs_chooser","alex_selected_vs_steve_selected"):
+            assert key in metrics and metrics[key]["changed_pixels"]>=100, (key,metrics.get(key))
+          print("HARNESS_PASS: 7 actual screenshots and visible GUI changes; human model/arm review still required")
           PY
           elif [ "$TEST_KIND" = wake-loss ]; then
             python3 - <<'PY'
