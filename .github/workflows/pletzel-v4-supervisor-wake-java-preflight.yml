@@ -1,7 +1,7 @@
 name: Pletzel V4 - Compile shared/TeaVM native platform contract and prove wake (NO WASM LINK)
 on:
   push:
-    branches: [pletzel-v4-supervisor-wake-java-preflight]
+    branches: [pletzel-v4-supervisor-wake-java-preflight-v2]
   workflow_dispatch:
 permissions:
   contents: read
