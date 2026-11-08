@@ -48,7 +48,7 @@
   function takeNativeLog(level, args) {
     if (!enabled) return;
     const text = args.map(a => typeof a === 'string' ? a : a && a.message ? a.message : typeof a).join(' ');
-    const diagnostic = /\[(?:EagPerf(?:Client|Heartbeat|ChunkWait)?|Pletzel(?:ActiveChunkWait|WakeRescue26|TeleportTrace)|.*(?:WebGL|WebGPU|WASM))\]/i.test(text);
+    const diagnostic = /\[(?:EagPerf(?:Client|Heartbeat|ChunkWait)?|Pletzel(?:ActiveChunkWait|WakeRescue26|TeleportTrace|PresentStall)|.*(?:WebGL|WebGPU|WASM))\]/i.test(text);
     if (diagnostic) {
       const v = clean(text);
       push(state.events, {at:date(),type:'native-'+level,detail:v});
