@@ -1,0 +1,113 @@
+name: Pletzel V4 - Exact trial vs trial+villager gameplay verification (NO COMPILATION)
+on:
+  push:
+    branches: [pletzel-v4-final-two-candidate-gameplay-tests]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-binary-chromium:
+    name: \${{ matrix.variant }} / \${{ matrix.test }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 29
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [trial, combined]
+        test: [survival, onecpu, teleport, chicken, lifecycle, schematica]
+    env:
+      VARIANT: \${{ matrix.variant }}
+      TEST_KIND: \${{ matrix.test }}
+      GAMEPLAY_SECONDS: '195'
+      CPU_SLOWDOWN: '1'
+      PIN_ONE_CPU: \${{ matrix.test == 'onecpu' && '1' || '0' }}
+    steps:
+      - name: Checkout existing browser harness, not engine source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recover exact immutable precompiled candidate and SHA-256 check
+        env:
+          GH_TOKEN: \${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$VARIANT" in
+            trial)
+              run=42427945133
+              artifact=pletzel-v4-trial-spawner-guard-html-candidate
+              sha=f06b180cd3dc21f1e9c5b4846873b57d4d784e6a4e176275a30920eade91afd8
+              integration=2c24bd74bb8f26adee215fe0971b700ef13ff0ea
+              ;;
+            combined)
+              run=42428948452
+              artifact=pletzel-v4-trial-villager-guard-html-candidate
+              sha=4bcc2a96cb8f5a51ec937578e6539f5cd374ac375fb3e3d576de864f40a42a5a
+              integration=5bf7076d9ff3e68165dd9dcaa548bbd52d99742f
+              ;;
+            *) echo "Unknown variant" >&2; exit 1;;
+          esac
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          mapfile -t htmls < <(find candidate -type f -name '*.html')
+          test "\${#htmls[@]}" -eq 1
+          printf '%s  %s\n' "$sha" "\${htmls[0]}" | sha256sum -c -
+          test "$(stat -c '%s' "\${htmls[0]}")" -gt 85000000
+          sha256sum "\${htmls[0]}" | tee candidate-sha256.txt
+          python3 - "$run" "$artifact" "$sha" "$integration" <<'PY'
+          import json,sys
+          run,artifact,sha,commit=sys.argv[1:]
+          with open("candidate-identity.json","w") as f:
+              json.dump(dict(build_run=int(run),artifact=artifact,html_sha256=sha,
+                integration_commit=commit,pinned_upstream="f73bff91f0f0840bc958c09ab536dbba1e146b2e",
+                binary_modified=False,verification_kind="actual browser gameplay"),f,indent=2)
+          PY
+          grep -Fa 'Optimized by Pletzel' "\${htmls[0]}" >/dev/null
+      - name: Install Chromium, WebGL2 software renderer and IndexedDB support
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Execute independent actual compiled HTML in real Chromium
+        shell: bash
+        run: |
+          set -o pipefail
+          case "$TEST_KIND" in
+            survival|onecpu) script=pletzel-v4-singleplayer-pressure.py ;;
+            teleport) script=pletzel-v4-client-teleport-sync-diagnostic.py ;;
+            chicken) script=pletzel-v4-player-hit-arena-v3.py ;;
+            lifecycle) script=pletzel-v4-lifecycle.py ;;
+            schematica) script=pletzel-v4-inworld-schematica-test.py ;;
+            *) echo "Unknown test: $TEST_KIND" >&2; exit 3 ;;
+          esac
+          echo "TESTING EXACT ORIGINAL CANDIDATE $VARIANT: $script"
+          xvfb-run -a -s '-screen 0 1280x720x24' python "$script" 2>&1 | tee browser-console.log
+      - name: Aggregate measured TPS, stalls, packet backlog, and source evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 pletzel-v4/analyze-candidate-gameplay.py | tee test-analysis-console.log
+      - name: Publish screenshot proof and measured metrics even on test failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-guard-verify-\${{ matrix.variant }}-\${{ matrix.test }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            candidate-identity.json
+            candidate-sha256.txt
+            candidate-metrics.json
+            browser-console.log
+            test-analysis-console.log
+            singleplayer-pressure-evidence/
+            cheats-entity-evidence/
+            lifecycle-evidence/
+            inworld-schematic-evidence/
