@@ -59,6 +59,13 @@ try:
   for n in range(3):
    time.sleep(9)
    snap(f"11-ghost-stability-{n}")
+  # Collect different camera viewpoints while live ghost faces touch nearby
+  # ground. Evidence for depth-fighting under camera motion, not a synthetic
+  # static-image pass. Mouse motion after pointer lock changes native camera.
+  for i,(mx,my) in enumerate(((685,354),(595,345),(720,373),(630,388),(645,355),(690,371))):
+   page.mouse.move(mx,my)
+   page.wait_for_timeout(1600)
+   snap(f"11b-ghost-coplanar-camera-angle-{i}")
   page.keyboard.press("Escape");time.sleep(3)
   click(475,394,"12-reopen-options")
   click(880,578,"13-reopen-schematica")
