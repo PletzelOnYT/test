@@ -154,15 +154,20 @@ result={"traceEvents":[e for e in events if "[PletzelTeleportTrace]" in e.get("t
  "pageErrors":[e for e in events if e["kind"]=="pageerror"][-20:],
  "disclaimer":"The script sends vanilla spectator-mode and remote teleport commands to force new chunk generation, but command send != command success. Validate actual [CHAT] teleport acceptance, world seed screenshot, terrain screenshots and chunk telemetry before claiming exploration success."}
 # This is a real server-authoritative acceptance check, not a chat command claim.
-posx=[]
+posx=[];posz=[]
 for ev in events:
  m=re.search(r'Pos\[0\] on .+? after scale factor of 100\.00 is (-?\d+)',ev.get('text',''))
  if m:posx.append(int(m.group(1)))
+ m=re.search(r'Pos\[2\] on .+? after scale factor of 100\.00 is (-?\d+)',ev.get('text',''))
+ if m:posz.append(int(m.group(1)))
 result['server_player_x_samples_scaled100']=posx
+result['server_player_z_samples_scaled100']=posz
 result['first_destination_x_reached']=any(abs(x-9650)<=100 for x in posx)
 result['second_destination_x_reached']=bool(posx) and abs(posx[-1]-19250)<=100
-result['destination_x_reached']=result['first_destination_x_reached'] and result['second_destination_x_reached']
-result['destination_requirement']='Require BOTH x approximately 96.5 and 192.5 in order, plus F3 terrain render; /tp text alone is NOT acceptable'
+result['first_destination_xz_reached']=result['first_destination_x_reached'] and any(abs(z-9650)<=100 for z in posz)
+result['second_destination_xz_reached']=result['second_destination_x_reached'] and bool(posz) and abs(posz[-1]-19250)<=100
+result['destination_x_reached']=result['first_destination_xz_reached'] and result['second_destination_xz_reached']
+result['destination_requirement']='Require BOTH x/z (96.5,96.5) and (192.5,192.5) in order plus F3 terrain render; /tp text alone is NOT acceptable'
 (out/"result.json").write_text(json.dumps(result,indent=2))
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
 print("RESULT",json.dumps({"screens":len(shots),"commands":len(cmds),"chickenReports":len(chicken),"heartbeatCount":len(beats),"fault":fault})[:3000],flush=True)
