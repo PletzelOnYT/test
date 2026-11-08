@@ -68,4 +68,22 @@ new = '''\tprivate static void supervisorTick(boolean sleepWhenIdle) {
 \t\t// The supervisor remains schedulable while the vanilla server coroutine is'''
 assert text.count(old)==1, "Pinned supervisor tick signature changed"
 engine.write_text(text.replace(old,new,1),encoding="utf-8")
+# The :game module compiles against the shared :platform API, never directly
+# against platform-teavm source. Expose the signature there and retain a
+# harmless desktop no-op so LWJGL stays compile-compatible.
+shared = root / "platform/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java"
+st = shared.read_text(encoding="utf-8")
+needle = "\tpublic static native void tickContinue(long millis);"
+if st.count(needle) != 1:raise AssertionError("missing shared platform tick continuation contract")
+st = st.replace(needle,needle+"\n\n\tpublic static native void recoverOverdueServerTick();",1)
+shared.write_text(st,encoding="utf-8")
+
+desktop = root / "platform-lwjgl/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java"
+st = desktop.read_text(encoding="utf-8")
+needle = "\tpublic static void tickContinue(long millis) {\n\t\tEagUtils.sleep(millis);\n\t}"
+if st.count(needle) != 1:raise AssertionError("missing LWJGL platform tick continuation anchor")
+st = st.replace(needle,needle+"\n\n\tpublic static void recoverOverdueServerTick() {\n\t\t// No browser worker or TeaVM coroutine on the desktop.\n\t}",1)
+desktop.write_text(st,encoding="utf-8")
+print("PATCHED: shared platform API + desktop harmless no-op, game Java can compile")
+
 print("PATCHED: real worker supervisor can deliver one-shot overdue TeaVM tick callback without timer/scheduler")
