@@ -1,0 +1,81 @@
+name: Pletzel V4 - Publish approved FINAL playable standalone HTML after strict multiseed QA
+on:
+  push:
+    branches: [pletzel-v4-wake-recovery-approved-final-preservation]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish-final:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Require exact compiled native source and all ten REAL browser acceptance jobs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          build=42495255001
+          tests=42495449273
+          test "$(gh api "repos/$repo/actions/runs/$build" --jq '.conclusion')" = success
+          test "$(gh api "repos/$repo/actions/runs/$build" --jq '.head_sha')" = 5e7cc25983b711947f6c06945ef6b067f0933426
+          test "$(gh api "repos/$repo/actions/runs/$tests" --jq '.conclusion')" = success
+          gh api "repos/$repo/actions/runs/$tests/jobs?per_page=100" > /tmp/jobs.json
+          python3 - <<'PY'
+          import json
+          jobs=json.load(open('/tmp/jobs.json'))['jobs']
+          expected=('survival','onecpu','remote','remote2','remote3','remote4','chicken','vault','lifecycle','schematica')
+          for x in expected:
+              matches=[j for j in jobs if j['name']==f'recovery / {x}']
+              assert len(matches)==1 and matches[0]['conclusion']=='success',(x,matches)
+          preflight=[j for j in jobs if j['name'].startswith('Verify EXACT')]
+          assert len(preflight)==1 and preflight[0]['conclusion']=='success'
+          print('All 10 strict gameplay jobs and exact immutable compiled-binary provenance passed')
+          PY
+      - name: Download ORIGINAL compiled HTML and compiler SHA, save exact FINAL file
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          mkdir -p raw logs source archive
+          gh run download 42495255001 -R "$repo" -n pletzel-v4-worker-wake-html-candidate -D raw
+          gh run download 42495255001 -R "$repo" -n pletzel-v4-worker-wake-compile-logs -D logs
+          gh run download 42495255001 -R "$repo" -n pletzel-v4-worker-wake-integrated-native-source-diff -D source
+          mapfile -t htmls < <(find raw -type f -name '*.html')
+          test "${#htmls[@]}" -eq 1
+          expected="$(awk '$2 ~ /\.html$/ {print $1}' logs/artifact-sha256.txt)"
+          test "${#expected}" -eq 64
+          cp "${htmls[0]}" archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html
+          printf '%s  %s\n' "$expected" archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html | sha256sum -c -
+          test "$(stat -c '%s' archive/eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE.html)" -gt 85000000
+          sha256sum archive/*.html > archive/FINAL-PLAYABLE-sha256.txt
+          cp logs/artifact-sha256.txt archive/compiler-sha256.txt
+          cp source/pletzel-v4-integrated-native-source.diff.gz archive/
+          cp source/native-source-diff-sha256.txt archive/
+          cat > archive/BUILD-AND-QA.txt <<'TEXT'
+          PLETZEL V4 26.2 - approved standalone browser HTML.
+          Compile: PletzelOnYT/test Actions run 42495255001, commit 5e7cc25983b711947f6c06945ef6b067f0933426.
+          Strict exact-binary Chromium gameplay: Actions run 42495449273.
+          Tests: 195s Survival, one-CPU, chicken real hit+knockback,
+          native Vault key/reward, save/reopen, native Schematica, 
+          remote FULL chunk exploration on 3 seeds plus a repeated original seed.
+          Includes native 26.2 IPC stage-color/progress screen,
+          original Pletzel keyboard and Schematica mods, genuine sound assets,
+          prior async worldgen scheduling and Vault/Trial/Villager guards, and
+          a one-shot hosted-server async tick scheduler liveness fallback.
+          Distinct worldgen sculk write-radius cross-chunk READ warnings and
+          constrained device startup time remain documented in issue 1.
+          Reproducible native source patch is included in this artifact.
+          Evidence: https://github.com/PletzelOnYT/test/issues/1
+          TEXT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eaglercraft-26.2-Pletzel-v4-FINAL-PLAYABLE
+          path: archive/
+          retention-days: 90
+          if-no-files-found: error
