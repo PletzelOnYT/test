@@ -31,8 +31,8 @@ new="""   @Override
             && net.lax1dude.eaglercraft.v1_8.EagRuntime.getPlatformType()
                  != net.lax1dude.eaglercraft.v1_8.internal.EnumPlatformType.DESKTOP) {
          net.minecraft.world.level.ChunkPos center = this.chunkPosition();
-         for (int cx = center.x - 3; cx <= center.x + 3; ++cx) {
-            for (int cz = center.z - 3; cz <= center.z + 3; ++cz) {
+         for (int cx = center.x() - 3; cx <= center.x() + 3; ++cx) {
+            for (int cz = center.z() - 3; cz <= center.z() + 3; ++cz) {
                if (level.getChunkSource().getChunkNow(cx, cz) == null) {
                   return;
                }
