@@ -195,6 +195,16 @@ jobs:
           python3 pletzel-v4/repair-vault-full-neighbor-guard.py engine 2>&1 | tee logs/vault-neighbor-guard.log
           grep -Fq 'serverLevel.getChunkSource().getChunkNow(cx, cz) == null' engine/game/src/main/java/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
           git -C engine diff --check
+      - name: Save complete integrated native source patch and precise provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C engine diff --check
+          git -C engine diff --binary | gzip -9 > logs/pletzel-v4-integrated-native-source.diff.gz
+          git -C engine status --short > logs/source-change-manifest.txt
+          git -C engine rev-parse HEAD > logs/pinned-source-commit.txt
+          sha256sum logs/pletzel-v4-integrated-native-source.diff.gz | tee logs/native-source-diff-sha256.txt
+          test -s logs/pletzel-v4-integrated-native-source.diff.gz
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
@@ -280,6 +290,18 @@ jobs:
           cp "$wasm" engine/Pletzel-v4-compiled.wasm
           test -s "engine/$CANDIDATE"
           sha256sum "$wasm" "engine/$CANDIDATE" | tee logs/artifact-sha256.txt
+      - name: Preserve complete build-reproducible integrated source diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-final-integrated-native-source-diff
+          path: |
+            logs/pletzel-v4-integrated-native-source.diff.gz
+            logs/native-source-diff-sha256.txt
+            logs/source-change-manifest.txt
+            logs/pinned-source-commit.txt
+          retention-days: 90
+          if-no-files-found: warn
       - name: Preserve generated Wasm even if packaging fails
         if: always()
         uses: actions/upload-artifact@v4
