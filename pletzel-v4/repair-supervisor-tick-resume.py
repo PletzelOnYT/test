@@ -72,11 +72,14 @@ engine.write_text(text.replace(old,new,1),encoding="utf-8")
 # against platform-teavm source. Expose the signature there and retain a
 # harmless desktop no-op so LWJGL stays compile-compatible.
 shared = root / "platform/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java"
-st = shared.read_text(encoding="utf-8")
-needle = "\tpublic static native void tickContinue(long millis);"
+# Shared :platform file retains upstream CRLF and existing whitespace.
+# Read/replace BYTES to avoid rewriting all 70 legacy lines as new LF lines,
+# which makes git diff --check expose unrelated original comment whitespace.
+st = shared.read_bytes()
+needle = b"\tpublic static native void tickContinue(long millis);"
 if st.count(needle) != 1:raise AssertionError("missing shared platform tick continuation contract")
-st = st.replace(needle,needle+"\n\n\tpublic static native void recoverOverdueServerTick();",1)
-shared.write_text(st,encoding="utf-8")
+st = st.replace(needle,needle+b"\n\n\tpublic static native void recoverOverdueServerTick();",1)
+shared.write_bytes(st)
 
 desktop = root / "platform-lwjgl/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java"
 st = desktop.read_text(encoding="utf-8")
