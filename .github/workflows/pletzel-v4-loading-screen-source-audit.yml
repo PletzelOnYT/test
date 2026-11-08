@@ -1,0 +1,35 @@
+name: Pletzel V4 - Inspect authentic 26.2 chunk-status IPC and loading source (NO BUILD)
+on:
+  push:
+    branches: [pletzel-v4-loading-screen-source-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  examine-native-26-2-loading:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode existing source patch without modifying game or compiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit
+          python3 - <<'PY'
+          import gzip,base64,hashlib
+          from pathlib import Path
+          source=base64.b64decode(Path('pletzel-v4/real-chunk-grid.py.gz.b64').read_text().strip())
+          decoded=gzip.decompress(source)
+          Path('audit/real-chunk-grid.py').write_bytes(decoded)
+          Path('audit/patch-sha256.txt').write_text(hashlib.sha256(decoded).hexdigest()+'  real-chunk-grid.py\n')
+          print('Real chunk-status source decoded bytes',len(decoded))
+          PY
+          python3 -m py_compile audit/real-chunk-grid.py
+          grep -n -E 'IPCPacket23ChunkStatusGrid|ChunkStatus|LevelLoadingScreen|chunk|fill|Color|Stage' audit/real-chunk-grid.py | head -80 | tee audit/loading-methods.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-native-loading-screen-source-audit
+          path: audit/
+          retention-days: 30
+          if-no-files-found: error
