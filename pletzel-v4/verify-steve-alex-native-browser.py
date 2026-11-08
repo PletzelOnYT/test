@@ -45,6 +45,12 @@ try:
   snap("06-native-chooser-still-accessible")
   page.keyboard.press("Escape");page.wait_for_timeout(2300)
   snap("07-chooser-exit-preserves-selection")
+  page.mouse.click(637,616);page.wait_for_timeout(3300)
+  snap("08-profile-done-or-default-name-warning")
+  page.mouse.click(637,572);page.wait_for_timeout(3800)
+  snap("09-main-menu-after-model-save")
+  page.mouse.click(637,425);page.wait_for_timeout(4800)
+  snap("10-original-multiplayer-server-list")
   browser.close()
 except Exception:
  fault=traceback.format_exc();print(fault[-3500:],flush=True)
@@ -64,7 +70,7 @@ result={"screens":screens,"model_widget_pixel_differences":metrics,"page_errors"
 (out/"results.json").write_text(json.dumps(result,indent=2))
 (out/"console.json").write_text(json.dumps(events,indent=2))
 print("PROFILE_EVIDENCE",json.dumps(result),flush=True)
-if fault or len(screens)!=7 or result["page_errors"]:sys.exit(2)
+if fault or len(screens)!=10 or result["page_errors"]:sys.exit(2)
 for name,m in metrics.items():
  if m["changed_pixels"]<100:
   raise SystemExit("No visible button or model change in region: "+name)
