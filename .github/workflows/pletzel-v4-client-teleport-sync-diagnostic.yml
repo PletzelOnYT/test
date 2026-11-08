@@ -1,0 +1,68 @@
+name: Pletzel V4 - Compare server XYZ with client F3 after teleports
+on:
+  push:
+    branches: [pletzel-v4-client-teleport-sync-diagnostic]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  vanilla-teleport-exploration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [fair, stream]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact already compiled binary with SHA check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$VARIANT" = fair ]; then
+            run=42420884116
+            artifact=pletzel-v4-fair-slices-html-candidate
+            sha=32ac8e26581ac373f1b5f9f9e5e25a7eb59752a829f011a968c32cf7b3f7fa6f
+          else
+            run=42421588633
+            artifact=pletzel-v4-stream-backpressure-html-candidate
+            sha=2c7de33e3b455b6c2bbca67f67963bf13cd81c04a468aa2de242ec12f8003b4d
+          fi
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          mapfile -t files < <(find candidate -type f -name '*.html')
+          test "${#files[@]}" -eq 1
+          printf '%s  %s\n' "$sha" "${files[0]}" | sha256sum --check
+          sha256sum "${files[0]}" > candidate-sha256.txt
+      - name: Install real Chromium WebGL2 and IndexedDB
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Create Survival with seed attempt, switch creative, teleport into NEW chunk regions
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-client-teleport-sync-diagnostic.py 2>&1 | tee exploration-console.log
+      - name: Upload unchanged binary identity and full visual/console evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-client-teleport-sync-${{ matrix.variant }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            candidate-sha256.txt
+            exploration-console.log
+            cheats-entity-evidence/
