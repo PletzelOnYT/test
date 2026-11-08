@@ -22,7 +22,7 @@ async function scenario(name,scheduler,expectedDelayMax,expectedDelayMin=0){
  let wakeCount=0;const started=Date.now();
  const context={globalThis:{scheduler,setTimeout,clearTimeout},handler:()=>{wakeCount++;},
      millis:10};
- vm.runInNewContext(js,context,{timeout:2000});
+ vm.runInNewContext("(function(){"+js+"})()",context,{timeout:2000});
  await sleep(165);
  const elapsed=Date.now()-started;
  assert.equal(wakeCount,1,name+' must wake exactly once');
