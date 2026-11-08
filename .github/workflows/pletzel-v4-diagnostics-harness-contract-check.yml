@@ -1,0 +1,43 @@
+name: Pletzel V4 - Correct old 7-screen Steve/Alex test gate using already-recorded evidence (NO GAME BUILD)
+on:
+  push:
+    branches: [pletzel-v4-mac-field-diagnostics-harness]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  existing-skin-evidence-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover EXACT recorded seven native GUI frames, not a new game session
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 42510042057 -R "$GITHUB_REPOSITORY" -n pletzel-v4-four-bug-focused-skin-model -D previous-evidence
+          test -s previous-evidence/profile-model-evidence/results.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('previous-evidence/profile-model-evidence')
+          d=json.loads((p/'results.json').read_text())
+          expected=['01-original-profile-and-selected-preset','02-model-chooser-open-on-preset','03-native-alex-model-selected',
+                    '04-native-model-chooser-reopened','05-native-steve-model-selected',
+                    '06-native-chooser-still-accessible','07-chooser-exit-preserves-selection']
+          assert d['screens']==expected,('HARNESS_ERROR',d['screens'])
+          assert all((p/(n+'.png')).stat().st_size>1000 for n in expected)
+          assert not d.get('page_errors') and d.get('error') is None
+          metrics=d['model_widget_pixel_differences']
+          assert metrics['model_button_visible_vs_chooser']['changed_pixels']>100
+          assert metrics['alex_selected_vs_steve_selected']['changed_pixels']>100
+          print('HARNESS_ERROR in prior run: 10 was falsely expected, 7 real images were saved.')
+          print('RECORDED_GUI_EVIDENCE_VALID: 7 named images, screen changes, no page errors.')
+          print('MANUAL_REQUIRED: verify physical wide/slim arm shape and persistence.')
+          PY
+      - name: Syntax-check opt-in HTML injection installer
+        run: |
+          python3 -m py_compile pletzel-v4/field-diagnostics/inject.py
