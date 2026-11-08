@@ -76,6 +76,10 @@ jobs:
       - name: Aggregate real heartbeat TPS, queue, chunk stalls and exception data
         if: always()
         run: python vault-acceptance/analyze-candidate-gameplay.py | tee test-analysis-console.log
+      - name: Apply strict server-authoritative gameplay and stall acceptance gate
+        shell: bash
+        run: |
+          python vault-acceptance/strict-evidence-gate.py | tee strict-evidence-console.log
       - name: Keep raw screenshots and logs even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -89,6 +93,8 @@ jobs:
             candidate-metrics.json
             browser-console.log
             test-analysis-console.log
+            strict-evidence-console.log
+            strict-evidence-gate.json
             singleplayer-pressure-evidence/
             cheats-entity-evidence/
             lifecycle-evidence/
