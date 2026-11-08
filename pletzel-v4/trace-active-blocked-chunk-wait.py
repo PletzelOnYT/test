@@ -55,20 +55,6 @@ src=src[:start]+src[start:].replace(needle,insert,1)
 perf.write_text(src,encoding="utf8")
 chunk=root/"net/minecraft/server/level/ServerChunkCache.java"
 s=chunk.read_text(encoding="utf8")
-old="\n      this.mainThreadProcessor.managedBlock(serverFuture::isDone);"
-new="""      if (eaglerPerf) {
-         net.lax1dude.eaglercraft.v1_8.sp.server.EaglerServerPerf.beginBlockingChunkWait(
-            targetStatus.toString(), x, z, loadOrGenerate);
-      }
-      try {
-         this.mainThreadProcessor.managedBlock(serverFuture::isDone);
-      } finally {
-         if (eaglerPerf) {
-            net.lax1dude.eaglercraft.v1_8.sp.server.EaglerServerPerf.finishBlockingChunkWait();
-         }
-      }"""
-assert s.count(old)==1,"main getChunk managedBlock source mismatch"
-s=s.replace(old,new,1)
 old="\n         this.mainThreadProcessor.managedBlock(serverFuture::isDone);"
 new="""         if (eaglerPerf) {
             net.lax1dude.eaglercraft.v1_8.sp.server.EaglerServerPerf.beginBlockingChunkWait(
@@ -82,6 +68,20 @@ new="""         if (eaglerPerf) {
             }
          }"""
 assert s.count(old)==1,"getChunkFuture managedBlock source mismatch"
+s=s.replace(old,new,1)
+old="\n      this.mainThreadProcessor.managedBlock(serverFuture::isDone);"
+new="""      if (eaglerPerf) {
+         net.lax1dude.eaglercraft.v1_8.sp.server.EaglerServerPerf.beginBlockingChunkWait(
+            targetStatus.toString(), x, z, loadOrGenerate);
+      }
+      try {
+         this.mainThreadProcessor.managedBlock(serverFuture::isDone);
+      } finally {
+         if (eaglerPerf) {
+            net.lax1dude.eaglercraft.v1_8.sp.server.EaglerServerPerf.finishBlockingChunkWait();
+         }
+      }"""
+assert s.count(old)==1,"main getChunk managedBlock source mismatch"
 s=s.replace(old,new,1)
 chunk.write_text(s,encoding="utf8")
 print("PATCHED: worker heartbeat will expose exact pending blocking chunk during STALLED state")
