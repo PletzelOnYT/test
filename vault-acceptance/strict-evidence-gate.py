@@ -34,9 +34,17 @@ if kind in ("survival","onecpu"):
  details["max_vault_sync_wait_ms"]=max((v for v,s in waits if "callerType=minecraft:vault" in s),default=0)
  details["max_active_blockentity_sync_wait_ms"]=max((v for v,s in waits if "phase=levels.blockEntities" in s),default=0)
  if details["max_vault_sync_wait_ms"]>=1000:fail("VAULT still blocks integrated server for >=1000ms")
+ active_wait=[]
+ for event in events:
+  m=re.search(r"\\[EagPerfHeartbeat\\].*?\\blastTick=(\\d+).*?\\bsinceCompleted=(\\d+)ms",text(event))
+  if m and int(m.group(1))>=40:active_wait.append(int(m.group(2)))
+ details["max_post_entry_since_completed_ms"]=max(active_wait,default=None)
+ if details["max_post_entry_since_completed_ms"] is None:fail("missing active server heartbeat")
+ elif details["max_post_entry_since_completed_ms"]>=2000:fail("active gameplay server failed to complete a tick for >=2 seconds")
+
  if details["max_active_blockentity_sync_wait_ms"]>=2000:fail("block entity still synchronously blocks a server tick >=2000ms")
  if any(e.get("kind")=="pageerror" for e in events):fail("browser JavaScript pageerror")
-elif kind in ("remote","remote2"):
+elif kind in ("remote","remote2","remote3","remote4"):
  result=json.loads((evidence_dir/"result.json").read_text())
  details["actual_authoritative_player_x_samples"]=result.get("server_player_x_samples_scaled100")
  details["actual_authoritative_player_z_samples"]=result.get("server_player_z_samples_scaled100")
@@ -49,6 +57,17 @@ elif kind in ("remote","remote2"):
  details["server_tick_samples"]=len(ticks)
  details["server_tick_progression"]=ticks[-1][1]-ticks[0][1] if len(ticks)>1 else 0
  if details["server_tick_progression"]<1000:fail("server did not advance at least 1000 real ticks during distant chunk test")
+ # An async FULL future may strand the server *between ticks* without an active
+ # worldgen runner. Gate on actual supervisor heartbeat after world entry;
+ # neither GUI TPS nor premature teleport chat is accepted as progress.
+ stalls=[]
+ for event in events:
+  m=re.search(r"\\[EagPerfHeartbeat\\].*?\\blastTick=(\\d+).*?\\bsinceCompleted=(\\d+)ms",text(event))
+  if m and int(m.group(1))>=40:stalls.append((int(m.group(2)),float(event.get("t",0))))
+ details["max_post_entry_since_completed_ms"]=max((n for n,_ in stalls),default=None)
+ if details["max_post_entry_since_completed_ms"] is None:fail("no post-entry heartbeat with real server tick counters")
+ elif details["max_post_entry_since_completed_ms"]>=2000:fail("SERVER STALLED between actual ticks for >=2 seconds during remote FULL chunk generation")
+
  if any(e.get("kind")=="pageerror" for e in events):fail("Chromium uncaught error during distant chunk generation")
 elif kind=="chicken":
  attack=[e for e in events if "[EagActionTrace]" in text(e)
