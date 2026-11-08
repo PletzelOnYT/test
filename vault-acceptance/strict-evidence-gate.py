@@ -36,7 +36,7 @@ if kind in ("survival","onecpu"):
  if details["max_vault_sync_wait_ms"]>=1000:fail("VAULT still blocks integrated server for >=1000ms")
  active_wait=[]
  for event in events:
-  m=re.search(r"\\[EagPerfHeartbeat\\].*?\\blastTick=(\\d+).*?\\bsinceCompleted=(\\d+)ms",text(event))
+  m=re.search(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+).*?\bsinceCompleted=(\d+)ms",text(event))
   if m and int(m.group(1))>=40:active_wait.append(int(m.group(2)))
  details["max_post_entry_since_completed_ms"]=max(active_wait,default=None)
  if details["max_post_entry_since_completed_ms"] is None:fail("missing active server heartbeat")
@@ -62,7 +62,7 @@ elif kind in ("remote","remote2","remote3","remote4"):
  # neither GUI TPS nor premature teleport chat is accepted as progress.
  stalls=[]
  for event in events:
-  m=re.search(r"\\[EagPerfHeartbeat\\].*?\\blastTick=(\\d+).*?\\bsinceCompleted=(\\d+)ms",text(event))
+  m=re.search(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+).*?\bsinceCompleted=(\d+)ms",text(event))
   if m and int(m.group(1))>=40:stalls.append((int(m.group(2)),float(event.get("t",0))))
  details["max_post_entry_since_completed_ms"]=max((n for n,_ in stalls),default=None)
  if details["max_post_entry_since_completed_ms"] is None:fail("no post-entry heartbeat with real server tick counters")
