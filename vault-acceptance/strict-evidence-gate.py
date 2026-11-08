@@ -62,16 +62,19 @@ elif kind=="chicken":
 elif kind=="vault":
  assertions=json.loads((evidence_dir/"vault-assertions.json").read_text())
  details["vault_active_evidence"]=assertions.get("vault_active_evidence",False)
- details["unlocking_chat_event"]="PLETZEL_VAULT_UNLOCKING" in logtext
- details["ejecting_chat_event"]="PLETZEL_VAULT_EJECTING" in logtext
- details["reward_item_event"]="PLETZEL_VAULT_DROPPED_ITEM" in logtext
- if not assertions.get("vault_active_evidence"):fail("Vault failed to activate near a real player")
- if not (details["unlocking_chat_event"] or details["ejecting_chat_event"]):
-  fail("Vault did not enter expected unlocking/ejecting state following trial-key rightclick")
- if not details["reward_item_event"]:fail("Vault reward item not observed by vanilla item-entity query")
+ details["trial_key_unlock_advancement"]=assertions.get("authentic_trial_key_advancement",False)
+ details["reward_item_event"]=assertions.get("server_verified_reward_entity",False)
+ # A broken /execute block-state property can echo a marker inside red syntax
+ # errors, producing a FALSE PASS. Genuine /say outputs have a player-prefix
+ # chat message and are counted by the browser script, never by substring.
+ if any("does not have property" in text(e) or "<--[" in text(e) for e in events):
+  fail("invalid vault block property or command-syntax error in recorded world")
+ if not details["vault_active_evidence"]:fail("Vault never entered native ACTIVE block state")
+ if not details["trial_key_unlock_advancement"]:fail("no real trial-key Under Lock and Key advancement")
+ if not details["reward_item_event"]:fail("no actual item entity observed after vault reward ejection")
  waits=[(int(m.group(1)),text(e)) for e in events if "[EagPerfChunkWait]" in text(e)
         if (m:=re.search(r"elapsed=(\d+)ms",text(e)))]
- details["max_vault_sync_wait_ms"]=max((v for v,s in waits if "callerType=minecraft:vault" in s),default=0)
+ details["max_vault_sync_wait_ms"]=max((v for v,t in waits if "callerType=minecraft:vault" in t),default=0)
  if details["max_vault_sync_wait_ms"]>=1000:fail("vault block entity synchronous FULL wait >=1000ms")
 elif kind=="lifecycle":
  if not Path("lifecycle-evidence/records.json").exists():fail("missing save/reopen raw lifecycle records")
