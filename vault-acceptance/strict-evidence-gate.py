@@ -24,7 +24,7 @@ if kind in ("survival","onecpu"):
  if len(active_tick)>=2:
   duration=active_tick[-1][0]-active_tick[0][0];tps=(active_tick[-1][1]-active_tick[0][1])/duration if duration>0 else 0
   details["wallclock_average_tps"]=round(tps,3)
-  if tps < (10 if kind=="onecpu" else 17):fail(f"measured TPS below acceptance threshold: {tps:.2f}")
+  if tps < (13 if kind=="onecpu" else 17):fail(f"measured TPS below acceptance threshold: {tps:.2f}")
  waits=[]
  for e in events:
   t=text(e)
@@ -36,14 +36,20 @@ if kind in ("survival","onecpu"):
  if details["max_vault_sync_wait_ms"]>=1000:fail("VAULT still blocks integrated server for >=1000ms")
  if details["max_active_blockentity_sync_wait_ms"]>=2000:fail("block entity still synchronously blocks a server tick >=2000ms")
  if any(e.get("kind")=="pageerror" for e in events):fail("browser JavaScript pageerror")
-elif kind=="remote":
+elif kind in ("remote","remote2"):
  result=json.loads((evidence_dir/"result.json").read_text())
  details["actual_authoritative_player_x_samples"]=result.get("server_player_x_samples_scaled100")
- details["teleport_future_trace_count"]=len(result.get("traceEvents",[]))
- if not result.get("destination_x_reached"):fail("server authoritative X coordinate never reached x=96.5")
- # F3 client XYZ, chunk visibility, sky/terrain completeness require screenshots.
- if len(result.get("screenshots",[]))<10:fail("insufficient interval screenshots to assess terrain")
- if "[PletzelTeleportTrace] QUEUED" not in logtext:fail("compiled diagnostic module did not log start of remote FULL request")
+ details["actual_authoritative_player_z_samples"]=result.get("server_player_z_samples_scaled100")
+ details["first_destination_xz_reached"]=result.get("first_destination_xz_reached",False)
+ details["second_destination_xz_reached"]=result.get("second_destination_xz_reached",False)
+ if not result.get("first_destination_xz_reached"):fail("first distant server X/Z did not reach 96.5,96.5")
+ if not result.get("second_destination_xz_reached"):fail("second distant server X/Z did not reach 192.5,192.5")
+ if len(result.get("screenshots",[]))<14:fail("missing remote F3 and terrain screenshots")
+ ticks=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
+ details["server_tick_samples"]=len(ticks)
+ details["server_tick_progression"]=ticks[-1][1]-ticks[0][1] if len(ticks)>1 else 0
+ if details["server_tick_progression"]<1000:fail("server did not advance at least 1000 real ticks during distant chunk test")
+ if any(e.get("kind")=="pageerror" for e in events):fail("Chromium uncaught error during distant chunk generation")
 elif kind=="chicken":
  attack=[e for e in events if "[EagActionTrace]" in text(e)
          and "action=attack" in text(e) and "stage=handler_complete" in text(e)
@@ -77,7 +83,18 @@ elif kind=="vault":
  details["max_vault_sync_wait_ms"]=max((v for v,t in waits if "callerType=minecraft:vault" in t),default=0)
  if details["max_vault_sync_wait_ms"]>=1000:fail("vault block entity synchronous FULL wait >=1000ms")
 elif kind=="lifecycle":
- if not Path("lifecycle-evidence/records.json").exists():fail("missing save/reopen raw lifecycle records")
+ p=Path("lifecycle-evidence/records.json")
+ if not p.exists():fail("missing save/reopen raw lifecycle records")
+ else:
+  d=json.loads(p.read_text())
+  lines="\n".join(e.get("text","") for e in d.get("events",[]))
+  details["integrated_world_loads"]=lines.count("data loaded; spinning integrated server core")
+  details["recorded_world_joins"]=lines.count(" joined the game")
+  details["saved_dimensions_confirmations"]=lines.count("All dimensions are saved")
+  if details["integrated_world_loads"]<2:fail("did not actually load the existing saved world twice")
+  if details["recorded_world_joins"]<2:fail("player did not rejoin after reopening same world")
+  if details["saved_dimensions_confirmations"]<1:fail("world save did not complete")
+  if "08-reopened-world-running" not in d.get("screens",[]):fail("no visual evidence of reopened world running")
 elif kind=="schematica":
  p=Path("inworld-schematic-evidence/results.json")
  if not p.exists():fail("missing Schematica results")
