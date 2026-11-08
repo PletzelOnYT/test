@@ -13,6 +13,8 @@ files={
  "survival":"singleplayer-pressure-evidence/events.json",
  "onecpu":"singleplayer-pressure-evidence/events.json",
  "teleport":"cheats-entity-evidence/all-events.json",
+ "remote":"cheats-entity-evidence/all-events.json",
+ "vault":"cheats-entity-evidence/all-events.json",
  "chicken":"cheats-entity-evidence/all-events.json",
  "lifecycle":"lifecycle-evidence/records.json",
  "schematica":"inworld-schematic-evidence/full-console.json",
