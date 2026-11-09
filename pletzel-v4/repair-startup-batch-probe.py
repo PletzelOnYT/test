@@ -23,7 +23,7 @@ def edit(rel, pairs):
             # visually aligned using spaces for readability. Match exact
             # indentation after converting whole leading 4-space groups.
             import re
-            old=re.sub(r"(?m)^( +)", lambda m: "\\t" * (len(m.group(1)) // 4) + " " * (len(m.group(1)) % 4), old)
+            old=re.sub(r"(?m)^( +)", lambda m: "\t" * (len(m.group(1)) // 4) + " " * (len(m.group(1)) % 4), old)
             n=s.count(old)
         if n != 1:
             raise AssertionError(f"{rel}: {tag}: expected 1 anchor, got {n}")
