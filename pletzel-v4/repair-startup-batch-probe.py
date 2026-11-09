@@ -49,7 +49,10 @@ edit("net/lax1dude/eaglercraft/v1_8/sp/server/EaglerWorldgenExecutor.java",[
             boolean resumedFromIdle = false;""",
 """Runnable command;
             long enqueuedAt;
+            boolean pickedPriority;
             boolean resumedFromIdle = false;"""),
+("fix pickedPriority scope", """boolean pickedPriority;
+                if (!priorityQueue.isEmpty()""", """if (!priorityQueue.isEmpty()"""),
 ("priority queue timing", """command = priorityQueue.removeFirst();
                     priorityEnqueuedAt.removeFirst();""",
 """command = priorityQueue.removeFirst();
