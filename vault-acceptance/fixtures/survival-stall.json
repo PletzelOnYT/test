@@ -1,0 +1,12 @@
+[
+  {
+    "t": 49,
+    "kind": "log",
+    "text": "[00:45:15][Server thread/INFO][Minecraft]: [EagPerfChunkWait] elapsed=13438ms status=minecraft:full requested=0,0 load=true phase=idle callerKind=none callerType=none callerId=none callerChunk=0,0 thread=Server thread"
+  },
+  {
+    "t": 63.3,
+    "kind": "log",
+    "text": "[00:45:29][IntegratedServerWorker/INFO][Minecraft]: [EagPerfHeartbeat] steadyNow=41029ms lastTick=0 startedTick=1 progressed=false tickStartedAt=40872ms tickCompletedAt=7010ms sinceCompleted=34019ms activeTick=157ms phase=tickServer worldgenQueue=2 oldestQueueAge=0ms oldestQueueAt=41029ms activeWorldgen=0ms activeWorldgenAt=0ms priority=false claims=16403 tasks=35 workerMessageBatches=6 saveActive=false saveAge=0ms lastSaveAgo=14160ms saveStartedAt=0ms saveKind=world vfsActive=false vfsAge=0ms vfsStartedAt=0ms vfsWrites=22 vfsKind=savedData lastVfsAgo=14161ms entityProgress=0 entityType=none heapUsed=0B heapTotal=1073741824B heapMax=1073741824B gcCount=0 gcTime=0ms"
+  }
+]
