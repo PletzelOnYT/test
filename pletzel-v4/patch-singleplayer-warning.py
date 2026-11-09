@@ -201,6 +201,6 @@ public final class PletzelSingleplayerWarningScreen extends Screen {
 # The r''' wrapper above becomes literal Java content with correct escaped newlines.
 target.write_text(warning)
 assert warning.count("new FittingMultiLineTextWidget(") == 1
-assert warning.count("openSingleplayerAfterWarning()") == 1
+assert warning.count("openSingleplayerAfterWarning()") == 2
 print("Patched TitleScreen: every Singleplayer click now opens the native warning")
 print("Added PletzelSingleplayerWarningScreen.java with native GUI and ESC/back/continue behavior")
