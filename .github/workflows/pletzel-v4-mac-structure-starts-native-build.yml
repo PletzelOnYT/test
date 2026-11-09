@@ -1,7 +1,7 @@
-name: Pletzel V4 native vanilla 26.2 loading / truthful startup status experimental
+name: Pletzel V4 real FULL-chunk safe initial spawn native candidate
 on:
   push:
-    branches: [pletzel-v4-vanilla-loading-and-startup-evidence]
+    branches: [pletzel-v4-async-safe-spawn-candidate]
   workflow_dispatch:
 permissions:
   contents: read
@@ -259,6 +259,26 @@ jobs:
           grep -Fq 'spawn.validatedFullChunk' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
           grep -Fq 'eaglerStructureStartsAvailableWithoutBlocking' engine/game/src/main/java/net/minecraft/advancements/predicates/LocationPredicate.java
           grep -Fq 'fillToCurrentLayer' engine/game/src/main/java/net/minecraft/client/gui/screens/LevelLoadingScreen.java
+          git -C engine diff --check
+      - name: Defer browser initial spawn until genuine FULL chunks are ready and validate before server ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,gzip,hashlib
+          from pathlib import Path
+          encoded=Path('pletzel-v4/repair-browser-initial-spawn.py.gz.b64').read_text().strip()
+          script=gzip.decompress(base64.b64decode(encoded,validate=True))
+          expected='de09dcad69b44525a516e77d46949a97786340ec64225ac1f270b1c618baaa03'
+          assert hashlib.sha256(script).hexdigest()==expected, 'spawn patch changed unexpectedly'
+          Path('pletzel-v4/repair-browser-initial-spawn.py').write_bytes(script)
+          print('PINNED browser spawn patch SHA-256',expected)
+          PY
+          python3 -m py_compile pletzel-v4/repair-browser-initial-spawn.py
+          python3 pletzel-v4/repair-browser-initial-spawn.py engine 2>&1 | tee logs/safe-async-browser-spawn.log
+          grep -Fq 'eaglerFinishBrowserInitialSpawn' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'spawn.validatedAfterFull' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'ready.join(); // only an already-completed future' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
           git -C engine diff --check
       - name: Assert vanilla 26.2 color mapping and chunk stage order at SOURCE (not invented screenshot)
         shell: bash
