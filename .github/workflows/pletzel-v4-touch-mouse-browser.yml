@@ -20,7 +20,7 @@ jobs:
       - name: Recover exactly ONE compiled native warning plus touch/mouse binary
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           run=42721806044
