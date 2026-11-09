@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: pletzel-v4-startup-batch-acceptance-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   prepare-provenance:
     name: Verify EXACT new release-candidate compiled source and SHA
