@@ -1,0 +1,69 @@
+name: Pletzel V4 - strict gate regression from immutable compiled HTML (NO BUILD)
+on:
+  push:
+    branches: [pletzel-v4-strict-gate-proof]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  archived-evidence-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run exact recorded wait regression fixtures through analyzer and strict gate
+        run: |
+          set -euo pipefail
+          python -m unittest discover -v -s vault-acceptance -p 'test_evidence_metrics.py'
+      - name: Rerun parser and strict gate on two saved actual browser traces, WITHOUT a compile
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for kind in survival onecpu; do
+            dir="old-$kind"
+            mkdir -p "$dir"
+            gh run download 42541737782 -R "$GITHUB_REPOSITORY" -n "pletzel-v4-native-vanilla-loading-focused-$kind" -D "$dir"
+            (
+              cd "$dir"
+              export TEST_KIND="$kind"
+              export VARIANT="old-compiled-html-replay"
+              python "$GITHUB_WORKSPACE/vault-acceptance/analyze-candidate-gameplay.py" | tee replay-analyzer.log
+              set +e
+              python "$GITHUB_WORKSPACE/vault-acceptance/strict-evidence-gate.py" | tee replay-strict-gate.log
+              rc="$PIPESTATUS"
+              set -e
+              if test "$rc" -ne 2; then echo "::error::Old failing binary was not rejected ($kind exit=$rc)"; exit 2; fi
+              python - "$kind" <<'PY'
+          import json,sys
+          kind=sys.argv[1]
+          expected={'survival':(13438,34019),'onecpu':(22505,67215)}[kind]
+          metrics=json.load(open('candidate-metrics.json'))
+          gate=json.load(open('strict-evidence-gate.json'))
+          assert metrics.get('tested_binary_sha256')=='fcca6e26a94dd677eb65f378127e641313d3e9bc5dddc423728c162c2e7367b5',metrics.get('tested_binary_sha256')
+          assert gate['max_any_sync_chunk_wait_ms']==expected[0],gate
+          assert gate['max_since_completed_heartbeat_ms']==expected[1],gate
+          assert gate['automatic_gate_pass'] is False
+          assert len(gate['failures'])>=2
+          print('REAL HTML STALL DETECTED',kind,expected,gate['failures'])
+          PY
+            )
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: strict-gate-archived-html-evidence-proof-no-build
+          path: |
+            old-survival/replay-analyzer.log
+            old-survival/replay-strict-gate.log
+            old-survival/strict-evidence-gate.json
+            old-onecpu/replay-analyzer.log
+            old-onecpu/replay-strict-gate.log
+            old-onecpu/strict-evidence-gate.json
+          retention-days: 30
+          if-no-files-found: warn
