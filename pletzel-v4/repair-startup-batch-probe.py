@@ -119,8 +119,7 @@ edit("net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java",[
     }
 
     public static void worldgenQueued(final int depth) {"""),
-("periodic startup stage timing", """lastHeartbeatAtMillis = now;
-        long activeTickMillis""",
+("periodic startup stage timing", """lastHeartbeatAtMillis = now;""",
 """lastHeartbeatAtMillis = now;
         // These measurements are emitted by the worker supervisor even while
         // initial spawn has not completed its first server tick.
@@ -147,6 +146,6 @@ edit("net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java",[
                 }
             }
         }
-        long activeTickMillis""")
+""")
 ])
 print("TARGETED SOURCE PATCH DONE; exact worldgen functions and interactive 2/4 governor unchanged")
