@@ -6,6 +6,7 @@ assertions remain visual/manual and why.
 """
 from pathlib import Path
 import json, math, re, statistics, os
+from evidence_metrics import extract
 
 test=os.environ.get("TEST_KIND","unknown")
 variant=os.environ.get("VARIANT","unknown")
@@ -69,6 +70,11 @@ r={
  "manual_acceptance_requirements":["Verify screenshots of terrain / F3 position / chicken health and knockback / save-reopen / Schematica, as applicable","A green workflow run alone is NOT gameplay acceptance"],
  "status":"AWAITING_EVIDENCE_REVIEW"
 }
+# Canonical native measurement decoder is shared with the acceptance gate.
+native_evidence=extract(events)
+r["native_evidence"]=native_evidence
+r["longest_since_completed_ms"]=native_evidence["max_since_completed_heartbeat_ms"]
+r["chunk_full_sync_wait_max_ms"]=native_evidence["max_any_sync_chunk_wait_ms"] if native_evidence["chunk_wait_count"] else None
 idpath=Path("candidate-identity.json")
 if idpath.exists():r["tested_binary_sha256"]=json.loads(idpath.read_text()).get("html_sha256")
 p=Path("candidate-metrics.json");p.write_text(json.dumps(r,indent=2))
