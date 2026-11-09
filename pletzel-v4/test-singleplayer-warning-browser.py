@@ -75,7 +75,9 @@ try:
   click(640,354);shot('05-singleplayer-warning',2)
   # Native Screen.setInitialFocus(continueButton) enables Enter.
   page.keyboard.press('Enter');shot('06-continue-world-selection',3)
-  page.keyboard.press('Escape');shot('07-world-selection-escape-to-main',1)
+  for _ in range(3):
+   page.keyboard.press('Escape');page.wait_for_timeout(800)
+  shot('07-world-selection-escape-to-main',1)
   click(640,354);shot('08-warning-back-test',1)
   # Second vanilla native button is in the bottom row on a 1280x720 viewport.
   click(900,604);shot('09-back-to-main',1)
