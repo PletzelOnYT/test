@@ -1,7 +1,7 @@
 name: Pletzel V4 real FULL-chunk safe initial spawn native candidate
 on:
   push:
-    branches: [pletzel-v4-async-safe-spawn-candidate]
+    branches: [pletzel-v4-startup-batch-probe]
   workflow_dispatch:
 permissions:
   contents: read
@@ -279,6 +279,15 @@ jobs:
           grep -Fq 'eaglerFinishBrowserInitialSpawn' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
           grep -Fq 'spawn.validatedAfterFull' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
           grep -Fq 'ready.join(); // only an already-completed future' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          git -C engine diff --check
+      - name: Apply startup-only generation layer batching and opt-in monotonic critical-path trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-startup-batch-probe.py
+          python3 pletzel-v4/repair-startup-batch-probe.py engine | tee logs/startup-batch-and-stage-trace.log
+          grep -Fq 'STARTUP_WORLDGEN_LAYER_BATCH = 16' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerState.java
+          grep -Fq '[PletzelStartupStage]' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java
           git -C engine diff --check
       - name: Assert vanilla 26.2 color mapping and chunk stage order at SOURCE (not invented screenshot)
         shell: bash
