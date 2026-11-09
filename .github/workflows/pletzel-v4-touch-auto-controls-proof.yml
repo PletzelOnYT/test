@@ -1,0 +1,68 @@
+name: Pletzel V4 actual Controls Input Mode GUI proof (NO ENGINE BUILD)
+on:
+  push:
+    branches: [pletzel-v4-touch-auto-controls-proof]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  hybrid-pointer-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recover exactly ONE compiled native warning plus touch/mouse binary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42721806044
+          expected=e4e09764297405a0ad054c178c07d83907714199
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected"
+          deadline=$(( $(date +%s) + 5000 ))
+          while :; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            echo "Pinned native V4 build $run: $state"
+            if [ "$state" = completed ]; then
+              result="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$result" = success || { echo "Native compile not successful: $result"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 20
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-touch-mouse-auto-complete-html -D candidate
+          test "$(find candidate -type f -name '*.html' | wc -l)" -eq 1
+          find candidate -type f -name '*.html' -exec sha256sum {} \;
+          test "$(find candidate -type f -name '*.html' -exec stat -c %s {} \;)" -gt 85000000
+      - name: Install real Chromium WebGL2 and WASM-GC runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' pillow
+          python -m playwright install --with-deps chromium
+      - name: Exercise real touchscreen and physical mouse via Chromium CDP
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/calibrate-controls-native.py 2>&1 | tee controls-browser.log
+      - name: Upload actual canvas screenshots and input evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-touch-auto-controls-proof-evidence
+          path: |
+            controls-ui-calibration/
+            touch-mouse-browser.log
+          retention-days: 30
+          if-no-files-found: warn
