@@ -112,7 +112,7 @@ try:
     return int(m.group(1)) if m else None
    values={k:number(k) for k in ["lastTick","sinceCompleted","worldgenQueue","oldestQueueAge","activeWorldgen","claims","tasks","workerMessageBatches"]}
    values["elapsed"]=t
-   values["browser"]=page.evaluate("() => ({worker:window.__pletzelProbe,scheduler:window.__pletzelScheduler,webgl2:!!document.createElement('canvas').getContext('webgl2'),storage:!!indexedDB})")
+   values["browser"]=page.evaluate("() => ({worker:window.__pletzelProbe,scheduler:window.__pletzelScheduler,documentHidden:document.hidden,documentFocused:document.hasFocus(),visibility:document.visibilityState,webgl2:!!document.createElement('canvas').getContext('webgl2'),storage:!!indexedDB})")
    metrics.append(values)
    print("OBS",json.dumps(values),flush=True)
    if len(metrics)%6==0:
