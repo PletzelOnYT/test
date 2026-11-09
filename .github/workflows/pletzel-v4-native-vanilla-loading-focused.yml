@@ -1,7 +1,7 @@
-name: Pletzel V4 - SAFE spawn browser startup and sustained gameplay acceptance (NO REBUILD)
+name: Pletzel V4 - startup batch candidate strict real-browser acceptance
 on:
   push:
-    branches: [pletzel-v4-async-safe-spawn-evidence]
+    branches: [pletzel-v4-startup-batch-acceptance]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,8 +21,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42550305561
-          expected_commit=f9c22c69c30b2cae8a70f87efab3cb07f5b0d215
+          run=42557669383
+          expected_commit=82bdc7cd920de2da536a99828e284fec2ce6d2b7
           upstream_commit="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.head_sha')"
           test "$upstream_commit" = "$expected_commit"
           deadline=$(( $(date +%s) + 8400 ))
@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=42550305561
+          run=42557669383
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-native-vanilla-loading-compile-logs -D compiler-evidence
           expected_file="$(find compiler-evidence -type f -name artifact-sha256.txt)"
           test -s "$expected_file"
@@ -60,7 +60,7 @@ jobs:
           printf '%s  %s\n' "$sha" "${htmls[0]}" | sha256sum -c -
           test "$(stat -c '%s' "${htmls[0]}")" -gt 85000000
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "upstream_commit=f9c22c69c30b2cae8a70f87efab3cb07f5b0d215" >> "$GITHUB_OUTPUT"
+          echo "upstream_commit=82bdc7cd920de2da536a99828e284fec2ce6d2b7" >> "$GITHUB_OUTPUT"
           cp "$expected_file" compiler-published-artifact-sha256.txt
           sha256sum "${htmls[0]}" > independently-verified-html.sha256
           printf '%s\n' "$sha" > pinned-html.sha256
@@ -119,7 +119,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42550305561
+          run=42557669383
           artifact=pletzel-v4-native-vanilla-loading-complete-html
           sha="${{ needs.prepare-provenance.outputs.sha }}"
           test "${#sha}" -eq 64
@@ -135,7 +135,7 @@ jobs:
           run,artifact,sha=sys.argv[1:]
           with open('candidate-identity.json','w') as f:
               json.dump({'build_run':int(run),'artifact':artifact,'html_sha256':sha,
-                  'integration_branch':'pletzel-v4-async-safe-spawn-candidate',
+                  'integration_branch':'pletzel-v4-startup-batch-probe',
                   'binary_modified':False},f,indent=2)
           PY
       - name: Install actual Chromium, WebGL2 and WASM-GC runtime
