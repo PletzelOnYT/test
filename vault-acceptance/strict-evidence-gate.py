@@ -60,6 +60,31 @@ if kind in ("survival","onecpu"):
  if len(events)<100:fail("missing substantial raw server and browser telemetry")
  tick=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
  if len(tick)<12:fail("fewer than 12 observed server tick heartbeats")
+
+ # Browser frame evidence is independent of integrated-server TPS. Each native
+ # EagPerfClient frame report covers its fixed five-second rolling window.
+ # Skip startup and require real rendered-frame throughput during gameplay.
+ first_active_at=next((t for t,count in tick if count>40),None)
+ frame_samples=[]
+ if first_active_at is not None:
+  for e in events:
+   t=float(e.get("t",e.get("at",0)))
+   if t<first_active_at+20:continue
+   m=re.search(r"\\[EagPerfClient\\] frames=(\\d+) total",text(e))
+   if m:frame_samples.append(int(m.group(1))/5.0)
+ details["gameplay_frame_fps_samples"]=frame_samples
+ if len(frame_samples)<8:
+  fail("fewer than eight post-startup native client FPS samples")
+ else:
+  sorted_fps=sorted(frame_samples)
+  median_fps=sorted_fps[len(sorted_fps)//2]
+  low_fps=sorted_fps[max(0,len(sorted_fps)//10)]
+  details["client_median_render_fps"]=round(median_fps,2)
+  details["client_p10_render_fps"]=round(low_fps,2)
+  median_required=10 if kind=="onecpu" else 20
+  low_required=5 if kind=="onecpu" else 10
+  if median_fps<median_required or low_fps<low_required:
+   fail(f"browser gameplay FPS too low: median={median_fps:.1f} p10={low_fps:.1f}; minimum median={median_required} p10={low_required}")
  active_tick=[point for point in tick if point[1]>40]
  if len(active_tick)>=2:
   duration=active_tick[-1][0]-active_tick[0][0];tps=(active_tick[-1][1]-active_tick[0][1])/duration if duration>0 else 0
