@@ -61,6 +61,26 @@ if kind in ("survival","onecpu"):
  tick=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
  if len(tick)<12:fail("fewer than 12 observed server tick heartbeats")
 
+ stage_summaries={}
+ queue_reports=0
+ for e in events:
+  line=text(e)
+  if "[PletzelStartupQueue]" in line:
+   queue_reports+=1
+  if "[PletzelStartupStage]" in line:
+   m=re.search(r"status=(\w+) count=(\d+) futureAvg=(\d+)ms futureMax=(\d+)ms outsideCriticalRadius=(\d+)",line)
+   if m:
+    status,count,avg,max_ms,outside=m.groups()
+    slot=stage_summaries.setdefault(status,{"count":0,"weighted_future_ms":0,"max_ms":0,"outside_radius":0})
+    slot["count"]+=int(count)
+    slot["weighted_future_ms"]+=int(count)*int(avg)
+    slot["max_ms"]=max(slot["max_ms"],int(max_ms))
+    slot["outside_radius"]+=int(outside)
+ details["startup_stage_summaries"]=stage_summaries
+ details["startup_queue_reports"]=queue_reports
+ if not stage_summaries:fail("missing native startup stage critical-path measurements")
+ if not queue_reports:fail("missing native startup queue-wait and execution measurements")
+
  # Browser frame evidence is independent of integrated-server TPS. Each native
  # EagPerfClient frame report covers its fixed five-second rolling window.
  # Skip startup and require real rendered-frame throughput during gameplay.
