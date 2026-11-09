@@ -74,7 +74,7 @@ try:
   # The vanilla Singleplayer button is centered at GUI y=108, x=213.
   click(640,354);shot('05-singleplayer-warning',2)
   # Native Screen.setInitialFocus(continueButton) enables Enter.
-  page.keyboard.press('Enter');shot('06-continue-world-selection',3)
+  page.keyboard.press('Enter');shot('06-continue-world-selection',14)
   for _ in range(3):
    page.keyboard.press('Escape');page.wait_for_timeout(800)
   shot('07-world-selection-escape-to-main',1)
@@ -105,5 +105,15 @@ result={'html':html.name,'screens':shots,'page_errors':[x for x in events if x['
 (out/'console.json').write_text(json.dumps(events,indent=2))
 if failure: sys.exit(2)
 if len(shots)!=16:sys.exit(3)
-# Pixel evidence is retained even if a first-run profile or browser issue
-# prevents deterministic navigation. Never fake successful flow assertions.
+expected_warning=['05-singleplayer-warning','08-warning-back-test','10-warning-esc-test',
+                  '14-responsive-before-resize','15-responsive-after-resize']
+by_name={x['name']:x for x in shots}
+for name in expected_warning:
+ if name not in by_name:
+  raise SystemExit('Missing real in-game warning canvas: '+name)
+ colors=by_name[name]['colors']
+ for channel,min_count in [('gold',20),('red',20),('green',20)]:
+  if colors.get(channel,0)<min_count:
+   raise SystemExit(f'Missing native {channel} warning text in {name}: {colors}')
+print('PASS: real Minecraft canvas warning colors visible before Continue, before Back, '
+      'before ESC, and after viewport resize',flush=True)
