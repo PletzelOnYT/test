@@ -23,7 +23,7 @@ assert old.count('new SelectWorldScreen(this)') == 1, "Must preserve world-selec
 assert old.count('prewarmServerWorker()') == 1, "Must preserve worker startup behavior"
 assert old.count('EaglerIntegratedServerStartupScreen(this)') == 1, "Must preserve existing worker startup screen"
 assert src.count('   private int createNormalMenuOptions(') == 1
-original_body = old[len(anchor):-2]
+original_body = old[len(anchor):-2].rstrip()
 method = (
     "   /** Called ONLY when a player confirms the in-game Singleplayer warning. */\n"
     "   public void openSingleplayerAfterWarning() {" + original_body + "\n"
