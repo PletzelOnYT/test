@@ -1,7 +1,7 @@
-name: Pletzel V4 - actual vanilla loading and truthful chunk status focused browser QA
+name: Pletzel V4 - SAFE spawn browser startup and sustained gameplay acceptance (NO REBUILD)
 on:
   push:
-    branches: [pletzel-v4-vanilla-loading-focused-tests]
+    branches: [pletzel-v4-async-safe-spawn-evidence]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,8 +21,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42534915271
-          expected_commit=7528b0d28cc8b45695cd1707abdfe8d2f4af5ee0
+          run=42550305561
+          expected_commit=f9c22c69c30b2cae8a70f87efab3cb07f5b0d215
           upstream_commit="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.head_sha')"
           test "$upstream_commit" = "$expected_commit"
           deadline=$(( $(date +%s) + 8400 ))
@@ -44,12 +44,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=42534915271
+          run=42550305561
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-native-vanilla-loading-compile-logs -D compiler-evidence
           expected_file="$(find compiler-evidence -type f -name artifact-sha256.txt)"
           test -s "$expected_file"
           sha="$(awk '$2 ~ /\.html$/ {print $1}' "$expected_file")"
           test "${#sha}" -eq 64
+          test "$sha" != "fcca6e26a94dd677eb65f378127e641313d3e9bc5dddc423728c162c2e7367b5" # prior broken FULL wait baseline
           test "$sha" != "7d610dbda76fbe80992793869f92b1f8d11d4b997aeb6b8cc2b95a7d15e22c0e" # older unrepaired binary not allowed
           test "$sha" != "3c149fa6dc419ba97f20387250458d715ba6a46b6fef49883e9ad9024abc1deb" # rejected exact previous four-bug native HTML
           mkdir -p prepared-candidate
@@ -59,7 +60,7 @@ jobs:
           printf '%s  %s\n' "$sha" "${htmls[0]}" | sha256sum -c -
           test "$(stat -c '%s' "${htmls[0]}")" -gt 85000000
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "upstream_commit=7528b0d28cc8b45695cd1707abdfe8d2f4af5ee0" >> "$GITHUB_OUTPUT"
+          echo "upstream_commit=f9c22c69c30b2cae8a70f87efab3cb07f5b0d215" >> "$GITHUB_OUTPUT"
           cp "$expected_file" compiler-published-artifact-sha256.txt
           sha256sum "${htmls[0]}" > independently-verified-html.sha256
           printf '%s\n' "$sha" > pinned-html.sha256
@@ -118,7 +119,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42534915271
+          run=42550305561
           artifact=pletzel-v4-native-vanilla-loading-complete-html
           sha="${{ needs.prepare-provenance.outputs.sha }}"
           test "${#sha}" -eq 64
@@ -134,7 +135,7 @@ jobs:
           run,artifact,sha=sys.argv[1:]
           with open('candidate-identity.json','w') as f:
               json.dump({'build_run':int(run),'artifact':artifact,'html_sha256':sha,
-                  'integration_branch':'pletzel-v4-native-vanilla-loading-native-link',
+                  'integration_branch':'pletzel-v4-async-safe-spawn-candidate',
                   'binary_modified':False},f,indent=2)
           PY
       - name: Install actual Chromium, WebGL2 and WASM-GC runtime
@@ -187,6 +188,14 @@ jobs:
         run: |
           set -euo pipefail
           python vault-acceptance/analyze-candidate-gameplay.py | tee test-analysis-console.log
+      - name: Distinguish real initial chunk loading from sustained in-world server completion
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$TEST_KIND" = survival ] || [ "$TEST_KIND" = onecpu ] || [ "$TEST_KIND" = remote ]; then
+            python vault-acceptance/split-startup-ingame.py | tee startup-vs-ingame-console.log
+          fi
       - name: Apply strict server-authoritative gameplay and stall acceptance gate
         shell: bash
         run: |
@@ -223,6 +232,8 @@ jobs:
             candidate-identity.json
             candidate-metrics.json
             strict-evidence-gate.json
+            startup-vs-ingame.json
+            startup-vs-ingame-console.log
             browser-console.log
             test-analysis-console.log
             strict-evidence-console.log
