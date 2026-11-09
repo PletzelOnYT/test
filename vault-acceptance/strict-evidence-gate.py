@@ -8,14 +8,69 @@ import json,re,os
 kind=os.environ["TEST_KIND"]
 out=Path("strict-evidence-gate.json")
 evidence_dir=Path("cheats-entity-evidence")
-p=Path("singleplayer-pressure-evidence/events.json") if kind in ("survival","onecpu") else evidence_dir/"all-events.json"
-events=json.loads(p.read_text()) if p.exists() else []
+# Inspect raw browser events for every game scenario, not only survival.
+# The historical gate let a 15.7-second FULL chunk wait pass because its
+# only maximum-wait rules covered vaults and active block entities.
+sources={
+ "survival":"singleplayer-pressure-evidence/events.json",
+ "onecpu":"singleplayer-pressure-evidence/events.json",
+ "remote":"cheats-entity-evidence/all-events.json",
+ "remote2":"cheats-entity-evidence/all-events.json",
+ "schematica":"inworld-schematic-evidence/full-console.json",
+ "lifecycle":"lifecycle-evidence/records.json",
+ "chicken":"cheats-entity-evidence/all-events.json",
+ "vault":"cheats-entity-evidence/all-events.json"
+}
+p=Path(sources.get(kind,""))
+if not p.is_file():
+ events=[]
+else:
+ raw=json.loads(p.read_text())
+ events=raw if isinstance(raw,list) else raw.get("events",[])
 faults=[];details={"test":kind,"events":len(events)}
 def fail(reason):faults.append(reason)
 def text(e):return e.get("text","")
 logtext="\n".join(map(text,events))
 def numbers(pat):
  return [(float(e.get("t",e.get("at",0))),int(m.group(1))) for e in events if (m:=re.search(pat,text(e)))]
+
+# Applies BEFORE kind-specific gates. A near-20 TPS average after a long
+# startup outage is not acceptable; count any synchronous getChunk future.
+if kind in ("survival","onecpu","remote","remote2","schematica","lifecycle"):
+ if not events:fail("missing raw browser/worker events: "+str(p))
+ sync_waits=[]
+ live_waits=[]
+ for e in events:
+  t=text(e)
+  if "[EagPerfChunkWait]" in t and (m:=re.search(r"elapsed=(\\d+)ms",t)):
+   sync_waits.append((int(m.group(1)),t))
+  if "[PletzelActiveChunkWait]" in t and (m:=re.search(r"waiting=(\\d+)ms",t)):
+   live_waits.append((int(m.group(1)),t))
+ details["max_any_sync_chunk_wait_ms"]=max((v for v,_ in sync_waits),default=None)
+ details["max_pending_chunk_wait_ms"]=max((v for v,_ in live_waits),default=None)
+ details["worst_sync_chunk_wait"]=max(sync_waits,default=(None,None),key=lambda w:w[0])[1]
+ details["worst_pending_chunk_wait"]=max(live_waits,default=(None,None),key=lambda w:w[0])[1]
+ # 2 seconds is already 40 game-tick budgets. One-CPU stress is a
+ # separate, explicitly degraded profile; no false assertion of 20 TPS.
+ threshold=15000 if kind=="onecpu" else 2000
+ if details["max_any_sync_chunk_wait_ms"] is not None and details["max_any_sync_chunk_wait_ms"]>=threshold:
+  fail(f"server blocked in synchronous chunk future for >= {threshold}ms")
+ if details["max_pending_chunk_wait_ms"] is not None and details["max_pending_chunk_wait_ms"]>=threshold:
+  fail(f"server has a live pending chunk future for >= {threshold}ms")
+ # An unfinished managedBlock may never emit EagPerfChunkWait. Heartbeat
+ # stagnation is independently checked in unpaused survival/CPU pressure.
+ if kind in ("survival","onecpu"):
+  completion_ages=[]
+  for e in events:
+   t=text(e)
+   if "[EagPerfHeartbeat]" not in t:continue
+   age=re.search(r"sinceCompleted=(\\d+)ms",t)
+   tick=re.search(r"lastTick=(\\d+)",t)
+   if age and tick:completion_ages.append((int(age.group(1)),int(tick.group(1))))
+  details["max_since_completed_heartbeat_ms"]=max((age for age,_ in completion_ages),default=None)
+  age_limit=30000 if kind=="onecpu" else 10000
+  if any(age>=age_limit for age,_ in completion_ages):
+   fail(f"worker heartbeat reports no completed tick for >= {age_limit}ms")
 if kind in ("survival","onecpu"):
  if len(events)<100:fail("missing substantial raw server and browser telemetry")
  tick=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
