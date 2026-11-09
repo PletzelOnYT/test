@@ -70,7 +70,7 @@ if kind in ("survival","onecpu"):
   for e in events:
    t=float(e.get("t",e.get("at",0)))
    if t<first_active_at+20:continue
-   m=re.search(r"\\[EagPerfClient\\] frames=(\\d+) total",text(e))
+   m=re.search(r"\[EagPerfClient\] frames=(\d+) total",text(e))
    if m:frame_samples.append(int(m.group(1))/5.0)
  details["gameplay_frame_fps_samples"]=frame_samples
  if len(frame_samples)<8:
