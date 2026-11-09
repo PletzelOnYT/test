@@ -27,7 +27,7 @@ try:
   page.mouse.click(640,666);page.wait_for_timeout(700)
   page.keyboard.press("Escape");shot('01-title-main')
   page.mouse.click(480,570);shot('02-options-screen')
-  page.mouse.click(825,309);shot('03-controls-attempt-right-column')
+  page.mouse.click(825,363);shot('03-native-controls-screen')
   page.mouse.click(805,360);shot('04-controls-attempt-down')
   page.mouse.click(500,310);shot('05-controls-attempt-left-column')
   b.close()
