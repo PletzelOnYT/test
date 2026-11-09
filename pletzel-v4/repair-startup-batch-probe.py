@@ -19,6 +19,13 @@ def edit(rel, pairs):
     for tag,old,new in pairs:
         n=s.count(old)
         if n != 1:
+            # 26.2's Eagler Java sources use tabs; the patch snippets are
+            # visually aligned using spaces for readability. Match exact
+            # indentation after converting whole leading 4-space groups.
+            import re
+            old=re.sub(r"(?m)^( +)", lambda m: "\\t" * (len(m.group(1)) // 4) + " " * (len(m.group(1)) % 4), old)
+            n=s.count(old)
+        if n != 1:
             raise AssertionError(f"{rel}: {tag}: expected 1 anchor, got {n}")
         s=s.replace(old,new,1)
         print("STARTUP_BATCH_PROBE",rel,tag)
