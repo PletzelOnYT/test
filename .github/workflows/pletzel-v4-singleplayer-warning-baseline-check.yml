@@ -1,0 +1,68 @@
+name: Pletzel V4 native Singleplayer warning baseline browser navigation calibration (NO REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-singleplayer-warning-baseline-check]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Await exactly one native warning compile, never rebuild engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=42550305561
+          expected_sha=f9c22c69c30b2cae8a70f87efab3cb07f5b0d215
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
+          deadline=$(( $(date +%s) + 4700 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            echo "Native warning build $run: $status"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Native build did not succeed: $conclusion"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo "Compile did not finish before test timeout"; exit 4; }
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-native-vanilla-loading-complete-html -D candidate
+          test "$(find candidate -type f -name '*.html' | wc -l)" -eq 1
+          find candidate -type f -name '*.html' -exec sha256sum {} \;
+          test "$(find candidate -type f -name '*.html' -exec stat -c %s {} \;)" -gt 85000000
+      - name: Install real Chromium/WebGL runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' pillow
+          python -m playwright install --with-deps chromium
+      - name: Exercise native Singleplayer warning with actual mouse, keyboard and viewport resize
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/test-singleplayer-warning-browser.py 2>&1 | tee real-browser.log
+      - name: Preserve actual canvas screenshots, console errors, and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-singleplayer-warning-baseline-browser-evidence
+          path: |
+            warning-browser-evidence/
+            real-browser.log
+          if-no-files-found: warn
+          retention-days: 21
