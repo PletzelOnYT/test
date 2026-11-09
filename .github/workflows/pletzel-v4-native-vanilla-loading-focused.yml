@@ -82,7 +82,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [onecpu, remote, schematica]
+        test: [survival, onecpu, remote, lifecycle, schematica]
     env:
       TEST_KIND: ${{ matrix.test }}
       VARIANT: native-vanilla-loading
@@ -97,6 +97,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Preflight all real browser scripts and evidence gates before downloading the immutable game
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            vault-acceptance/analyze-candidate-gameplay.py \
+            vault-acceptance/strict-evidence-gate.py \
+            vault-acceptance/pletzel-v4-singleplayer-pressure.py \
+            vault-acceptance/pletzel-v4-diagnostic-remote-teleport.py \
+            vault-acceptance/pletzel-v4-lifecycle.py \
+            pletzel-v4-inworld-schematica-test.py; do
+            test -s "$script" || { echo "::error::Missing mandatory test file $script"; exit 2; }
+          done
+          python -m py_compile vault-acceptance/*.py
+          echo "Test harness present; compilation is NOT gameplay verification."
       - name: Recover exact previously compiled native V4 diagnostic, verify pinned SHA256
         shell: bash
         env:
@@ -131,7 +146,7 @@ jobs:
       - name: Execute real singleplayer tests with original compiled HTML
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           case "$TEST_KIND" in
             survival|onecpu) script=vault-acceptance/pletzel-v4-singleplayer-pressure.py ;;
             remote|remote2|remote3|remote4) script=vault-acceptance/pletzel-v4-diagnostic-remote-teleport.py ;;
@@ -155,18 +170,27 @@ jobs:
           p=Path('singleplayer-pressure-evidence')
           result=json.loads((p/'result.json').read_text())
           names=set(result.get('screenshots',[]))
-          assert 'native-loading-018s' in names and 'native-loading-090s' in names, names
-          assert (p/'native-loading-018s.png').stat().st_size>10000
-          assert (p/'native-loading-090s.png').stat().st_size>10000
-          print('Vanilla screen screenshot evidence exists; visual stage parity requires review')
+          assert 'spawn' in names, 'No world screenshot was taken'
+          assert (p/'spawn.png').stat().st_size>10000
+          # Early loading success must not fail only because the world opened before
+          # a scheduled loading-screen screenshot. Never manufacture a 100% report.
+          loading=[name for name in names if name.startswith('native-loading-')]
+          for name in loading:
+              assert (p/(name+'.png')).stat().st_size>10000
+          print('Actual native loading screenshots:', sorted(loading),
+                '; gameplay screenshot exists; visual review and TPS gate still required')
           PY
           fi
       - name: Aggregate real heartbeat TPS, queue, chunk stalls and exception data
         if: always()
-        run: python vault-acceptance/analyze-candidate-gameplay.py | tee test-analysis-console.log
+        shell: bash
+        run: |
+          set -euo pipefail
+          python vault-acceptance/analyze-candidate-gameplay.py | tee test-analysis-console.log
       - name: Apply strict server-authoritative gameplay and stall acceptance gate
         shell: bash
         run: |
+          set -euo pipefail
           if [ "$TEST_KIND" = skin-model ]; then
             python3 - <<'PY'
           import json
