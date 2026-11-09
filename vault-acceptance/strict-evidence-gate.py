@@ -4,6 +4,7 @@ A zero exit does not replace visual review of terrain or hologram.
 """
 from pathlib import Path
 import json,re,os
+from evidence_metrics import extract, stall_failures
 
 kind=os.environ["TEST_KIND"]
 out=Path("strict-evidence-gate.json")
@@ -34,43 +35,27 @@ logtext="\n".join(map(text,events))
 def numbers(pat):
  return [(float(e.get("t",e.get("at",0))),int(m.group(1))) for e in events if (m:=re.search(pat,text(e)))]
 
-# Applies BEFORE kind-specific gates. A near-20 TPS average after a long
-# startup outage is not acceptable; count any synchronous getChunk future.
+# The gate and analyzer use EXACTLY the same native event decoder. A missing
+# heartbeat or a malformed native marker is not a zero-duration stall.
 if kind in ("survival","onecpu","remote","remote2","schematica","lifecycle"):
+ native=extract(events)
+ details.update(native)
  if not events:fail("missing raw browser/worker events: "+str(p))
- sync_waits=[]
- live_waits=[]
- for e in events:
-  t=text(e)
-  if "[EagPerfChunkWait]" in t and (m:=re.search(r"elapsed=(\\d+)ms",t)):
-   sync_waits.append((int(m.group(1)),t))
-  if "[PletzelActiveChunkWait]" in t and (m:=re.search(r"waiting=(\\d+)ms",t)):
-   live_waits.append((int(m.group(1)),t))
- details["max_any_sync_chunk_wait_ms"]=max((v for v,_ in sync_waits),default=None)
- details["max_pending_chunk_wait_ms"]=max((v for v,_ in live_waits),default=None)
- details["worst_sync_chunk_wait"]=max(sync_waits,default=(None,None),key=lambda w:w[0])[1]
- details["worst_pending_chunk_wait"]=max(live_waits,default=(None,None),key=lambda w:w[0])[1]
- # 2 seconds is already 40 game-tick budgets. One-CPU stress is a
- # separate, explicitly degraded profile; no false assertion of 20 TPS.
- threshold=15000 if kind=="onecpu" else 2000
- if details["max_any_sync_chunk_wait_ms"] is not None and details["max_any_sync_chunk_wait_ms"]>=threshold:
-  fail(f"server blocked in synchronous chunk future for >= {threshold}ms")
- if details["max_pending_chunk_wait_ms"] is not None and details["max_pending_chunk_wait_ms"]>=threshold:
-  fail(f"server has a live pending chunk future for >= {threshold}ms")
- # An unfinished managedBlock may never emit EagPerfChunkWait. Heartbeat
- # stagnation is independently checked in unpaused survival/CPU pressure.
- if kind in ("survival","onecpu"):
-  completion_ages=[]
-  for e in events:
-   t=text(e)
-   if "[EagPerfHeartbeat]" not in t:continue
-   age=re.search(r"sinceCompleted=(\\d+)ms",t)
-   tick=re.search(r"lastTick=(\\d+)",t)
-   if age and tick:completion_ages.append((int(age.group(1)),int(tick.group(1))))
-  details["max_since_completed_heartbeat_ms"]=max((age for age,_ in completion_ages),default=None)
-  age_limit=30000 if kind=="onecpu" else 10000
-  if any(age>=age_limit for age,_ in completion_ages):
-   fail(f"worker heartbeat reports no completed tick for >= {age_limit}ms")
+ for reason in stall_failures(native,kind):fail(reason)
+ report=Path("candidate-metrics.json")
+ if not report.is_file():fail("missing analyzer report candidate-metrics.json")
+ else:
+  try:
+   measured=json.loads(report.read_text())
+   if measured.get("native_evidence")!=native:fail("analyzer-vs-gate native evidence mismatch")
+   if measured.get("longest_since_completed_ms")!=native["max_since_completed_heartbeat_ms"]:
+    fail("analyzer-vs-gate longest_since_completed_ms mismatch")
+   required=native["max_any_sync_chunk_wait_ms"] if native["chunk_wait_count"] else None
+   if measured.get("chunk_full_sync_wait_max_ms")!=required:
+    fail("analyzer-vs-gate chunk_full_sync_wait_max_ms mismatch")
+  except (OSError,ValueError,TypeError) as e:
+   fail("invalid analyzer report: "+str(e))
+
 if kind in ("survival","onecpu"):
  if len(events)<100:fail("missing substantial raw server and browser telemetry")
  tick=numbers(r"\[EagPerfHeartbeat\].*?\blastTick=(\d+)")
