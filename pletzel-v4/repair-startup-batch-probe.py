@@ -119,9 +119,8 @@ edit("net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java",[
     }
 
     public static void worldgenQueued(final int depth) {"""),
-("periodic startup stage timing", """lastHeartbeatAtMillis = now;""",
-"""lastHeartbeatAtMillis = now;
-        // These measurements are emitted by the worker supervisor even while
+("periodic startup stage timing", """long activeTickMillis = liveTickStartedAtMillis""",
+"""// These measurements are emitted by the worker supervisor even while
         // initial spawn has not completed its first server tick.
         if (!EaglerServerState.isInteractiveWorldgen()) {
             synchronized (EaglerServerPerf.class) {
@@ -146,6 +145,6 @@ edit("net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java",[
                 }
             }
         }
-""")
+        long activeTickMillis = liveTickStartedAtMillis""")
 ])
 print("TARGETED SOURCE PATCH DONE; exact worldgen functions and interactive 2/4 governor unchanged")
