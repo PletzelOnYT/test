@@ -38,6 +38,35 @@ try:
    (()=>{const W=window.Worker;window.Worker=class extends W{
     constructor(...a){super(...a);window.__pletzelProbe.workers++;this.addEventListener('message',()=>window.__pletzelProbe.messages++);this.addEventListener('error',()=>window.__pletzelProbe.errors++);}
    };})();""")
+  # Independent real-browser scheduler probe: rAF cadence and main-thread
+  # Long Tasks are measured separately from native frame render/present time.
+  # The callback only accumulates numbers and never invokes WebGL.
+  page.add_init_script("""(() => {
+    const s={rafCallbacks:0,rafGapTotalMs:0,rafGapMaxMs:0,rafOver50Ms:0,rafOver250Ms:0,
+             mainLongTasks:0,mainLongTaskMs:0,mainLongTaskMaxMs:0};
+    window.__pletzelScheduler=s;
+    let previous=0;
+    function sample(now) {
+      if(previous) {
+        const dt=Math.max(0,now-previous);
+        s.rafCallbacks++;s.rafGapTotalMs+=dt;
+        s.rafGapMaxMs=Math.max(s.rafGapMaxMs,dt);
+        if(dt>50)s.rafOver50Ms++;
+        if(dt>250)s.rafOver250Ms++;
+      }
+      previous=now;
+      requestAnimationFrame(sample);
+    }
+    requestAnimationFrame(sample);
+    try {
+      new PerformanceObserver(list => {
+        for(const e of list.getEntries()) {
+          s.mainLongTasks++;s.mainLongTaskMs+=e.duration;
+          s.mainLongTaskMaxMs=Math.max(s.mainLongTaskMaxMs,e.duration);
+        }
+      }).observe({entryTypes:['longtask']});
+    } catch(ignore) {}
+  })();""")
   page.on("console",lambda m:events.append({"t":round(time.monotonic()-started,1),"kind":m.type,"text":m.text[:2500]}))
   page.on("pageerror",lambda e:events.append({"t":round(time.monotonic()-started,1),"kind":"pageerror","text":str(e)[:2500]}))
   cdp=page.context.new_cdp_session(page)
@@ -83,7 +112,7 @@ try:
     return int(m.group(1)) if m else None
    values={k:number(k) for k in ["lastTick","sinceCompleted","worldgenQueue","oldestQueueAge","activeWorldgen","claims","tasks","workerMessageBatches"]}
    values["elapsed"]=t
-   values["browser"]=page.evaluate("() => ({worker:window.__pletzelProbe,webgl2:!!document.createElement('canvas').getContext('webgl2'),storage:!!indexedDB})")
+   values["browser"]=page.evaluate("() => ({worker:window.__pletzelProbe,scheduler:window.__pletzelScheduler,webgl2:!!document.createElement('canvas').getContext('webgl2'),storage:!!indexedDB})")
    metrics.append(values)
    print("OBS",json.dumps(values),flush=True)
    if len(metrics)%6==0:
