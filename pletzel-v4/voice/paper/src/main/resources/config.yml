@@ -1,0 +1,7 @@
+# Replace this secret with a random 32+ character string. Match VOICE_ADMIN_SECRET in gateway.
+admin_secret: 'REPLACE-WITH-A-LONG-RANDOM-32-PLUS-CHARACTER-SECRET'
+# The Java server should reach the signaling gateway on the same machine or secure TLS.
+admin_url: 'http://127.0.0.1:25580'
+# Public WSS URL for the voice game client. HTTPS/TLS termination required.
+public_voice_url: 'wss://voice.example.com/voice'
+server_id: 'pletzel-server'
