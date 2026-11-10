@@ -1,0 +1,127 @@
+name: Pletzel V4 ALL FOUR MODS exact-binary Chromium acceptance (NO REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-all-four-mods-browser-acceptance]
+    paths: ['.github/workflows/pletzel-v4-all-mods-browser-acceptance.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-binary-real-gameplay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch the EXACT unified native HTML and fail closed if it was not built successfully
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42844549237
+          expected_sha=fda0b34781b31f510e90a49b815d9887ca36763c
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
+          deadline=$(( $(date +%s) + 5400 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            echo "SINGLE unified 26.2 build $run: $status"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Unified build FAILED: $conclusion"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo "Build artifact unavailable: BLOCKED"; exit 4; }
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          game="$(find candidate -type f -name '*.html' | head -1)"
+          test "$(stat -c %s "$game")" -gt 85000000
+          sha256sum "$game" | tee unified-exact-html-sha256.txt
+          echo "UNIFIED_HTML=$game" >> "$GITHUB_ENV"
+      - name: Install real Chromium and WebGL software-rendering runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: REAL GAME — Maps and shulkers in same Minecraft HTML (do not mock items)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-map-shulker.py 2>&1 | tee unified-map-shulker.log
+          echo "MAP_SHULKER_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+      - name: REAL GAME — Shulker original GUI with actual /give hotbar assertion
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-real-shulker-command.py 2>&1 | tee unified-shulker-command.log
+          echo "SHULKER_COMMAND_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+      - name: REAL GAME — Schematica genuine file import, ghost render, cleanup and revisit
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-schematica.py 2>&1 | tee unified-schematica.log
+          echo "SCHEMATICA_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+      - name: Supplemental two-browser WebRTC RTP audio test (NOT live Minecraft voice acceptance)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-voice-transport-isolated.py 2>&1 | tee unified-voice-audio.log
+          echo "VOICE_RTP_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+      - name: Produce honest acceptance summary (no source-only feature PASS)
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          def stat(k):
+              value=os.environ.get(k)
+              return 'BLOCKED' if value is None else 'EXECUTED (review screenshot evidence)' if value=='0' else 'FAIL'
+          result={
+            'source_commit':'fda0b34781b31f510e90a49b815d9887ca36763c',
+            'build_run':42844549237,
+            'sha256_record':pathlib.Path('unified-exact-html-sha256.txt').read_text().strip() if pathlib.Path('unified-exact-html-sha256.txt').exists() else None,
+            'map_and_shulker':stat('MAP_SHULKER_EXIT'),
+            'real_shulker_command':stat('SHULKER_COMMAND_EXIT'),
+            'schematica':stat('SCHEMATICA_EXIT'),
+            'voice_synthetic_webrtc':stat('VOICE_RTP_EXIT'),
+            'real_eaglerx_server_audio':'BLOCKED — no controlled live EaglerX V5 server + older compatible client provided',
+            'multiplayer_real_server_sync':'BLOCKED — no live test server provided',
+            'singleplayer_real_mac':'BLOCKED — GitHub Ubuntu Chromium is not the user Mac',
+            'notes':'Screenshots must be manually reviewed; exit=0 only means the scripted navigation/execution finished, not accurate rendering or voice cross-client compatibility.'
+          }
+          pathlib.Path('unified-acceptance.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+      - name: Upload original game pixels, browser logs and report regardless of failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-all-four-mods-exact-binary-browser-evidence
+          path: |
+            unified-exact-html-sha256.txt
+            unified-acceptance.json
+            unified-*.log
+            map-shulker-real-inventory-evidence/
+            real-shulker-command-evidence/
+            inworld-schematic-evidence/
+            eagler-voice-webrtc-browser-evidence/
+          if-no-files-found: warn
+          retention-days: 21
