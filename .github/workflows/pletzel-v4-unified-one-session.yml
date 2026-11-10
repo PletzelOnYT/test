@@ -1,0 +1,66 @@
+name: Pletzel V4 one real Minecraft session Map+Shulker+Schematica acceptance
+on:
+  push:
+    branches: [pletzel-v4-all-four-mods-single-session]
+    paths: ['.github/workflows/pletzel-v4-unified-one-session.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-world:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reuse exact single four-mod compiled HTML, do not rebuild engine
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42844549237
+          expected=fda0b34781b31f510e90a49b815d9887ca36763c
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected"
+          deadline=$(( $(date +%s) + 5400 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$status" = completed ]; then
+              test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -name '*.html' | head -1)" | tee same-session-unified-sha256.txt
+      - name: Install real Chromium/WebGL
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: One actual client world — map and shulker tooltips then real Schematica file chooser and hologram
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-one-unified-minecraft-session.py 2>&1 | tee unified-same-session.log
+      - name: Preserve exact game screenshots and console telemetry even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-unified-one-session-real-world-evidence
+          path: |
+            same-session-unified-sha256.txt
+            unified-same-session.log
+            unified-one-session-evidence/
+          if-no-files-found: warn
+          retention-days: 21
