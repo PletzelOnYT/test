@@ -12,7 +12,7 @@
     status:'Voice disabled',url:'',token:'',ws:null,ctx:null,raw:null,rawTrack:null,
     outputTrack:null,outputStream:null,sourceNode:null,localGain:null,analyser:null,
     meter:0,transmitting:false,meterTimer:0,history:0,devices:[],speakers:[],
-    micIndex:0,speakerIndex:0,peers:new Map(),peerNames:[],iceServers:[],
+    micIndex:0,speakerIndex:0,peers:new Map(),peerNames:[],iceServers:[],icePolicy:"all",
     lastError:'', userGestureSeen:false,
   };
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -66,7 +66,7 @@
   }
   function makePeer(id,name,initiator){
     if(voice.peers.has(id))return voice.peers.get(id);
-    const pc=new RTCPeerConnection({iceServers:voice.iceServers});
+    const pc=new RTCPeerConnection({iceServers:voice.iceServers,iceTransportPolicy:voice.icePolicy});
     const peer={id,name,pc,source:null,panner:null,volume:null,candidates:[]};
     voice.peers.set(id,peer);
     pc.onicecandidate=e=>{if(e.candidate)send({t:'signal',peer:id,kind:'candidate',payload:e.candidate.toJSON()})};
@@ -161,6 +161,8 @@
         let m;try{m=JSON.parse(e.data)}catch{return;}
         if(m.t==='welcome'){
           voice.ready=true;voice.serverRange=clamp(m.range||48,8,96);
+          voice.iceServers=Array.isArray(m.iceServers)?m.iceServers:[];
+          voice.icePolicy=m.icePolicy==='relay'?'relay':'all';
           voice.localRange=Math.min(voice.localRange,voice.serverRange);
           voice.status='Connected (mic muted). WebRTC P2P may expose IP addresses.';
           trackState();
@@ -247,6 +249,12 @@
     setYaw,
     microphoneName:()=>voice.devices[voice.micIndex]?.label||'Default microphone',
     speakerName:()=>voice.speakers[voice.speakerIndex]?.label||'Default output',
+    diagnostics:()=>Promise.all([...voice.peers.values()].map(async p=>{
+      const stats=await p.pc.getStats();let outbound=0,inbound=0;
+      stats.forEach(item=>{if(item.type==='outbound-rtp'&&item.kind==='audio')outbound+=item.bytesSent||0;
+        if(item.type==='inbound-rtp'&&item.kind==='audio')inbound+=item.bytesReceived||0});
+      return {peer:p.id,connection:p.pc.connectionState,outboundBytes:outbound,inboundBytes:inbound};
+    })),
     test:()=>{
       voice.status='Mic test level: '+Math.round(voice.meter*1000)+' (no recording stored)';
     },
