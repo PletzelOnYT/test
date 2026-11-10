@@ -2,6 +2,8 @@ name: Pletzel V4 corrected Shulker Tooltip live visual + Ctrl lock evidence (NO 
 on:
   push:
     branches: [pletzel-v4-shulker-original-gui-geometry-fix]
+    paths:
+      - '.github/workflows/pletzel-v4-shulker-gui-corrected-browser.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,8 +25,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          build=42764166538
-          expected=fc36438367d550c91e889a257e57b9942c7c808f
+          build=42764573833
+          expected=9f2dba74ddd3731383b4e25b1d191dfe6fa8eb5a
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .head_sha)" = "$expected"
           deadline=$(( $(date +%s) + 5600 ))
           while true; do
