@@ -280,7 +280,7 @@ target='''   private static final Component TOUCH_CONTROLS_TOOLTIP = Component.t
 added='''   private static final Component INPUT_MODE_TOOLTIP = Component.translatable("options.pletzelInputMode.tooltip");
    private final OptionInstance<Integer> pletzelInputMode = new OptionInstance<>(
       "options.pletzelInputMode", OptionInstance.cachedConstantTooltip(INPUT_MODE_TOOLTIP),
-      (caption, value) -> genericValueLabel(caption, Component.translatable("options.pletzelInputMode." + value)),
+      (caption, value) -> Component.translatable("options.pletzelInputMode." + value),
       new OptionInstance.Enum<>(java.util.List.of(0, 1, 2), com.mojang.serialization.Codec.intRange(0, 3)),
       0, net.lax1dude.eaglercraft.v1_8.internal.PlatformInput::setInputMode
    );
