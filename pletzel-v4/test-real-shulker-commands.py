@@ -57,8 +57,24 @@ try:
   click(638,353,1500);shot("03-singleplayer-warning")
   page.keyboard.press("Enter");page.wait_for_timeout(12000);shot("04-world-chooser")
   click(638,282,12500);shot("05-create-world")
-  click(638,257,650);click(638,257,650)
-  click(638,426,950);shot("06-creative-cheats-on")
+  # Detect REAL Creative state using the unchanged original button texture
+  # and pixel font, calibrated from two independent Creative screenshots.
+  # Never assume a fixed number of mode-cycle clicks.
+  import io
+  creative_sig="fc6e231fa019c5fdf3794739351d874febfb88d26a79be4500cc318083c5162a"
+  selected=False
+  for attempt in range(1,5):
+   click(638,257,850)
+   state=Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+   sig=hashlib.sha256(state.crop((380,237,655,269)).tobytes()).hexdigest()
+   print("CREATIVE_GUI_PIXEL_MATCH",attempt,sig,flush=True)
+   if sig==creative_sig:
+    selected=True;break
+  if not selected:raise RuntimeError("Never confirmed Creative mode; refusing to start an invalid test world")
+  # IMPORTANT: Creative automatically defaults Allow Cheats to ON.
+  # The old test clicked this button unnecessarily, toggled it OFF, and
+  # falsely attributed /give command failures to the native client.
+  shot("06-creative-cheats-on-no-toggle")
   click(405,672,5500);shot("07-creating-world")
   t0=time.monotonic();world_ready=False
   while time.monotonic()-t0<330:
