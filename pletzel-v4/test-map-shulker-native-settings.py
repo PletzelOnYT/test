@@ -64,6 +64,11 @@ try:
   shot("05-closed-settings")
   page.reload(wait_until="domcontentloaded",timeout=150000)
   page.wait_for_timeout(22000)
+  # Pletzel V4 opens Edit Profile after a full browser reload. Complete this
+  # REAL first-run game GUI flow before attempting Options -> Controls.
+  click(640,617)
+  click(640,666)
+  page.keyboard.press("Escape")
   shot("06-reloaded-main-menu")
   controls()
   shot("07-saved-off-after-reload")
