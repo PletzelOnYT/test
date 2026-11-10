@@ -28,7 +28,8 @@ for phrase in [
 ]:
     assert phrase in src,phrase
 assert "HEIGHT=76" not in src
-up=Path("original/common/src/main/java/com/misterpemodder/shulkerboxtooltip/impl")
+root_ref=Path("original") if Path("original").exists() else Path("shulker-mod-reference")
+up=root_ref/"common/src/main/java/com/misterpemodder/shulkerboxtooltip/impl"
 renderer=(up/"renderer/ModPreviewRenderer.java").read_text()
 base=(up/"renderer/BasePreviewRenderer.java").read_text()
 wrapper=(up/"tooltip/PreviewClientTooltipComponent.java").read_text()
@@ -40,7 +41,7 @@ assert "x + 1 - this.slotXOffset" in base
 assert "y + 1 - this.slotYOffset" in base
 assert "countLabel = String.valueOf(stack.getCount())" in base
 assert "getHeight() + 4" in wrapper
-asset=Path("original/common/src/main/resources/assets/shulkerboxtooltip/textures/gui/sprites/shulker_box_tooltip.png")
+asset=root_ref/"common/src/main/resources/assets/shulkerboxtooltip/textures/gui/sprites/shulker_box_tooltip.png"
 assert hashlib.sha256(asset.read_bytes()).hexdigest()=="25c53d6d239aa0ed24fec7a5dc7eacea32060ea4acac9ca9f6ea1a7ae8570281"
 print("PASS source geometry and original asset hash")
 print("The main Wasm-GC binary must still pass screenshot and gameplay tests.")
