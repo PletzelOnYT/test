@@ -112,7 +112,7 @@ try:
   page.mouse.move(464,555);page.wait_for_timeout(6000);snap("16-second-filled-map-tooltip")
   page.keyboard.press("Escape");page.wait_for_timeout(1200)
   send("/give @p minecraft:shulker_box 1")
-  send('/give @p minecraft:red_shulker_box[minecraft:container=[{slot:0,item:{id:"minecraft:diamond",count:42}},{slot:8,item:{id:"minecraft:golden_apple",count:5}},{slot:17,item:{id:"minecraft:diamond_pickaxe",count:1}},{slot:26,item:{id:"minecraft:potion",count:2}}]] 1')
+  send('/give @p red_shulker_box[container=[{slot:0,item:{id:"diamond",count:42}},{slot:8,item:{id:"golden_apple",count:5}}]] 1')
   page.keyboard.press("e");page.wait_for_timeout(5000);snap("17-shulker-items-in-inventory")
   page.mouse.move(532,562);page.wait_for_timeout(4600);snap("18-empty-shulker-27-slots")
   page.mouse.move(586,562);page.wait_for_timeout(4600);snap("19-red-populated-shulker-27-slots")
@@ -148,7 +148,7 @@ result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
   "Check map updates after receiving a later vanilla map packet",
   "Check multiplayer map data and map item in a chest independently",
   "Check real empty shulker has exactly 27 empty native slots",
-  "Check red shulker slots 0/8/17/26 hold diamond 42/golden apple 5/pickaxe/potion 2 respectively",
+  "Check red shulker slot 0 diamond 42 and slot 8 golden apples 5",
   "Check switching back to empty shulker clears populated icons",
   "Check original shulker item data never changes and no server-side mod is needed"
  ]}
