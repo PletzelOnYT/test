@@ -1,4 +1,4 @@
-name: Pletzel V4 audio capture vs outbound vs inbound RTP triage (NO GAME REBUILD)
+name: Pletzel V4 live remote WebAudio analyzer + RTP diagnostics (NO GAME REBUILD)
 on:
   push:
     branches: [pletzel-v4-unified-voice-rtp-diagnostics]
