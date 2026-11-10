@@ -49,7 +49,8 @@ assert "setVoicePacketReceiver(this.eaglerVoiceClient::handleServerVoiceFrame)" 
 js=read(platform/"net/lax1dude/eaglercraft/v1_8/internal/PlatformEaglerVoice26.java")
 assert "navigator.mediaDevices.getUserMedia" in js
 assert "new RTCPeerConnection" in js
-assert "track.enabled = false" in js
+assert "v.sendGain.gain.value = 0" in js
+assert "v.sendGain.gain.value = talking ? 1 : 0;" in js
 assert "track.stop()" in js
 assert "globalThis.__pletzelEaglerVoice" in js
 assert "v.enable = () =>" in js
