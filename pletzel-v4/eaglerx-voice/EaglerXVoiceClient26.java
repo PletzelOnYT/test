@@ -117,6 +117,12 @@ public final class EaglerXVoiceClient26 {
       peers.forEach(id -> PlatformEaglerVoice26.closePeer(id.toString()));
       peers.clear(); requested.clear();sentConnect=false;
       channel=newChannel;PlatformEaglerVoice26.globalChannel(newChannel==2);
+      // The microphone stream stays owned by the existing user permission;
+      // switching from proximity to global must notify the existing server.
+      if (userEnabled && serverAllowed && PlatformEaglerVoice26.status()==2) {
+         send(C_CONNECT,null,null);
+         sentConnect=true;
+      }
    }
 
    public void handleServerVoiceFrame(final byte[] frame) {
