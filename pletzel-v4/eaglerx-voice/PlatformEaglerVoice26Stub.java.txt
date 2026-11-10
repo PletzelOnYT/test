@@ -1,0 +1,27 @@
+package net.lax1dude.eaglercraft.v1_8.internal;
+
+/**
+ * Safe desktop/server compile-time contract. The browser TeaVM module shadows
+ * this class with the WebRTC implementation in platform-teavm at link time.
+ * Desktop builds never start a microphone without a dedicated implementation.
+ */
+public final class PlatformEaglerVoice26 {
+   private PlatformEaglerVoice26() {}
+   public static void initialize() {}
+   public static boolean supported() {return false;}
+   public static void configure(String servers) {}
+   public static void enable() {}
+   public static void stop() {}
+   public static int status() {return 4;}
+   public static void transmit(boolean talk) {}
+   public static double microphoneLevel() {return 0.0;}
+   public static void openPeer(String id, boolean offer) {}
+   public static void description(String id, String desc) {}
+   public static void ice(String id, String candidate) {}
+   public static void closePeer(String id) {}
+   public static void position(String id, double x, double y, double z) {}
+   public static void direction(double yaw) {}
+   public static void globalChannel(boolean global) {}
+   public static void volume(double volume) {}
+   public static String poll() {return "";}
+}
