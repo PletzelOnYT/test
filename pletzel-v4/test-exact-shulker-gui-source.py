@@ -4,8 +4,7 @@
 These checks are NOT a substitute for real side-by-side screenshot approval.
 """
 from pathlib import Path
-import hashlib, json, sys
-from PIL import Image
+import hashlib, json, sys, struct
 
 root=Path(sys.argv[1] if len(sys.argv)>1 else "engine")
 java=root/"game/src/main/java/net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.java"
@@ -42,8 +41,9 @@ for notallowed in ("SHULKER_TEXTURE","HEIGHT=76","graphics.outline(","textures/g
 assert "pletzelTooltipMouseX" in gui.read_text()
 assert "pletzelTooltipMouseY" in gui.read_text()
 assert hashlib.sha256(asset.read_bytes()).hexdigest()=="25c53d6d239aa0ed24fec7a5dc7eacea32060ea4acac9ca9f6ea1a7ae8570281"
-sprite=Image.open(asset)
-assert sprite.size==(32,32)
+raw=asset.read_bytes()
+assert raw[:8]==b'\x89PNG\r\n\x1a\n'
+assert struct.unpack('>II',raw[16:24])==(32,32)
 settings=json.loads(meta.read_text())
 assert settings["gui"]["scaling"]=={
  "type":"nine_slice","width":32,"height":32,"stretch_inner":False,"border":7
