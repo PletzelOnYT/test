@@ -34,6 +34,12 @@ for fname in ("EaglerXVoiceClient26.java","EaglerXVoiceScreen.java"):
     assert not target.exists(), f"Refusing duplicate native voice source {target}"
     shutil.copyfile(src/fname,target)
 
+shared=root/"platform/src/main/java/net/lax1dude/eaglercraft/v1_8/internal"
+shared.mkdir(parents=True,exist_ok=True)
+safe_stub=shared/"PlatformEaglerVoice26.java"
+assert not safe_stub.exists(), "Safe browser voice platform contract already present"
+shutil.copyfile(src/"PlatformEaglerVoice26Stub.java.txt",safe_stub)
+
 platform.mkdir(parents=True,exist_ok=True)
 target=platform/"PlatformEaglerVoice26.java"
 assert not target.exists(), "Native browser voice adapter already present"
