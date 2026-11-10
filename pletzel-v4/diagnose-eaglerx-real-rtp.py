@@ -7,7 +7,7 @@ SYNTHETIC TEST MICROPHONE. No Pletzel voice gateway; signaling is passed
 in the exact EaglerX ICE/description JSON envelopes by the test runner.
 THIS IS NOT TESTING AN EXISTING EAGLER SERVER OR AN OLDER EAGLER CLIENT.
 """
-import re,json,time,traceback,http.server,threading,sys
+import re,json,time,traceback,http.server,threading,sys,math,wave,struct,random
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from playwright.sync_api import sync_playwright
@@ -20,6 +20,27 @@ assert "RTCPeerConnection" in engine and "getUserMedia" in engine
 out=Path("eagler-voice-webrtc-browser-evidence");out.mkdir(exist_ok=True)
 events=[];data={"note":"Controlled synthetic microphone only; NOT older-client compatibility","steps":[]}
 with TemporaryDirectory() as tmp:
+ # Feed a deterministic non-silent speech-like PCM waveform to Chrome's
+ # FAKE microphone instead of its often-silent default test device.
+ # This verifies actual RTP/audio transport without using a real voice recording.
+ pcm=Path(tmp,"voice-test-input.wav")
+ samplerate=48000
+ rng=random.Random(1808)
+ samples=[]
+ for i in range(samplerate*4):
+  t=i/samplerate
+  envelope=(0.40+0.60*abs(math.sin(2*math.pi*3.4*t)))
+  f0=145+85*math.sin(2*math.pi*1.8*t)
+  wave_sample=(0.42*math.sin(2*math.pi*f0*t)
+      +0.24*math.sin(2*math.pi*(f0*2.1)*t)
+      +0.15*math.sin(2*math.pi*(f0*4.3)*t)
+      +0.10*rng.uniform(-1,1))*envelope
+  samples.append(struct.pack("<h",int(max(-1,min(1,wave_sample))*25000)))
+ with wave.open(str(pcm),"wb") as wf:
+  wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(samplerate)
+  wf.writeframes(b"".join(samples))
+ data["synthetic_input"]={"kind":"deterministic speech-like PCM","sampleRate":samplerate,
+     "durationSeconds":4,"fileBytes":pcm.stat().st_size}
  Path(tmp,"index.html").write_text('<!doctype html><html><body><button id="enable" onclick="globalThis.__pletzelEaglerVoice.enable()">Enable microphone for controlled test</button></body></html>')
  class Handler(http.server.SimpleHTTPRequestHandler):
   def __init__(self,*args,**kwargs):super().__init__(*args,directory=tmp,**kwargs)
@@ -32,6 +53,7 @@ with TemporaryDirectory() as tmp:
    browser=pw.chromium.launch(headless=True,args=[
     "--no-sandbox","--disable-dev-shm-usage","--use-fake-device-for-media-stream",
     "--use-fake-ui-for-media-stream","--autoplay-policy=no-user-gesture-required",
+    "--use-file-for-fake-audio-capture="+str(pcm),
     "--enable-unsafe-swiftshader"])
    contexts=[browser.new_context(),browser.new_context()]
    pages=[ctx.new_page() for ctx in contexts]
