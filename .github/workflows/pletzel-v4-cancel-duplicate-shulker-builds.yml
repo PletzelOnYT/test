@@ -1,7 +1,6 @@
 name: Cancel superseded Shulker builds (keep earliest corrected candidate)
 on:
-  push:
-    branches: [pletzel-v4-shulker-original-gui-geometry-fix]
+  workflow_dispatch:
 permissions:
   contents: read
   actions: write
