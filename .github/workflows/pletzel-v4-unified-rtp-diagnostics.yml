@@ -1,4 +1,4 @@
-name: Pletzel V4 live remote WebAudio analyzer + RTP diagnostics (NO GAME REBUILD)
+name: Pletzel V4 headed Chromium WebRTC received-audio RTP investigation
 on:
   push:
     branches: [pletzel-v4-unified-voice-rtp-diagnostics]
@@ -19,13 +19,15 @@ jobs:
           python-version: '3.12'
       - name: Install actual Chromium/WebRTC runtime
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
           python -m pip install 'playwright==1.56.0' Pillow
           python -m playwright install --with-deps chromium
       - name: Measure actual send/receive RTP and WebAudio during mute, talk, mute
         shell: bash
         run: |
           set -o pipefail
-          python -u pletzel-v4/diagnose-eaglerx-real-rtp.py 2>&1 | tee eaglerx-real-rtp-diagnostic.log
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/diagnose-eaglerx-real-rtp.py 2>&1 | tee eaglerx-real-rtp-diagnostic.log
       - name: Preserve failing RTP and received-audio evidence
         if: always()
         uses: actions/upload-artifact@v4
