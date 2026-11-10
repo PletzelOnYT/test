@@ -75,7 +75,7 @@ try:
   W,H,L=5,4,5
   blocks=[1 if y==0 or (y>0 and (x==0 or z==0 or x==W-1 or z==L-1)) else 0
       for y in range(H) for z in range(L) for x in range(W)]
-  raw=bytearray(b"\\x0a\\x00\\x00")
+  raw=bytearray(b"\x0a\x00\x00")
   def tag(name,kind,data):
    n=name.encode();raw.extend(bytes([kind])+struct.pack(">H",len(n))+n+data)
   for n,v in (("Width",W),("Height",H),("Length",L)):
@@ -181,6 +181,7 @@ if (out/"15-first-filled-map-tooltip.png").exists() and (out/"16-second-filled-m
                   second.crop((480,300,1100,670))).getdata() if p!=(0,0,0))
 result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
  "heartbeatCount":len(beats),"tooltipPixelDifferenceCount":differences,
+ "schematicFileChosen":selected if "selected" in locals() else [],
  "fatal":fault,"pageErrors":[e for e in events if e["kind"]=="pageerror"][-30:],
  "manual_verification_required":[
   "Check that first and second player-held items are actual filled maps",
@@ -200,6 +201,6 @@ result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
 print("REAL_MAP_GAMEPLAY_RESULT",json.dumps({"screens":len(shots),"commands":len(cmds),
  "heartbeatCount":len(beats),"tooltipPixelDiff":differences,"fault":fault})[:3000],flush=True)
-if fault or len(shots)<22:
+if fault or len(shots)<29 or not selected:
  raise SystemExit(2)
 print("BROWSER EXECUTION DONE; human preview content checks still required.",flush=True)
