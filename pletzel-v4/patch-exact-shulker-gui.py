@@ -210,6 +210,82 @@ gui=gui.replace(anchor,anchor+"""
 """,1)
 graphics.write_text(gui)
 
+# The original Fabric mixin locks the preview's source slot/anchor while
+# Control is held, allowing the pointer to enter the preview and inspect
+# individual slots. Port only that read-only, existing-GUI behavior. Do NOT
+# replace Controls settings, intercept clicks, or mutate the menu inventory.
+inventory=base/"net/minecraft/client/gui/screens/inventory/AbstractContainerScreen.java"
+inventory_src=inventory.read_text()
+slot_field="   protected @Nullable Slot hoveredSlot;\n"
+assert inventory_src.count(slot_field)==1, "Native container slot field changed"
+inventory_src=inventory_src.replace(slot_field,slot_field+"""
+   /** Original Shulker Box Tooltip Ctrl-lock: read-only preview source. */
+   private @Nullable Slot pletzelShulkerLockedPreviewSlot;
+   private int pletzelShulkerTooltipAnchorX;
+   private int pletzelShulkerTooltipAnchorY;
+""",1)
+tooltip_method="""   protected void extractTooltip(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY) {
+      if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
+         ItemStack item = this.hoveredSlot.getItem();
+         if (this.menu.getCarried().isEmpty() || this.showTooltipWithItemInHand(item)) {
+            graphics.setTooltipForNextFrame(
+               this.font, this.getTooltipFromContainerItem(item), item.getTooltipImage(), mouseX, mouseY, item.get(DataComponents.TOOLTIP_STYLE)
+            );
+         }
+      }
+   }
+"""
+new_method="""   protected void extractTooltip(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY) {
+      final boolean ctrlDown =
+         com.mojang.blaze3d.platform.InputConstants.isKeyDown(
+            this.minecraft.getWindow(), com.mojang.blaze3d.platform.InputConstants.KEY_LCONTROL)
+         || com.mojang.blaze3d.platform.InputConstants.isKeyDown(
+            this.minecraft.getWindow(), com.mojang.blaze3d.platform.InputConstants.KEY_RCONTROL);
+
+      // Match the reference mod's locked-preview lifecycle. Slot identity,
+      // live item data and carried-stack state are always revalidated.
+      if (!ctrlDown || !this.menu.getCarried().isEmpty()) {
+         this.pletzelShulkerLockedPreviewSlot = null;
+      } else {
+         Slot locked = this.pletzelShulkerLockedPreviewSlot;
+         if (locked != null && (!locked.hasItem() || !this.menu.slots.contains(locked)
+            || !(locked.getItem().getTooltipImage().orElse(null)
+               instanceof net.pletzel.shulkertooltip.ShulkerTooltipData))) {
+            this.pletzelShulkerLockedPreviewSlot = null;
+         }
+         if (this.pletzelShulkerLockedPreviewSlot == null
+            && this.minecraft.options.pletzelShulkerTooltip().get()
+            && this.hoveredSlot != null && this.hoveredSlot.hasItem()
+            && this.hoveredSlot.getItem().getTooltipImage().orElse(null)
+               instanceof net.pletzel.shulkertooltip.ShulkerTooltipData) {
+            this.pletzelShulkerLockedPreviewSlot = this.hoveredSlot;
+            this.pletzelShulkerTooltipAnchorX = mouseX;
+            this.pletzelShulkerTooltipAnchorY = mouseY;
+         }
+      }
+
+      Slot locked = this.pletzelShulkerLockedPreviewSlot;
+      if (locked != null && this.minecraft.options.pletzelShulkerTooltip().get()) {
+         ItemStack item = locked.getItem();
+         graphics.setTooltipForNextFrame(
+            this.font, this.getTooltipFromContainerItem(item), item.getTooltipImage(),
+            this.pletzelShulkerTooltipAnchorX, this.pletzelShulkerTooltipAnchorY,
+            item.get(DataComponents.TOOLTIP_STYLE)
+         );
+      } else if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
+         ItemStack item = this.hoveredSlot.getItem();
+         if (this.menu.getCarried().isEmpty() || this.showTooltipWithItemInHand(item)) {
+            graphics.setTooltipForNextFrame(
+               this.font, this.getTooltipFromContainerItem(item), item.getTooltipImage(), mouseX, mouseY, item.get(DataComponents.TOOLTIP_STYLE)
+            );
+         }
+      }
+   }
+"""
+assert inventory_src.count(tooltip_method)==1, "Native tooltip method changed"
+inventory_src=inventory_src.replace(tooltip_method,new_method,1)
+inventory.write_text(inventory_src)
+
 for expected in ["HEIGHT=14+3*18","WIDTH=14+9*18","originalTint","slotAt(",
                  "graphics.item(held,xx,yy,slot)", "HIGHLIGHT_BEHIND",
                  "HIGHLIGHT_FRONT","ORIGINAL_SPRITE"]:
@@ -219,5 +295,5 @@ for expected in ["HEIGHT=14+3*18","WIDTH=14+9*18","originalTint","slotAt(",
 assert "pletzelShulkerTooltip" in gui
 assert "pletzelMapTooltip" in gui
 print("PARITY PATCH: original 176x68 sprite with 4px in-tooltip padding, 18px grid, offset 8x8, original nine-slice GUI.")
-print("PARITY PATCH: authentic tint, per-slot item renderer, highlights, nested hover item tooltip.")
+print("PARITY PATCH: authentic tint, counts, slot highlights and Ctrl-locked nested item hover.")
 print("PARITY PATCH: no Options/Controls/Map Tooltip/voice code touched.")
