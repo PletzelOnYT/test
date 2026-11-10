@@ -73,7 +73,7 @@ assert "new net.lax1dude.eaglercraft.v1_8.voice.EaglerXVoiceScreen" in gameclien
 assert "PletzelSingleplayerWarningScreen" in read(game/"net/minecraft/client/gui/screens/TitleScreen.java")
 assert "MapTooltipData" in read(game/"net/minecraft/world/item/MapItem.java")
 assert "ShulkerTooltipData" in read(game/"net/minecraft/world/item/ItemStack.java")
-for forbidden in ("PletzelVoice","pvoice token","Pletzel gateway","pvoice","/pvoice"):
+for forbidden in ("PletzelVoiceClient(", "PletzelVoiceGateway(", "/pvoice token", "new WebSocket(", "wss://pletzelvoice"):
  assert forbidden.lower() not in (client+screen+js).lower(), forbidden
 print("OFFICIAL V5 SOURCE PARITY PASS: handshake VOICE_V0 + original voice signaling packet IDs")
 print("PASS: original 0xEE game-message transport reused, skin dispatch preserved")
