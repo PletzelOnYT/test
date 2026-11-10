@@ -16,6 +16,18 @@ const adminKey = process.env.VOICE_ADMIN_SECRET || '';
 if (adminKey.length < 32) throw new Error('VOICE_ADMIN_SECRET must be at least 32 characters');
 const range = Math.max(8, Math.min(96, Number(process.env.VOICE_RANGE || 48)));
 const rangeSquared = range * range;
+// STUN/TURN configuration is supplied by the server operator. TURN-only mode
+// prevents direct client-to-client host/server-reflexive ICE candidates.
+const iceServers = JSON.parse(process.env.VOICE_ICE_SERVERS || '[{"urls":"stun:stun.l.google.com:19302"}]');
+if (!Array.isArray(iceServers) || iceServers.length > 12 || iceServers.some(s =>
+  !s || typeof s !== 'object' || typeof s.urls !== 'string' && !Array.isArray(s.urls))) {
+  throw new Error('VOICE_ICE_SERVERS must be an array of WebRTC RTCIceServer objects');
+}
+const icePolicy = process.env.VOICE_TURN_ONLY === '1' ? 'relay' : 'all';
+if (icePolicy === 'relay' && !iceServers.some(s => JSON.stringify(s.urls).includes('turn:') || JSON.stringify(s.urls).includes('turns:'))) {
+  throw new Error('VOICE_TURN_ONLY requires a TURN server in VOICE_ICE_SERVERS');
+}
+
 const clients = new Map();
 const grants = new Map();
 let positions = new Map();
@@ -135,7 +147,7 @@ wss.on('connection',socket=>{
       if(!grant || grant.expires<now || !positions.has(grant.id) || now-updatedAt>3500){fail(4003,'Token invalid or expired');return;}
       if(clients.has(grant.id))clients.get(grant.id).socket.close(4004,'Another voice session started');
       self={id:grant.id,socket,peers:new Set()};clients.set(self.id,self);
-      asJson(socket,{t:'welcome',id:self.id,range,server:serverId});synchronize();return;
+      asJson(socket,{t:'welcome',id:self.id,range,server:serverId,iceServers,icePolicy});synchronize();return;
     }
     if(data?.t==='signal') {
       const peer=clients.get(data.peer);
