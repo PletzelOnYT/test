@@ -1,0 +1,22 @@
+name: Pletzel V4 voice gateway security and proximity unit checks (NO GAME REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-voice-transport-experimental]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signal-gateway:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated signaling dependency
+        working-directory: pletzel-v4/voice-gateway
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Test REAL WebSocket clients and trusted game-server position snapshots
+        working-directory: pletzel-v4/voice-gateway
+        run: npm test
