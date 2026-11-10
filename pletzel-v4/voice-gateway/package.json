@@ -1,0 +1,16 @@
+{
+  "name": "pletzel-v4-voice-gateway-experimental",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Authenticated WebRTC signaling prototype; NOT integrated or production-ready voice",
+  "scripts": {
+    "test": "node --test test.cjs",
+    "start": "node server.cjs"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
