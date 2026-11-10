@@ -1,0 +1,38 @@
+name: EaglerX Voice real WebRTC browser audio plumbing (SYNTHETIC MIC; NO ENGINE BUILD)
+on:
+  push:
+    branches: [pletzel-v4-eaglerx-voice-browser-evidence]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Chromium, browser Web Audio, Playwright
+        run: |
+          set -euo pipefail
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Two real Chromium WebRTC peers with EXPLICIT synthetic audio device
+        shell: bash
+        run: |
+          set -o pipefail
+          python pletzel-v4/test-eaglerx-v5-webrtc-audio.py 2>&1 | tee eagler-webRTC-test.log
+      - name: Preserve audio measurements, ICE/SDP proof, and any failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eaglerx-v5-webrtc-actual-browser-synthetic-input-evidence
+          path: |
+            eagler-voice-webrtc-browser-evidence/
+            eagler-webRTC-test.log
+          if-no-files-found: warn
+          retention-days: 30
