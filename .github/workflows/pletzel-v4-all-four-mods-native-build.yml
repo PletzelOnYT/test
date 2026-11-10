@@ -1,0 +1,622 @@
+name: Pletzel V4 ALL FOUR MODS unified native Minecraft 26.2 build
+on:
+  push:
+    branches: [pletzel-v4-all-four-mods-unified]
+    paths:
+      - '.github/workflows/pletzel-v4-all-four-mods-native-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      EAGLER_BUILD_CAP_MIB: '13312'
+      EAGLER_LINK_HEAP_MIB: '12288'
+      CANDIDATE: Pletzel-V4-ALL-MODS-COMPLETE.html
+    steps:
+      - name: Checkout isolated integration kit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Wait for existing original GUI link to complete BEFORE starting corrected native compilation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base_run=42761495178
+          base_sha=198066292dceeffdf73d6713b273c423e242badf
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$base_run" --jq .head_sha)" = "$base_sha"
+          deadline=$(( $(date +%s) + 6300 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$base_run" --jq .status)"
+            echo "Existing native Wasm linker run $base_run: $status"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$base_run" --jq .conclusion)"
+              echo "Existing original GUI binary result: $conclusion"
+              test "$conclusion" = success || { echo "STOP: inspect failure before another expensive build"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 30
+          done
+      - name: Checkout pinned public 26.2 source
+        uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Record runtime resources and source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          { java -version; node --version; free -h; df -h .; git -C engine rev-parse HEAD; cat engine/gradle/wrapper/gradle-wrapper.properties; } 2>&1 | tee logs/environment.log
+          test "$(git -C engine rev-parse HEAD)" = "f73bff91f0f0840bc958c09ab536dbba1e146b2e"
+          mem=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+          disk=$(df -Pm . | awk 'NR==2 {print $4}')
+          if (( mem < 14500 || disk < 10000 )); then
+            echo "INSUFFICIENT_RESOURCES: RAM=${mem}MiB DISK=${disk}MiB" | tee logs/preflight-failure.log
+            exit 3
+          fi
+      - name: Verify and extract the existing Pletzel V4 Java source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs = require('node:fs');
+          const zlib = require('node:zlib');
+          const crypto = require('node:crypto');
+          const payload = Buffer.from(fs.readFileSync('pletzel-v4/native-patches.tar.br.b64', 'utf8').trim(), 'base64');
+          const hash = crypto.createHash('sha256').update(payload).digest('hex');
+          const expected = 'bc622e01aafba87d52b50556972e3819a8ae58fad3273818aca7e3c3ddc84af5';
+          if (hash !== expected) throw new Error('Patch archive sha256 mismatch: '+hash);
+          fs.writeFileSync('pletzel-v4/native-patches.tar',zlib.brotliDecompressSync(payload));
+          console.log('Verified pre-existing native patch archive:',payload.length,'B, sha256',hash);
+          JS
+          tar -tf pletzel-v4/native-patches.tar | tee logs/native-source-list.txt
+          tar -xf pletzel-v4/native-patches.tar -C pletzel-v4/
+      - name: Dry-run and apply original native renderer/menu patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/apply_to_26_2_source.py engine --dry-run 2>&1 | tee logs/patch-dry-run.log
+          python3 pletzel-v4/apply_to_26_2_source.py engine 2>&1 | tee logs/patch-apply.log
+          grep -F 'SchematicaWorldRenderer.submit(' engine/game/src/main/java/net/minecraft/client/renderer/LevelRenderer.java
+          grep -F 'Optimized by Pletzel' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+      - name: Fix verified 26.2 colored block API difference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          src=p.read_text()
+          before='Blocks.WHITE_WOOL.defaultBlockState()'
+          after='Blocks.WOOL.white().defaultBlockState()'
+          assert src.count(before)==1, 'unexpected Java mapping source; refuse edit'
+          src=src.replace(before,after,1)
+          p.write_text(src)
+          print('FIXED: Minecraft 26.2 ColorCollection<Block> WOOL.white()')
+          PY
+      - name: Apply native Schematica GUI and file-picker source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto'),zlib=require('node:zlib');
+          const b=Buffer.from(fs.readFileSync('pletzel-v4/gui-hotfix.py.br.b64','utf8').trim(),'base64');
+          const hash=crypto.createHash('sha256').update(b).digest('hex');
+          if(hash!=='690542eb0f12742026a08ca4815a210dc67a371c241014c4691f636ea53374b4')
+            throw new Error('GUI hotfix source archive SHA mismatch: '+hash);
+          fs.writeFileSync('pletzel-v4/gui-hotfix.py',zlib.brotliDecompressSync(b));
+          console.log('Verified GUI and file-chooser hotfix payload',hash);
+          JS
+          python3 pletzel-v4/gui-hotfix.py engine 2>&1 | tee logs/gui-hotfix.log
+          grep -F 'Dedicated top-of-screen status' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'File selection cancelled' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java
+          grep -F 'fileChooserElement == inputElement' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/internal/PlatformApplication.java
+      - name: Apply depth-stable hologram and live-world comparison patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip,base64
+          p=Path('pletzel-v4/engine-render-repair.py.gz.b64')
+          Path('pletzel-v4/engine-render-repair.py').write_bytes(gzip.decompress(base64.b64decode(p.read_text().strip())))
+          PY
+          python3 pletzel-v4/engine-render-repair.py engine 2>&1 | tee logs/render-repair.log
+          grep -F 'pletzelHologram' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          grep -F 'actual.equals(cell.expected)' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+      - name: Restore real vanilla colored worldgen chunk grid from server IPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip,base64
+          p=Path('pletzel-v4/real-chunk-grid.py.gz.b64')
+          data=base64.b64decode(p.read_text().strip())
+          Path('pletzel-v4/real-chunk-grid.py').write_bytes(gzip.decompress(data))
+          PY
+          python3 pletzel-v4/real-chunk-grid.py engine 2>&1 | tee logs/real-chunk-grid.log
+          grep -Fq 'IPCPacket23ChunkStatusGrid' engine/platform/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/ipc/IPCPacketManager.java
+      - name: Show native 26.2 worldgen bar with REAL server IPC stage fraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-native-loading-progress-ipc.py engine 2>&1 | tee logs/native-loading-ipc-progress.log
+          grep -Fq 'actualServerProgress' engine/game/src/main/java/net/minecraft/client/multiplayer/LevelLoadTracker.java
+          git -C engine diff --check
+      - name: Fix WasmGC server worker selection mismatch with world metadata initialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/internal/ClientPlatformSingleplayer.java')
+          src=p.read_text()
+          old='return isServerWorkerFlagJS() && workerSupportedJS();'
+          new='return workerSupportedJS() && (net.lax1dude.eaglercraft.v1_8.internal.teavm.WasmWorkerBootstrap.isWasmGC() || isServerWorkerFlagJS());'
+          assert src.count(old)==1, 'worker metadata preflight semantics unexpectedly changed'
+          p.write_text(src.replace(old,new,1))
+          print('Fixed serverWorkerModeRequested to match actual WasmGC dedicated-worker selection')
+          PY
+          grep -F 'WasmWorkerBootstrap.isWasmGC() || isServerWorkerFlagJS()' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/internal/ClientPlatformSingleplayer.java
+      - name: Fix confirmed TeaVM inline worldgen/biome executor scheduling defect
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-worldgen-async.py engine 2>&1 | tee logs/worldgen-async-repair.log
+          grep -Fq 'EaglerWorldgenExecutor.INSTANCE' engine/game/src/main/java/net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator.java
+          grep -Fq 'EaglerWorldgenExecutor.INSTANCE' engine/game/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java
+          git -C engine diff --check
+      - name: Isolate web worldgen and live-tick coroutine checkpoint deadlines
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-worldgen-fair-slices.py engine 2>&1 | tee logs/fair-slices-repair.log
+          grep -Fq 'worldgenNextYieldAt' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerWorldgenYield.java
+          grep -Fq 'serverNextYieldAt' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerWorldgenYield.java
+          git -C engine diff --check
+      - name: Honor real chunk-decode ACKs and bound stale client packet backlog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-singleplayer-stream-backpressure.py engine 2>&1 | tee logs/singleplayer-stream-backpressure.log
+          grep -Fq 'WEB_MIN_CHUNKS_PER_TICK = 0.25F' engine/game/src/main/java/net/minecraft/server/network/PlayerChunkSender.java
+          grep -Fq 'EMERGENCY_BACKLOG_BUDGET_MILLIS = 32.0' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/SingleplayerInboundPumpPolicy.java
+          git -C engine diff --check
+      - name: Defer browser trial spawner tick instead of synchronous neighbor FULL-chunk wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-trial-spawner-full-chunk-guard.py engine 2>&1 | tee logs/trial-spawner-guard.log
+          grep -Fq 'getChunkNow(cx, cz) == null' engine/game/src/main/java/net/minecraft/world/level/block/entity/trialspawner/TrialSpawner.java
+          git -C engine diff --check
+      - name: Defer only browser villager Brain AI when nearby FULL chunks unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-villager-ai-nonblocking.py engine 2>&1 | tee logs/villager-ai-nonblocking.log
+          grep -Fq 'level.getChunkSource().getChunkNow(cx, cz) == null' engine/game/src/main/java/net/minecraft/world/entity/npc/villager/Villager.java
+          git -C engine diff --check
+      - name: Guard browser vault against neighboring FULL chunk blocking waits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-vault-full-neighbor-guard.py engine 2>&1 | tee logs/vault-neighbor-guard.log
+          grep -Fq 'serverLevel.getChunkSource().getChunkNow(cx, cz) == null' engine/game/src/main/java/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
+          git -C engine diff --check
+      - name: Guarantee TeaVM integrated-server tick resume when scheduler.postTask silently stalls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-hosted-server-tick-wakeup.py engine 2>&1 | tee logs/server-tick-wakeup-liveness.log
+          grep -Fq 'var fallback = globalThis.setTimeout(wake, d + 100);' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java
+          git -C engine diff --check
+      - name: Rescue REAL suspended TeaVM server callbacks from active worker supervisor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-supervisor-tick-resume.py engine | tee logs/supervisor-tick-wake-repair.log
+          node pletzel-v4/test-supervisor-wake-once.cjs engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/internal/ServerPlatformSingleplayer.java | tee logs/supervisor-wake-native-js-test.log
+          grep -Fq 'ServerPlatformSingleplayer.recoverOverdueServerTick();' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          git -C engine diff --check
+      - name: Restore native Steve and Alex classic/slim arm choice for ALL skins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/restore-steve-alex-profile-choice.py engine | tee logs/steve-alex-model-restoration.log
+          grep -Fq 'modelButton.visible = true;' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/profile/EaglerProfileScreen26.java
+          grep -Fq 'pairedBase' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/profile/EaglerProfileScreen26.java
+          git -C engine diff --check
+      - name: Repair relay movement flush, original chunk geometry invalidation and Schematica depth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-movement-terrain-ghost.py engine 2>&1 | tee logs/movement-terrain-ghost-repair.log
+          grep -Fq 'this.connection.setEaglerTransport(this::pump, this::close, this::drainOutbound);' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/WebSocketPacketBridge.java
+          grep -Fq 'faceSeparation = missing ? 1.002f : 1.006f' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          git -C engine diff --check
+      - name: Instrument ACTUAL blocked FULL chunk wait in real Mac Chrome under perfdebug
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/trace-active-blocked-chunk-wait.py engine 2>&1 | tee logs/active-chunk-wait-trace.log
+          grep -Fq '[PletzelActiveChunkWait]' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerServerPerf.java
+          git -C engine diff --check
+      - name: Repair observed Mac 4045ms STRUCTURE_STARTS player advancement sync stall
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-player-structure-starts-nonblocking.py engine 2>&1 | tee logs/player-structure-starts-no-wait.log
+          grep -F 'eaglerStructureStartsAvailableWithoutBlocking' engine/game/src/main/java/net/minecraft/advancements/predicates/LocationPredicate.java
+          git -C engine diff --check
+      - name: Identify whether Mac 8.11-second presentation pause is submit, surface or cleanup (opt-in)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/trace-client-present-stall.py engine 2>&1 | tee logs/mac-client-present-subphases.log
+          grep -F '[PletzelPresentStall]' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+          git -C engine diff --check
+      - name: Restore native 26.2 vanilla loading throughout server startup and expose real stage grid
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/repair-vanilla-loading-startup.py engine 2>&1 | tee logs/vanilla-loading-startup.log
+          grep -Fq 'this.gui.setScreen(screen);' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+          ! grep -Fq 'eaglerBusyScreen = new' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+          grep -Fq 'currentFocusChunk()' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -Fq 'ChunkLevel.RADIUS_AROUND_FULL_CHUNK + 1' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/server/EaglerIntegratedServerWorker26.java
+          grep -Fq 'spawn.validatedFullChunk' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'eaglerStructureStartsAvailableWithoutBlocking' engine/game/src/main/java/net/minecraft/advancements/predicates/LocationPredicate.java
+          grep -Fq 'fillToCurrentLayer' engine/game/src/main/java/net/minecraft/client/gui/screens/LevelLoadingScreen.java
+          git -C engine diff --check
+      - name: Defer browser initial spawn until genuine FULL chunks are ready and validate before server ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,gzip,hashlib
+          from pathlib import Path
+          encoded=Path('pletzel-v4/repair-browser-initial-spawn.py.gz.b64').read_text().strip()
+          script=gzip.decompress(base64.b64decode(encoded,validate=True))
+          expected='de09dcad69b44525a516e77d46949a97786340ec64225ac1f270b1c618baaa03'
+          assert hashlib.sha256(script).hexdigest()==expected, 'spawn patch changed unexpectedly'
+          Path('pletzel-v4/repair-browser-initial-spawn.py').write_bytes(script)
+          print('PINNED browser spawn patch SHA-256',expected)
+          PY
+          python3 -m py_compile pletzel-v4/repair-browser-initial-spawn.py
+          python3 pletzel-v4/repair-browser-initial-spawn.py engine 2>&1 | tee logs/safe-async-browser-spawn.log
+          grep -Fq 'eaglerFinishBrowserInitialSpawn' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'spawn.validatedAfterFull' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          grep -Fq 'ready.join(); // only an already-completed future' engine/game/src/main/java/net/minecraft/server/MinecraftServer.java
+          git -C engine diff --check
+      - name: Add native Singleplayer warning GUI AFTER all engine patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/patch-singleplayer-warning.py engine | tee logs/singleplayer-warning-source.log
+          grep -Fq 'new PletzelSingleplayerWarningScreen(this)' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+          grep -Fq 'public void openSingleplayerAfterWarning()' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+          grep -Fq 'extends Screen' engine/game/src/main/java/net/minecraft/client/gui/screens/PletzelSingleplayerWarningScreen.java
+          grep -Fq 'this.setInitialFocus(this.continueButton);' engine/game/src/main/java/net/minecraft/client/gui/screens/PletzelSingleplayerWarningScreen.java
+          git -C engine diff --check
+      - name: Fix REAL hybrid touch and mouse device switching in Java + TeaVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-active-input-mode.py
+          python3 pletzel-v4/patch-active-input-mode.py engine 2>&1 | tee logs/touch-mouse-mode-patch.log
+          grep -Fq 'new PletzelSingleplayerWarningScreen(this)' engine/game/src/main/java/net/minecraft/client/gui/screens/TitleScreen.java
+          grep -Fq 'isTouchGeneratedMouse(evt)' engine/platform-teavm/src/main/java/net/lax1dude/eaglercraft/v1_8/internal/PlatformInput.java
+          grep -Fq 'options.pletzelInputMode.0' engine/game/src/main/resources/assets/minecraft/lang/en_us.json
+          grep -Fq 'options.pletzelInputMode()' engine/game/src/main/java/net/minecraft/client/gui/screens/options/controls/ControlsScreen.java
+          git -C engine diff --check
+      - name: Apply faithful native Map Tooltip 5.0.1 port after Singleplayer warning and touch controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-map-tooltip-native.py pletzel-v4/test-map-tooltip-native-source.py
+          python3 pletzel-v4/patch-map-tooltip-native.py engine | tee logs/native-map-tooltip-source.log
+          python3 pletzel-v4/test-map-tooltip-native-source.py engine | tee logs/native-map-tooltip-source-test.log
+          grep -Fq 'MapTooltipData' engine/game/src/main/java/net/minecraft/world/item/MapItem.java
+          grep -Fq 'MapTooltipClientComponent' engine/game/src/main/java/net/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipComponent.java
+          git -C engine diff --check
+      - name: Port native 27-slot Shulker Tooltip and persist ON/OFF settings for both tooltips
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-shulker-tooltips-native.py pletzel-v4/test-both-native-tooltips-source.py
+          python3 pletzel-v4/patch-shulker-tooltips-native.py engine 2>&1 | tee logs/native-shulker-tooltip-source.log
+          python3 pletzel-v4/test-both-native-tooltips-source.py engine 2>&1 | tee logs/both-tooltips-source-check.log
+          git -C engine diff --check
+      - name: Checkout exact original Shulker Box Tooltip 5.4.3 + Minecraft 26.2 sprite source
+        uses: actions/checkout@v4
+        with:
+          repository: MisterPeModder/ShulkerBoxTooltip
+          ref: v5.4.3+26.2
+          path: shulker-mod-reference
+          persist-credentials: false
+      - name: Port original Shulker Box Tooltip full GUI (NO SETTINGS CHANGES)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-exact-shulker-gui.py pletzel-v4/test-exact-shulker-gui-source.py
+          python3 pletzel-v4/test-shulker-geometry-upstream.py | tee logs/shulker-original-geometry-upstream.log
+          python3 -m py_compile pletzel-v4/test-original-shulker-gui-ctrl-lock.py
+          dest=engine/game/src/main/resources/assets/shulkerboxtooltip/textures/gui/sprites
+          orig=shulker-mod-reference/common/src/main/resources/assets/shulkerboxtooltip/textures/gui/sprites
+          mkdir -p "$dest"
+          cp "$orig/shulker_box_tooltip.png" "$dest/shulker_box_tooltip.png"
+          cp "$orig/shulker_box_tooltip.png.mcmeta" "$dest/shulker_box_tooltip.png.mcmeta"
+          echo '25c53d6d239aa0ed24fec7a5dc7eacea32060ea4acac9ca9f6ea1a7ae8570281  engine/game/src/main/resources/assets/shulkerboxtooltip/textures/gui/sprites/shulker_box_tooltip.png' | sha256sum -c -
+          python3 pletzel-v4/patch-exact-shulker-gui.py engine 2>&1 | tee logs/original-shulker-gui-source.log
+          python3 pletzel-v4/test-exact-shulker-gui-source.py engine 2>&1 | tee logs/original-shulker-gui-parity.log
+          grep -Fq 'pletzelShulkerLockedPreviewSlot' engine/game/src/main/java/net/minecraft/client/gui/screens/inventory/AbstractContainerScreen.java
+          grep -Fq 'final int dx=mouseX-x+1-OFFSET;' engine/game/src/main/java/net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.java
+          grep -Fq 'HEIGHT+4' engine/game/src/main/java/net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.java
+          git -C engine diff --check
+      - name: Port OFFICIAL EaglerXServer V5 voice onto same native Minecraft source (NO PLETZEL GATEWAY)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-eaglerx-voice-v5.py pletzel-v4/test-eaglerx-v5-voice-source.py
+          python3 pletzel-v4/patch-eaglerx-voice-v5.py engine 2>&1 | tee logs/official-eaglerx-voice-source.log
+          python3 pletzel-v4/test-eaglerx-v5-voice-source.py engine 2>&1 | tee logs/official-eaglerx-voice-source-test.log
+          git -C engine diff --check
+      - name: Record all four ACTUAL source integrations in the SAME engine tree before compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('engine/game/src/main/java')
+          required={
+            'Schematica renderer':root/'net/pletzel/schematica/SchematicaWorldRenderer.java',
+            'Schematica menu':root/'net/pletzel/schematica/SchematicaScreen.java',
+            'Map Tooltip component':root/'net/pletzel/maptooltip/MapTooltipClientComponent.java',
+            'Map item extension':root/'net/minecraft/world/item/MapItem.java',
+            'Shulker original GUI component':root/'net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.java',
+            'Original shulker Ctrl lock':root/'net/minecraft/client/gui/screens/inventory/AbstractContainerScreen.java',
+            'EaglerX V5 voice protocol':root/'net/lax1dude/eaglercraft/v1_8/voice/EaglerXVoiceClient26.java',
+            'EaglerX voice GUI':root/'net/lax1dude/eaglercraft/v1_8/voice/EaglerXVoiceScreen.java',
+          }
+          lines=[]
+          for label,path in required.items():
+              assert path.is_file(),f'Lost native feature: {label} ({path})'
+              lines.append(f'{label}: {hashlib.sha256(path.read_bytes()).hexdigest()} {path}')
+          voice=(root/'net/lax1dude/eaglercraft/v1_8/voice/EaglerXVoiceClient26.java').read_text()
+          shulker=(root/'net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.java').read_text()
+          assert 'C_REQUEST=0x06' in voice and 'S_GLOBAL=0x0C' in voice
+          assert 'HEIGHT+4' in shulker and 'slotAt(' in shulker
+          assert 'shulkerboxtooltip' in shulker and 'graphics.item(held' in shulker
+          contents='\n'.join(lines)+'\n'
+          Path('logs/unified-four-feature-source-sha256.txt').write_text(contents)
+          print(contents)
+          PY
+      - name: Assert vanilla 26.2 color mapping and chunk stage order at SOURCE (not invented screenshot)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('engine/game/src/main/java/net/minecraft')
+          src=(root/'client/gui/screens/LevelLoadingScreen.java').read_text()
+          sta=(root/'world/level/chunk/status/ChunkStatus.java').read_text()
+          expected=[('EMPTY',5526612),('STRUCTURE_STARTS',10066329),('STRUCTURE_REFERENCES',6250897),
+            ('BIOMES',8434258),('NOISE',13750737),('SURFACE',7497737),('CARVERS',3159410),
+            ('FEATURES',2213376),('INITIALIZE_LIGHT',13421772),('LIGHT',16769184),
+            ('SPAWN',15884384),('FULL',16777215)]
+          actual=[(a,int(b)) for a,b in re.findall(r'map.put\(ChunkStatus\.(\w+), (\d+)\)',src)]
+          assert actual==expected,(actual,expected)
+          statuses=re.findall(r'public static final ChunkStatus (\w+) = register\(',sta)
+          assert statuses==[x[0] for x in expected], statuses
+          assert 'extractChunksForRendering(graphics, xCenter, yCenter, 2, 0, statusView)' in src
+          assert 'this.extractPanorama(graphics, a)' in src
+          assert 'this.extractBlurredBackground(graphics)' in src
+          print('SOURCE PARITY:',len(expected),'native statuses and 26.2 GUI geometry preserved')
+          PY
+      - name: Save complete integrated native source patch and precise provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C engine diff --check
+          git -C engine diff --binary | gzip -9 > logs/pletzel-v4-integrated-native-source.diff.gz
+          git -C engine status --short > logs/source-change-manifest.txt
+          git -C engine rev-parse HEAD > logs/pinned-source-commit.txt
+          sha256sum logs/pletzel-v4-integrated-native-source.diff.gz | tee logs/native-source-diff-sha256.txt
+          test -s logs/pletzel-v4-integrated-native-source.diff.gz
+      - name: Install npm lockfile dependencies
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee ../logs/npm.log
+      - name: Compile game with native Schematica
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          bash ./gradlew :game:jar :platform-teavm:compileJava --console=plain --no-daemon --stacktrace 2>&1 | tee ../logs/game-compile.log
+      - name: Verify compiled Schematica classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          jarfile=$(find engine/game/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$jarfile"
+          jar tf "$jarfile" > logs/compiled-jar-entries.txt
+          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen; do
+            grep -Fx "net/pletzel/schematica/${cls}.class" logs/compiled-jar-entries.txt
+          done
+          echo "All native Schematica classes compiled into game JAR"
+          grep -Fx 'net/minecraft/client/gui/screens/PletzelSingleplayerWarningScreen.class' logs/compiled-jar-entries.txt
+          echo 'Verified REAL compiled Minecraft warning Screen class in game jar'
+          grep -Fx 'net/pletzel/maptooltip/MapTooltipData.class' logs/compiled-jar-entries.txt
+          grep -Fx 'net/pletzel/maptooltip/MapTooltipClientComponent.class' logs/compiled-jar-entries.txt
+          echo 'Verified NATIVE Map Tooltip classes and native warning in compiled Minecraft JAR'
+          grep -Fx 'net/pletzel/shulkertooltip/ShulkerTooltipData.class' logs/compiled-jar-entries.txt
+          grep -Fx 'net/pletzel/shulkertooltip/ShulkerTooltipClientComponent.class' logs/compiled-jar-entries.txt
+          echo 'Verified BOTH Map Tooltip and Shulker Tooltip compiled natively with all Pletzel V4 classes'
+          grep -Fx 'assets/shulkerboxtooltip/textures/gui/sprites/shulker_box_tooltip.png' logs/compiled-jar-entries.txt
+          grep -Fx 'assets/shulkerboxtooltip/textures/gui/sprites/shulker_box_tooltip.png.mcmeta' logs/compiled-jar-entries.txt
+          echo 'Verified source-identical original mod sprite and nine-slice metadata in game JAR'
+          grep -Fx 'net/lax1dude/eaglercraft/v1_8/voice/EaglerXVoiceClient26.class' logs/compiled-jar-entries.txt
+          grep -Fx 'net/lax1dude/eaglercraft/v1_8/voice/EaglerXVoiceScreen.class' logs/compiled-jar-entries.txt
+          echo 'Verified all four native feature class sets in SAME compiled Minecraft JAR'
+      - name: Confirm real TeaVM WebRTC browser adapter compiled
+        shell: bash
+        run: |
+          set -euo pipefail
+          find engine/platform-teavm/build/classes -type f -name 'PlatformEaglerVoice26.class' | grep -q .
+          echo 'Browser WebRTC adapter compiled (does NOT prove audible voice audio)'
+      - name: Install real 26.2 EPK sounds and keep optional music disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p engine/target_teavm/build/web
+          curl -fL --retry 3 'https://raw.githubusercontent.com/melonman106/Eagler-26.2-Client/main/sounds.epk' -o engine/target_teavm/build/web/sounds.epk
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          s=Path('engine/target_teavm/build/web/sounds.epk').read_bytes()
+          assert len(s)>1000000 and s.startswith(b'EAGPKG$$'), 'invalid real sound archive'
+          print('real sound archive',len(s),'sha256',hashlib.sha256(s).hexdigest())
+          p=Path('engine/wasm-toolchain/build-single-html.js')
+          source=p.read_text()
+          old='if (!fs.existsSync(musicSource)) {'
+          assert source.count(old)==1
+          source=source.replace(old,'if (withMusic && !fs.existsSync(musicSource)) {',1)
+          marker='  const musicPack = spawnSync('
+          pos=source.index(marker)
+          start=source.rfind('if (withoutMusic) {',0,pos)
+          assert start>=0
+          source=source[:start]+source[start:].replace('if (withoutMusic) {',
+                'if (withoutMusic && fs.existsSync(musicSource)) {',1)
+          p.write_text(source)
+          PY
+          sha256sum engine/target_teavm/build/web/sounds.epk | tee logs/sounds-real-sha256.txt
+      - name: Link precise TeaVM/Wasm-GC and package standalone HTML
+        shell: bash
+        working-directory: engine
+        run: |
+          set -o pipefail
+          node wasm-toolchain/build-single-html.js --fast-package --output "$CANDIDATE" 2>&1 | tee ../logs/full-wasm-link.log
+      - name: Install permanent inline XMLHttpRequest bridge into compiled standalone HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,gzip
+          from pathlib import Path
+          b=base64.b64decode(Path('pletzel-v4/repair_packaging.py.gz.b64').read_text().strip())
+          Path('pletzel-v4/repair_packaging.py').write_bytes(gzip.decompress(b))
+          PY
+          python3 pletzel-v4/repair_packaging.py --input "engine/$CANDIDATE" --sounds engine/target_teavm/build/web/sounds.epk --output engine/repaired-standalone.html
+          mv engine/repaired-standalone.html "engine/$CANDIDATE"
+          grep -Fq '__pletzelNativeXHR' "engine/$CANDIDATE"
+      - name: Embed current-time marker, native heartbeat freshness and GPU present-stage Mac diagnostics (OFF by default)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check pletzel-v4/field-diagnostics/pletzel-field-diagnostics-v2.js
+          python3 -m py_compile pletzel-v4/field-diagnostics/inject_mac_diagnostics.py
+          python3 pletzel-v4/field-diagnostics/inject_mac_diagnostics.py "engine/$CANDIDATE" pletzel-v4/field-diagnostics/pletzel-field-diagnostics-v2.js engine/mac-field-ready.html | tee logs/mac-diagnostics-injection.log
+          mv engine/mac-field-ready.html "engine/$CANDIDATE"
+          grep -Fq 'pletzel-field-diagnostics-v1' "engine/$CANDIDATE"
+          grep -Fq 'MARKER' logs/mac-diagnostics-injection.log || true
+      - name: Bundle the original MIT author attribution in the standalone HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import html
+          map_notice=Path('pletzel-v4/MAP-TOOLTIP-THIRD-PARTY-NOTICE.md').read_text()
+          shulker_notice=Path('pletzel-v4/SHULKER-TOOLTIP-THIRD-PARTY-NOTICE.md').read_text()
+          assert 'Copyright (c) VendoAU' in map_notice and 'MIT License' in map_notice
+          assert 'MisterPeModder' in shulker_notice and 'MIT License' in shulker_notice
+          notice=map_notice+'\\n'+shulker_notice
+          target=Path('engine')/'''${{ env.CANDIDATE }}'''
+          assert target.exists() and target.stat().st_size>85000000
+          # An HTML comment ensures that the published binary carries attribution
+          # without changing the game canvas, WASM or startup scripts.
+          payload=notice.replace('--','- -')
+          with target.open('a',encoding='utf-8') as o:
+              o.write('\n<!--\n'+payload+'\n-->\n')
+          tail=target.read_text(errors='replace')[-8000:]
+          assert 'Copyright (c) VendoAU' in tail and 'MisterPeModder' in tail
+          PY
+      - name: Validate compiled WebAssembly and record candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          wasm=engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
+          test -s "$wasm"
+          node - "$wasm" <<'JS' | tee logs/wasm-validation.log
+          const fs = require('node:fs'),crypto=require('node:crypto');
+          const bytes=fs.readFileSync(process.argv[2]);
+          const mod=new WebAssembly.Module(bytes);
+          console.log('VALID WASM',bytes.length,'sha256',crypto.createHash('sha256').update(bytes).digest('hex'));
+          console.log('imports',WebAssembly.Module.imports(mod).length,'exports',WebAssembly.Module.exports(mod).length);
+          console.log('WARNING: macOS structure-starts candidate still requires actual saved-world, graphical and multiplayer validation');
+          JS
+          cp "$wasm" engine/Pletzel-v4-compiled.wasm
+          test -s "engine/$CANDIDATE"
+          sha256sum "$wasm" "engine/$CANDIDATE" | tee logs/artifact-sha256.txt
+      - name: Preserve complete build-reproducible integrated source diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-all-four-mods-source-diff
+          path: |
+            logs/pletzel-v4-integrated-native-source.diff.gz
+            logs/native-source-diff-sha256.txt
+            logs/source-change-manifest.txt
+            logs/pinned-source-commit.txt
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Preserve generated Wasm even if packaging fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-all-four-mods-wasm-modules
+          path: |
+            engine/target_teavm_wasm_gc/build/generated/teavm/wasm-gc/classes.wasm
+            engine/target_teavm_wasm_gc_mesh/build/generated/teavm/wasm-gc/mesh-worker.wasm
+            engine/target_teavm_wasm_gc_server/build/generated/teavm/wasm-gc/server-worker.wasm
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Upload actual logs even on build failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-all-four-mods-compile-logs
+          path: logs/
+          if-no-files-found: warn
+      - name: Upload candidate only when compiler and linker succeed
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-all-four-mods-complete-html
+          path: |
+            engine/${{ env.CANDIDATE }}
+            engine/Pletzel-v4-compiled.wasm
+            logs/sounds-real-sha256.txt
+          retention-days: 14
+          if-no-files-found: error
