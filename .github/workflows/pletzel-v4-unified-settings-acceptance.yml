@@ -1,0 +1,65 @@
+name: Pletzel V4 unified HTML native Controls persistence test (NO ENGINE REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-all-mods-settings-acceptance]
+    paths: ['.github/workflows/pletzel-v4-unified-settings-acceptance.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Acquire exact unified four-mod binary (no source modification, no compilation)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=42844549237
+          sha=fda0b34781b31f510e90a49b815d9887ca36763c
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
+          deadline=$(( $(date +%s) + 5200 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$status" = completed ]; then
+              test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -name '*.html' | head -1)" | tee unified-settings-exact-binary-sha256.txt
+      - name: Install real Chromium/WebGL tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' pillow
+          python -m playwright install --with-deps chromium
+      - name: Change actual native tooltip toggles and verify after browser reload
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-unified-settings-persistence.py 2>&1 | tee unified-real-settings.log
+      - name: Preserve raw screenshots and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-unified-native-settings-real-browser-evidence
+          path: |
+            unified-settings-exact-binary-sha256.txt
+            unified-real-settings.log
+            map-shulker-settings-evidence/
+          retention-days: 21
+          if-no-files-found: warn
