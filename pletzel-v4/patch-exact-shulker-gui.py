@@ -42,7 +42,7 @@ import net.minecraft.world.item.component.ItemContainerContents;
 
 /**
  * MIT-licensed native port of the ORIGINAL Shulker Box Tooltip 5.4.3+26.2
- * default FULL theme, rather than an invented shulker container panel.
+ * FULL preview appearance, rather than an invented shulker container panel.
  *
  * Reference: ModPreviewRenderer.java (original JAR bytecode):
  *   slot=18x18, offsets (8,8), outside offsets (-4,+4)
