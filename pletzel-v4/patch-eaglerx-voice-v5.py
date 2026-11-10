@@ -97,13 +97,20 @@ replace(handshake,
 \t\t\t\tout.writeByte(0); // extended capability count''',
 "negotiate official voice capability V0")
 
+# Java type-use @Nullable must follow imports, not a qualified type name.
+replace(listener,
+'''import net.lax1dude.eaglercraft.v1_8.profile.EaglerSkinCache26;''',
+'''import net.lax1dude.eaglercraft.v1_8.profile.EaglerSkinCache26;
+import net.lax1dude.eaglercraft.v1_8.voice.EaglerXVoiceClient26;''',
+"native voice controller import")
+
 # The voice client is attached only if the original handshake negotiated
 # EaglerXServer V5, never for local worlds or generic vanilla connections.
 replace(listener,
 '''   private final @Nullable EaglerSkinCache26 eaglerSkinCache;
    private final @Nullable ParticleAdmissionController eaglerParticleAdmission;''',
 '''   private final @Nullable EaglerSkinCache26 eaglerSkinCache;
-   private final @Nullable net.lax1dude.eaglercraft.v1_8.voice.EaglerXVoiceClient26 eaglerVoiceClient;
+   private final @Nullable EaglerXVoiceClient26 eaglerVoiceClient;
    private final @Nullable ParticleAdmissionController eaglerParticleAdmission;''',
 "voice client instance")
 replace(listener,
@@ -130,7 +137,7 @@ replace(listener,
 "microphone teardown")
 replace(listener,
 '''   public @Nullable Supplier<PlayerSkin> createEaglerSkinLookup(final GameProfile profile) {''',
-'''   public @Nullable net.lax1dude.eaglercraft.v1_8.voice.EaglerXVoiceClient26 getEaglerVoiceClient() {
+'''   public @Nullable EaglerXVoiceClient26 getEaglerVoiceClient() {
       return this.eaglerVoiceClient;
    }
 
