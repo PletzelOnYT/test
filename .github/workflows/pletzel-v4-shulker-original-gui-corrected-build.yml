@@ -1,7 +1,5 @@
 name: Pletzel V4 corrected original Shulker GUI + Ctrl lock native build
 on:
-  push:
-    branches: [pletzel-v4-shulker-original-gui-geometry-fix]
   workflow_dispatch:
 permissions:
   contents: read
