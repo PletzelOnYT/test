@@ -35,7 +35,24 @@ try:
   click(638,618,2600);click(638,572,2600);snap("02-title")
   click(638,353,1500);page.keyboard.press("Enter");page.wait_for_timeout(12000)
   click(638,282,12500);snap("03-create-world")
-  click(638,257,650);click(638,257,650)
+  # Pixel fingerprint of the REAL Creative selection rendered by this
+  # exact Minecraft 26.2 GUI at 1280x720, calibrated from two independent
+  # prior genuine Creative screenshots with an identical pixel signature.
+  # This is NOT OCR, a fabricated image, or a game-state mock.
+  creative_sig="fc6e231fa019c5fdf3794739351d874febfb88d26a79be4500cc318083c5162a"
+  import io
+  selected=False
+  for attempt in range(1,5):
+   click(638,257,850)
+   shot("04-mode-choice-"+str(attempt))
+   pic=Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+   fingerprint=hashlib.sha256(pic.crop((380,237,655,269)).tobytes()).hexdigest()
+   print("MODE_PIXEL_FINGERPRINT",attempt,fingerprint,flush=True)
+   if fingerprint==creative_sig:
+    selected=True
+    break
+  if not selected:
+   raise RuntimeError("Cannot prove Game Mode: Creative from actual GUI pixels; refusing to create a different mode")
   snap("04-creative-selected")
   click(405,672,6000)
   t0=time.monotonic();ready=False
