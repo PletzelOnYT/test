@@ -78,6 +78,19 @@ replace(skin,
       this.connection.setEaglerMessageReceiver(null);''',
 "cleanup voice dispatch")
 
+# V5 capability negotiation is MANDATORY for existing servers to create a
+# voice manager. EaglerXServer EnumCapabilityType.VOICE(1) = bit 0x02;
+# version 0 follows the single standard capability mask varint, before the
+# extended capability count. Advertising is not microphone permission.
+handshake=game/"net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java"
+replace(handshake,
+'''            out.writeByte(0); // standard capability varint
+            out.writeByte(0); // extended capability count''',
+'''            out.writeByte(0x02); // official EaglerXServer V5 VOICE capability bit 1
+            out.writeByte(0); // VOICE_V0 capability version
+            out.writeByte(0); // extended capability count''',
+"negotiate official voice capability V0")
+
 # The voice client is attached only if the original handshake negotiated
 # EaglerXServer V5, never for local worlds or generic vanilla connections.
 replace(listener,
