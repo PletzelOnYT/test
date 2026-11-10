@@ -57,6 +57,19 @@ assert "options.pletzelMapTooltip()" in controls.read_text()
 assert "access.process(\"pletzelShulkerTooltip\"" in opt.read_text()
 assert "access.process(\"pletzelMapTooltip\"" in opt.read_text()
 assert "record ShulkerTooltipData(" in data.read_text()
+inventory=(root/"game/src/main/java/net/minecraft/client/gui/screens/inventory/AbstractContainerScreen.java").read_text()
+for token in [
+    "pletzelShulkerLockedPreviewSlot",
+    "pletzelShulkerTooltipAnchorX",
+    "pletzelShulkerTooltipAnchorY",
+    "InputConstants.KEY_LCONTROL",
+    "InputConstants.KEY_RCONTROL",
+    "this.menu.slots.contains(locked)",
+    "this.minecraft.options.pletzelShulkerTooltip().get()",
+]:
+ assert token in inventory,("missing native lock behavior",token)
+assert "this.slotClicked(" not in inventory[inventory.index("protected void extractTooltip("):inventory.index("private boolean showTooltipWithItemInHand(")]
+
 print("PARITY PASS: EXACT original shulker sprite bytes and nine-slice metadata")
 # Check the ORIGINAL BasePreviewRenderer.getSlotAt +1 boundary offset.
 # The assertions above independently check that patched Java uses this arithmetic.
@@ -73,5 +86,5 @@ for xy,expected in {
  assert slot_at(*xy)==expected,(xy,slot_at(*xy),expected)
 print("PARITY PASS: original +1 grid hit boundaries and item count overlays")
 print("PARITY PASS: 176x68 image plus 4px tooltip padding, 27 original slots")
-print("PARITY PASS: original per-dye tint, undyed purple, highlights, vanilla item UI")
+print("PARITY PASS: original per-dye tint, highlights, item counts and Ctrl lock, without inventory writes")
 print("PARITY PASS: original ON/OFF settings, map tooltip, and descriptor untouched")
