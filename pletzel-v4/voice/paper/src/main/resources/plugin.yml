@@ -1,0 +1,13 @@
+name: PletzelVoice
+version: 0.1.0-experimental
+main: net.pletzel.voice.PletzelVoicePlugin
+api-version: '26.2'
+description: Server-authoritative identity and position service for opt-in Pletzel WebRTC voice.
+commands:
+  pvoice:
+    description: Get a one-time token for the in-game Pletzel Voice client.
+    usage: /pvoice token
+    permission: pletzelvoice.use
+permissions:
+  pletzelvoice.use:
+    default: true
