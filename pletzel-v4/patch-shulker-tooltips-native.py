@@ -95,14 +95,20 @@ swap(options,old,new,"persist both toggle values across restart")
 # Input Mode and all previous settings remain in their existing positions.
 s=controls.read_text()
 assert s.count("options.pletzelInputMode(),")==2, "Both touch and desktop Controls variants must exist"
-s=s.replace("options.pletzelInputMode(),", """options.pletzelInputMode(),
+touch="""            options.pletzelInputMode(),
+            options.touchControls(),"""
+assert s.count(touch)==1, "Touch Controls setting insertion point changed"
+s=s.replace(touch,"""            options.pletzelInputMode(),
             options.pletzelMapTooltip(),
-            options.pletzelShulkerTooltip(),""", 1)
-second="         options.pletzelInputMode(),"
-assert s.count(second)==1, "Desktop Controls insertion point changed"
-s=s.replace(second,"""         options.pletzelInputMode(),
+            options.pletzelShulkerTooltip(),
+            options.touchControls(),""",1)
+desktop="""         options.pletzelInputMode(),
+         options.touchControls(),"""
+assert s.count(desktop)==1, "Desktop Controls setting insertion point changed"
+s=s.replace(desktop,"""         options.pletzelInputMode(),
          options.pletzelMapTooltip(),
-         options.pletzelShulkerTooltip(),""",1)
+         options.pletzelShulkerTooltip(),
+         options.touchControls(),""",1)
 controls.write_text(s)
 
 old='  "options.pletzelInputMode": "Input Mode",'
