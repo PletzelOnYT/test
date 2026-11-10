@@ -1,0 +1,57 @@
+name: Pletzel V4 real shulker /give and actual tooltip verification (NO REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-shulker-real-command-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Retrieve exact precompiled Shulker GUI HTML, never recompile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          build=42764573833
+          expected_sha=9f2dba74ddd3731383b4e25b1d191dfe6fa8eb5a
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .head_sha)" = "$expected_sha"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .conclusion)" = success
+          mkdir -p candidate
+          gh run download "$build" -R "$GITHUB_REPOSITORY" -n pletzel-v4-corrected-shulker-gui-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -name '*.html' | head -1)"
+          echo '0f183eec7b624e967c0767d12d1b61799647cdc1604dada536084b3f1b82d1e3  candidate/engine/Pletzel-V4-Original-Shulker-GUI-CORRECTED-EXPERIMENTAL.html' | sha256sum -c -
+      - name: Install real browser and WebGL runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Send real browser commands, verify shulker reaches hotbar before tooltip test
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/test-real-shulker-commands.py 2>&1 | tee real-shulker-command.log
+      - name: Preserve actual game pixels and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-actual-shulker-command-and-tooltip-evidence
+          path: |
+            real-shulker-command-evidence/
+            real-shulker-command.log
+          if-no-files-found: warn
+          retention-days: 21
