@@ -2,6 +2,8 @@ name: Pletzel V4 honest original Shulker GUI browser hover test (NO REBUILD)
 on:
   push:
     branches: [pletzel-v4-shulker-browser-corrected-inventory]
+    paths:
+      - '.github/workflows/pletzel-v4-shulker-real-hover-validation.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -64,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/test-original-shulker-gui-browser.py 2>&1 | tee original-gui-browser.log
+          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/test-shulker-creative-search-browser.py 2>&1 | tee original-gui-browser.log
       - name: Create labeled reference-versus-browser comparison (no fake UI)
         if: always()
         shell: bash
