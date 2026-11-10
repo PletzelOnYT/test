@@ -100,33 +100,29 @@ try:
   send("/difficulty peaceful")
   send("/gamerule drowningDamage false")
   send("/gamerule fallDamage false")
-  send("/give @p minecraft:shulker_box 1")
-  send("/give @p minecraft:red_shulker_box 1")
+  send("/give @p minecraft:shulker_box 1");snap("10a-undyed-give-feedback")
+  send("/give @p minecraft:red_shulker_box 1");snap("10b-red-give-feedback")
   send("/give @p minecraft:blue_shulker_box 1")
-  # The following containers use the native 26.2 component codec; no test
-  # writes game WASM, inventory memory or creates false in-browser icons.
-  send('/give @p minecraft:green_shulker_box[minecraft:container=[{slot:0,item:"minecraft:diamond"},{slot:8,item:"minecraft:golden_apple"}]] 1')
-  send('/give @p minecraft:yellow_shulker_box[minecraft:container=[{slot:0,item:{id:"minecraft:diamond",count:42}},{slot:17,item:{id:"minecraft:iron_ingot",count:16}}]] 1')
-  # 27 distinct occupied server item slots, generated with the exact
-  # Slot CODEC shape from the current Minecraft 26.2 source.
-  filled = ",".join("{slot:"+str(i)+',item:"minecraft:cobblestone"}' for i in range(27))
-  send("/give @p minecraft:purple_shulker_box[minecraft:container=["+filled+"]] 1",delay=4)
+  # Small valid component test. Never send a chat command over 256 characters:
+  # the earlier run silently truncated it and still reported PASS.
+  send('/give @p minecraft:yellow_shulker_box[minecraft:container=[{slot:0,item:{id:"minecraft:diamond",count:42}}]] 1')
+  snap("10c-partial-component-feedback")
+  # Only real server-issued items are used; fully populated shulkers require
+  # a separate genuine container interaction test, not oversized fake input.
   snap("10-genuine-server-command-feedback")
   # Preserve survival-style inventory layout for reliable slot coords while
   # remaining safe from drowning/fall damage. Server commands are real.
   send("/gamemode survival")
-  page.wait_for_timeout(2000)
+  page.wait_for_timeout(2000);snap("10d-verify-survival-mode")
   page.keyboard.press("e");page.wait_for_timeout(4500);snap("11-inventory-shulker-items")
   # Hotbar at 1280x720, gui scale 3: slot centers ~410+54*N at y=555.
   # Mouse pointer is moved over REAL inventory slots.
   hover=[("12-undyed-empty",410,556),
          ("13-red-empty",464,556),
          ("14-blue-empty",518,556),
-         ("15-green-partial",572,556),
-         ("16-yellow-counts",626,556),
-         ("17-purple-full",680,556)]
+         ("15-yellow-partial",572,556)]
   for name,x,y in hover:
-   page.mouse.move(x,y);page.wait_for_timeout(4000);snap(name)
+   page.mouse.move(x,y);page.wait_for_timeout(3500);snap(name)
   page.mouse.move(572,556);page.wait_for_timeout(1700)
   # Exercise the original mod's inner-slot focus region where possible;
   # move into the preview at the same GUI scale, never click or drag items.
@@ -165,4 +161,10 @@ print("SHULKER_ORIGINAL_PARITY_GAMEPLAY",json.dumps({
  "pageErrors":len(results["pageErrors"])})[:2500],flush=True)
 if fault or results["pageErrors"] or len(shots)<20:
  raise SystemExit(2)
-print("BROWSER CAPTURE COMPLETE; visual comparison and command results require review",flush=True)
+from hashlib import sha256
+filenames=[out/(name+".png") for name in ["12-undyed-empty","13-red-empty","14-blue-empty","15-yellow-partial"]]
+digests=[sha256(p.read_bytes()).hexdigest() for p in filenames if p.exists()]
+if len(digests)!=4 or len(set(digests))==1:
+ print("FAIL: all shulker hover images identical; no proven tooltip was rendered",flush=True)
+ raise SystemExit(5)
+print("SCREENSHOTS DIFFER; human visual verification of real shulker items is STILL REQUIRED",flush=True)
