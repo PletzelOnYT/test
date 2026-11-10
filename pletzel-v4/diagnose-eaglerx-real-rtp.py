@@ -111,7 +111,12 @@ with TemporaryDirectory() as tmp:
       const source=ctx.createMediaStreamSource(new MediaStream([track]));
       const analyser=ctx.createAnalyser();analyser.fftSize=256;
       source.connect(analyser);
-      globalThis.__voiceTestReceiver={ctx,source,analyser};
+      // A disconnected AnalyserNode can be suspended/optimized by Chromium.
+      // Route it to an explicitly zero-volume sink so analysis is LIVE
+      // without playing audible audio on the CI runner.
+      const sink=ctx.createGain();sink.gain.value=0;
+      analyser.connect(sink);sink.connect(ctx.destination);
+      globalThis.__voiceTestReceiver={ctx,source,analyser,sink,track};
     }""")
    samplescript="""async () => {
        const analyser=globalThis.__voiceTestReceiver.analyser;
@@ -138,6 +143,9 @@ with TemporaryDirectory() as tmp:
           ret[item.type]={bytesSent:item.bytesSent||0,bytesReceived:item.bytesReceived||0,
             packetsSent:item.packetsSent||0,packetsReceived:item.packetsReceived||0,
             audioLevel:item.audioLevel??null,totalAudioEnergy:item.totalAudioEnergy??null,
+            totalSamplesReceived:item.totalSamplesReceived??null,
+            concealedSamples:item.concealedSamples??null,
+            jitterBufferEmittedCount:item.jitterBufferEmittedCount??null,
             trackIdentifier:item.trackIdentifier||null};
         }
       });
