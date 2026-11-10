@@ -79,9 +79,11 @@ try:
   # The *real Minecraft GUI* rotates SURVIVAL -> HARDCORE -> CREATIVE.
   # Creative is essential here: prior survival tests drowned in water and
   # incorrectly claimed to have completed shulker screenshots.
-  # Observed real GUI cycle: SURVIVAL -> CREATIVE -> HARDCORE.
-  # The earlier two clicks selected Hardcore, disabling /give and hiding search.
-  page.mouse.click(638,257);page.wait_for_timeout(1500);snap("06-creative-chosen")
+  # Exact original 26.2 source order: SURVIVAL -> HARDCORE -> CREATIVE.
+  # Two clicks are required; the previous rapid second click was missed
+  # while software Chromium ran ~3 FPS. Give each native button time.
+  page.mouse.click(638,257);page.wait_for_timeout(3500);snap("06a-hardcore-intermediate")
+  page.mouse.click(638,257);page.wait_for_timeout(3500);snap("06-creative-chosen")
   # Do not toggle Allow Cheats blindly: Creative world default is ON.
   snap("07-creative-cheats-state")
   page.mouse.click(405,672);page.wait_for_timeout(7000);snap("08-world-creation")
@@ -143,7 +145,7 @@ report={"screenshots":shots,"heartbeatCount":len(heartbeat),
  "status":"BLOCKED" if fault or len(hashes)!=5 else "REVIEW_REQUIRED",
  "notes":[
  "These are genuine mouse hovers on vanilla Creative Search Items results",
- "Inspect 06-creative-chosen to confirm Game Mode: Creative BEFORE world creation",
+ "Inspect 06a-hardcore-intermediate then 06-creative-chosen: Game Mode CREATIVE before world creation",
  "Inspect 12-search-shulker-results to confirm item stacks",
  "Inspect 13-17 to verify 176x68 pixel nine-slice panels and dye tints",
  "Different screenshot hashes alone do NOT prove shulker previews",
