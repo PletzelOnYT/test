@@ -287,7 +287,7 @@ inventory_src=inventory_src.replace(tooltip_method,new_method,1)
 inventory.write_text(inventory_src)
 
 for expected in ["HEIGHT=14+3*18","WIDTH=14+9*18","originalTint","slotAt(",
-                 "graphics.item(held,xx,yy,slot)", "HIGHLIGHT_BEHIND",
+                 "graphics.item(held,xx,yy)", "HIGHLIGHT_BEHIND",
                  "HIGHLIGHT_FRONT","ORIGINAL_SPRITE"]:
     assert expected in source,expected
 
