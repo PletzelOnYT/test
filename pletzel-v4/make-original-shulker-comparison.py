@@ -7,8 +7,8 @@ from PIL import Image,ImageDraw,ImageFont
 root=Path("original-shulker-gui-gameplay-evidence")
 ref=Path("original-shulker-mod-full-preview.png")
 actual=[root/(p+".png") for p in [
- "12-undyed-empty","15-green-partial","16-yellow-counts",
- "17-purple-full","19-resized-inventory"]]
+ "12-undyed-empty","13-red-empty","14-blue-empty",
+ "15-yellow-partial","19-resized-inventory"]]
 actual=[p for p in actual if p.exists()]
 if not actual:raise SystemExit("No compiled-game screenshot available")
 w=820; h=490; out=Image.new("RGB",(w*2,h*max(1,len(actual))),(27,29,33))
