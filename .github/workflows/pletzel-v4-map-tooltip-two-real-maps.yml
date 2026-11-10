@@ -1,0 +1,65 @@
+name: Pletzel V4 genuine two-map gameplay verification (NO ENGINE REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-map-tooltip-gameplay-e2e]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-two-maps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reuse the one exact newly compiled Map Tooltip standalone HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=42731621617
+          expected=77d3163ce7069e56fc9cae7238a676b159adf469
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected"
+          deadline=$(( $(date +%s) + 2400 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            echo "One native build: $status"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || exit 3
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-map-tooltip-native-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          find candidate -name '*.html' -exec sha256sum {} \;
+      - name: Install real Chromium and WebGL runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' pillow
+          python -m playwright install --with-deps chromium
+      - name: Create TWO vanilla filled maps in geographically distinct areas and capture inventory tooltip screenshots
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/test-map-tooltip-two-genuine-maps.py 2>&1 | tee native-map-gameplay.log
+      - name: Preserve all original game pixels, WebGL errors, and command evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-map-tooltip-two-genuine-maps-browser-evidence
+          path: |
+            map-tooltip-real-maps-evidence/
+            native-map-gameplay.log
+          retention-days: 21
+          if-no-files-found: warn
