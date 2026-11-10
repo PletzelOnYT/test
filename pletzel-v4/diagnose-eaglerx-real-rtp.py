@@ -154,6 +154,34 @@ with TemporaryDirectory() as tmp:
    time.sleep(0.3)
    on=b.evaluate(samplescript)
    data["rtp_during"]={"sender":rtp_stats(a),"receiver":rtp_stats(b)}
+   data["sender_audio_signal"] = a.evaluate("""async () => {
+     const v=globalThis.__pletzelEaglerVoice;
+     const analyser=v.audio.createAnalyser();
+     analyser.fftSize=256;
+     const source=v.audio.createMediaStreamSource(v.sendStream);
+     source.connect(analyser);
+     const a=new Uint8Array(analyser.fftSize);
+     let fromMic=[],fromOutgoing=[];
+     for(let i=0;i<35;i++) {
+       fromMic.push(v.level());
+       analyser.getByteTimeDomainData(a);
+       let power=0;
+       for(let x of a){const y=(x-128)/128;power+=y*y;}
+       fromOutgoing.push(Math.sqrt(power/a.length));
+       await new Promise(r=>setTimeout(r,30));
+     }
+     source.disconnect();
+     analyser.disconnect();
+     return {
+       rawMicrophoneAverage:fromMic.reduce((sum,x)=>sum+x,0)/fromMic.length,
+       gatedOutboundAverage:fromOutgoing.reduce((sum,x)=>sum+x,0)/fromOutgoing.length,
+       microphoneTrackSettings:v.stream.getAudioTracks().map(t=>t.getSettings()),
+       outgoingTracks:v.sendStream.getAudioTracks().map(t=>({
+         enabled:t.enabled,muted:t.muted,readyState:t.readyState
+       }))
+     };
+   }""")
+
    a.evaluate("globalThis.__pletzelEaglerVoice.transmit(false)")
    time.sleep(0.3)
    off_again=b.evaluate(samplescript)
