@@ -1,0 +1,27 @@
+name: Cancel superseded Shulker builds (keep earliest corrected candidate)
+on:
+  push:
+    branches: [pletzel-v4-shulker-original-gui-geometry-fix]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Cancel TWO accidental extra waiting builds; preserve 42764166538
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          for run in 42764265245 42764298431; do
+            status="$(gh api "repos/$repo/actions/runs/$run" --jq .status)"
+            echo "Extra waiting build $run: $status"
+            if [ "$status" != completed ]; then
+              gh api -X POST "repos/$repo/actions/runs/$run/cancel" || echo "WARN: cancellation failed; manual cancel is necessary"
+            fi
+          done
+          echo "Preserved pinned single corrected build run 42764166538"
