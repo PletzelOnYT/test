@@ -1,0 +1,38 @@
+name: Pletzel V4 official EaglerX WebRTC RTP diagnosis — no engine build
+on:
+  push:
+    branches: [pletzel-v4-unified-voice-rtp-diagnostics]
+    paths: ['.github/workflows/pletzel-v4-unified-rtp-diagnostics.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-rtp:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install actual Chromium/WebRTC runtime
+        run: |
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Measure actual send/receive RTP and WebAudio during mute, talk, mute
+        shell: bash
+        run: |
+          set -o pipefail
+          python -u pletzel-v4/diagnose-eaglerx-real-rtp.py 2>&1 | tee eaglerx-real-rtp-diagnostic.log
+      - name: Preserve failing RTP and received-audio evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-official-voice-rtp-zero-audio-diagnostic
+          path: |
+            eaglerx-real-rtp-diagnostic.log
+            eagler-voice-webrtc-browser-evidence/
+          retention-days: 21
+          if-no-files-found: warn
