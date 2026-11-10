@@ -1,0 +1,49 @@
+name: Pletzel V4 experimental voice gateway and Paper plugin validation
+on:
+  push:
+    branches: [pletzel-v4-voice-proximity-experimental]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  voice-protocol-and-paper:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Static syntax of native Java patch and browser audio runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/voice/client/patch-voice-native.py
+          node --check pletzel-v4/voice/client/voice-runtime.js
+          node --check pletzel-v4/voice/gateway/server.mjs
+      - name: Install WebSocket transport dependency
+        working-directory: pletzel-v4/voice/gateway
+        run: npm install --no-audit --no-fund
+      - name: Verify secure voice session tokens, proximity, dimension, signaling and revocation
+        working-directory: pletzel-v4/voice/gateway
+        run: npm test
+      - name: Compile actual Paper 26.2 plugin (no Minecraft client rebuild)
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p pletzel-v4/voice/paper jar --no-daemon --stacktrace --console=plain
+          jar tf pletzel-v4/voice/paper/build/libs/*.jar | grep -F 'net/pletzel/voice/PletzelVoicePlugin.class'
+      - name: Preserve server plugin jar and protocol test results
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-experimental-voice-paper-plugin
+          path: pletzel-v4/voice/paper/build/libs/*.jar
+          retention-days: 30
