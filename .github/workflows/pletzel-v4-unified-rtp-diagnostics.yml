@@ -1,4 +1,4 @@
-name: Pletzel V4 official EaglerX WebRTC RTP diagnosis — no engine build
+name: Pletzel V4 voice RTP proof with deterministic speech-like PCM (NO GAME REBUILD)
 on:
   push:
     branches: [pletzel-v4-unified-voice-rtp-diagnostics]
