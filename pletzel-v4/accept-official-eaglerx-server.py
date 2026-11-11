@@ -27,7 +27,26 @@ try:
     "--ignore-gpu-blocklist","--enable-unsafe-swiftshader","--use-gl=desktop",
     "--disable-features=Vulkan"])
   pages=[b.new_context(viewport={"width":1280,"height":720}).new_page() for i in range(2)]
+  # Capture ACTUAL official V5 binary frames, without recording mic/credentials.
+  # This reveals the real server-side rejection message even if the client's
+  # old U8 error-length decoder displays an empty string.
+  def attach_ws(ws,i):
+   def incoming(payload):
+    if not isinstance(payload,bytes) or not payload:return
+    if payload[0] in (0xff,0x03,0x05,0x06):
+     desc={"page":i,"at":round(time.monotonic()-started,1),
+           "kind":"official-server-binary-frame","hex_prefix":payload[:140].hex(),
+           "size":len(payload)}
+     if payload[0]==0xff and len(payload)>=4:
+      desc["server_error_code"]=payload[1]
+      n=int.from_bytes(payload[2:4],"big")
+      if n<=len(payload)-4:
+       desc["upstream_utf16_message"]=payload[4:4+n].decode("utf-8","replace")
+     events.append(desc)
+     print("OFFICIAL_V5_REAL_SERVER_FRAME",json.dumps(desc),flush=True)
+   ws.on("framereceived",incoming)
   for i,p in enumerate(pages):
+   p.on("websocket",lambda ws,i=i: attach_ws(ws,i))
    p.on("console",lambda m,i=i:events.append({"page":i,"at":round(time.monotonic()-started,1),"kind":m.type,"text":m.text[:1600]}))
    p.on("pageerror",lambda e,i=i:events.append({"page":i,"at":round(time.monotonic()-started,1),"kind":"pageerror","text":str(e)[:1600]}))
    p.goto(f"http://127.0.0.1:{srv.server_address[1]}/{html.name}?perfdebug",wait_until="domcontentloaded",timeout=150000)
