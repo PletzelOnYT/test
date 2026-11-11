@@ -63,6 +63,7 @@ jobs:
           done
           docker exec pletzel-official-voice-ci sh -c 'TMUX_TMPDIR=/tmp/eaglerx-tmux tmux capture-pane -p -S -250 -t mcserver:services.0' > official-voice-bungee-console.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'find /eaglerX-1.8-server/bungee/plugins -name listeners.cfg -exec cat {} +' > official-voice-listeners.log 2>&1 || true
+          docker exec pletzel-official-voice-ci sh -c 'find /eaglerX-1.8-server/bungee -type f \( -name "*.log" -o -name "latest.log" \) -exec sh -c "echo ----\$1; tail -n 140 \$1" sh {} \;' > official-voice-bungee-file-logs.log 2>&1 || true
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
           # Require an actual WebSocket HTTP/1.1 upgrade response before
           # proceeding with the two-browser native-client integration.
