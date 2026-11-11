@@ -24,8 +24,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42966539320
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 33b38b3a24e1751e2ca5b4cc02426c5639964ec4
+          run=43051775408
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = f8017cc7ed705918713b02951edaf1fe57e62d74
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
@@ -35,10 +35,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri
+          # GitHub Ubuntu 24.04 already includes Chrome, Xvfb and WebGL.
+          # Avoid Playwright's install --with-deps, which previously never
+          # reached gameplay because the Ubuntu apt mirror DNS failed.
+          command -v google-chrome || command -v google-chrome-stable
+          command -v Xvfb
           python -m pip install 'playwright==1.56.0' Pillow
-          python -m playwright install --with-deps chromium
+          (google-chrome --version || google-chrome-stable --version)
       - name: Actually play combined game, teleport 1024 blocks and verify real map data + shulker + Schematica
         shell: bash
         run: |
