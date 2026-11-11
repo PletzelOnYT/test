@@ -64,6 +64,6 @@ src = src.replace(callback_old, callback_new, 1)
 # Only CI's explicitly opted-in Bungee needs this event-order correction.
 assert "import net.md_5.bungee.api.event.ServerConnectEvent;" in src
 src = src.replace("import net.md_5.bungee.api.event.ServerConnectEvent;",
-                  "import net.md_5.bungee.api.event.ServerConnectEvent;\\nimport net.md_5.bungee.api.event.ServerSwitchEvent;",1)
+                  "import net.md_5.bungee.api.event.ServerConnectEvent;\nimport net.md_5.bungee.api.event.ServerSwitchEvent;",1)
 p.write_text(src.replace(old, new, 1))
 print("BUNGEE_26_2_VOICE_EVENT_DEADLOCK_PATCHED: source compatibility only; awaiting actual server test")
