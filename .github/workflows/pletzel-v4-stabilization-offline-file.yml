@@ -1,0 +1,55 @@
+name: Pletzel V4 exact final HTML — offline file URL browser acceptance
+on:
+  push:
+    branches: [pletzel-v4-stabilization-unified-voice-20261110]
+    paths: ['.github/workflows/pletzel-v4-stabilization-offline-file.yml',
+            'pletzel-v4/accept-unified-file-offline.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chromium-file-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Get EXACT compiled four-mod plus voice repair HTML
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42937082477
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          mkdir candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -name '*.html' | head -1)" | tee offline-exact-html-sha256.txt
+      - name: Install real headed Chromium
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Real file:// boot with ALL HTTP and HTTPS external requests blocked
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-unified-file-offline.py 2>&1 | tee offline-file-url.log
+      - name: Upload authentic screenshots, errors, and content hash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-exact-file-url-offline-acceptance-evidence
+          path: |
+            offline-exact-html-sha256.txt
+            offline-file-url.log
+            offline-file-url-evidence/
+          if-no-files-found: warn
+          retention-days: 21
