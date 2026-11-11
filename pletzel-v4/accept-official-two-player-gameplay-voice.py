@@ -151,13 +151,18 @@ try:
   for idx,page in enumerate(pages):
    page.keyboard.press("v");page.wait_for_timeout(3200)
    snap(page,f"{idx}-native-eaglerx-v5-voice-screen")
-   page.mouse.click(640,245);page.wait_for_timeout(7500)
+   # Native EaglerXVoiceScreen: top=max(34,(guiHeight-290)/2), Enable
+   # bounds top+20..top+40. Auto UI scale at 1280x720 is 3, so center
+   # is (34+30)*3=192 physical pixels. 245 selected the mute row.
+   page.mouse.click(640,192);page.wait_for_timeout(7500)
    s=audio_stats(page)
    evidence[f"voice_{idx}_enabled"]=s
    print("OFFICIAL_V5_NATIVE_VOICE_ENABLED",idx,json.dumps(s),flush=True)
    assert s.get("state")==2 and s.get("liveTracks",0)>0, \
      "Official server voice was not enabled via native V menu and real mic"
-   page.mouse.click(640,420);page.wait_for_timeout(2100)
+   # Close via the REAL screen's onClose() rather than an ungrounded
+   # physical Y=420 click (the Done button is lower at auto scale).
+   page.keyboard.press("Escape");page.wait_for_timeout(2100)
   # Official peer signaling can lag under software WebGL; require actual
   # RTCPeerConnection objects and connected or connecting state.
   for _ in range(20):
