@@ -8,6 +8,7 @@ on:
       - 'pletzel-v4/accept-official-two-player-gameplay-voice.py'
       - 'pletzel-v4/ci-official-rcon.py'
       - 'pletzel-v4/ci-official-v5-login-preflight.py'
+      - 'pletzel-v4/repair-bungee-postlogin-voice-deadlock.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +22,10 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
       - name: Pin official upstream EaglerXServer JAR, not a custom Pletzel server plugin
         shell: bash
         run: |
@@ -37,7 +42,23 @@ jobs:
           test "$(stat -c %s official-server/Paper26.2.jar)" -gt 10000000
           curl -fL --retry 3 'https://hub.spigotmc.org/jenkins/job/BungeeCord/2104/artifact/bootstrap/target/BungeeCord.jar' -o official-server/BungeeCord.jar
           test "$(stat -c %s official-server/BungeeCord.jar)" -gt 1000000
+          # BungeeCord #2104 defers backend connect until PostLoginEvent
+          # intents complete. The untouched official EaglerXServer v1.1.1
+          # PostLoginEvent listener waits until PLAY before completing its
+          # intent, creating a deterministic cycle on protocol 776.
+          # Test a narrowly scoped *proxy* compatibility patch; retain a
+          # byte-identical upstream EaglerXServer plugin.
+          git clone --no-checkout --quiet https://github.com/SpigotMC/BungeeCord.git official-server/bungeecord-src
+          git -C official-server/bungeecord-src checkout --quiet c2f28c7572afbc0211ecb82f437526ca4ef0b11a
+          python3 pletzel-v4/repair-bungee-postlogin-voice-deadlock.py official-server/bungeecord-src
+          (cd official-server/bungeecord-src && mvn -ntp -B -pl bootstrap -am -DskipTests package) >official-voice-bungee-compat-build.log 2>&1 || {
+            tail -n 140 official-voice-bungee-compat-build.log
+            exit 3
+          }
+          cp official-server/bungeecord-src/bootstrap/target/BungeeCord.jar official-server/BungeeCord.jar
+          test "$(stat -c %s official-server/BungeeCord.jar)" -gt 1000000
           sha256sum official-server/{Paper26.2.jar,BungeeCord.jar,EaglerXServer.jar} | tee official-voice-jar-sha256.log
+          echo 'NOTE: BungeeCord is CI-compatibility-patched; official EaglerXServer plugin JAR remains unmodified' | tee official-voice-proxy-provenance.log
           cat >official-server/start-ci-server.sh <<'BOOT'
           #!/bin/bash
           set -euo pipefail
@@ -60,7 +81,7 @@ jobs:
           sed -i 's/debug_log_client_brands: false/debug_log_client_brands: true/' "$cfg"
           grep -F 'enable_voice_service: true' "$cfg"
           sleep 3
-          exec java -Xms256M -Xmx700M -jar bungee.jar
+          exec java -Dpletzel.voice.postlogin.preconnect=true -Xms256M -Xmx700M -jar bungee.jar
           BOOT
           cat >official-server/Dockerfile <<'DOCKER'
           FROM eclipse-temurin:25-jre AS java25
@@ -260,6 +281,8 @@ jobs:
           path: |
             official-voice-*.log
             official-voice-jar-sha256.log
+            official-voice-bungee-compat-build.log
+            official-voice-proxy-provenance.log
             official-voice-server-plugin-files.txt
             official-voice-tested-html-sha256.txt
             official-two-player-acceptance-evidence/
