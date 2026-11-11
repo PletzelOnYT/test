@@ -45,19 +45,40 @@ jobs:
           # Bungee listener at 0.0.0.0:5200, then restart to load the config.
           docker exec pletzel-official-voice-ci sh -c "find /eaglerX-1.8-server/bungee/plugins -name listeners.cfg -exec sed -i 's/0.0.0.0:25577/0.0.0.0:5200/g' {} +" || true
           docker restart pletzel-official-voice-ci
-          for i in $(seq 1 100); do
-            if curl --max-time 3 -s -o /dev/null http://127.0.0.1:5200/; then
-              echo "Official server HTTP port responding"
+          # The EaglerXServer listener uses native Minecraft TCP AND
+          # WebSocket. curl --fail on / is not a valid readiness check; it
+          # can fail even with an operational WebSocket listener.
+          for i in $(seq 1 45); do
+            if python -c "import socket;s=socket.create_connection(('127.0.0.1',5200),3);s.close()" 2>/dev/null; then
+              echo "Official EaglerXServer native proxy socket is listening"
               break
             fi
-            if [ "$i" -eq 100 ]; then
-              echo "Official EaglerXServer proxy did not become reachable"
+            if [ "$i" -eq 45 ]; then
+              echo "Official EaglerXServer native TCP proxy not listening"
               docker logs pletzel-official-voice-ci
+              docker exec pletzel-official-voice-ci sh -c 'TMUX_TMPDIR=/tmp/eaglerx-tmux tmux capture-pane -p -S -250 -t mcserver:services.0' || true
               exit 2
             fi
             sleep 2
           done
+          docker exec pletzel-official-voice-ci sh -c 'TMUX_TMPDIR=/tmp/eaglerx-tmux tmux capture-pane -p -S -250 -t mcserver:services.0' > official-voice-bungee-console.log 2>&1 || true
+          docker exec pletzel-official-voice-ci sh -c 'find /eaglerX-1.8-server/bungee/plugins -name listeners.cfg -exec cat {} +' > official-voice-listeners.log 2>&1 || true
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
+          # Require an actual WebSocket HTTP/1.1 upgrade response before
+          # proceeding with the two-browser native-client integration.
+          python - <<'PY'
+          import socket,base64,os
+          with socket.create_connection(('127.0.0.1',5200),timeout=8) as s:
+              s.settimeout(8)
+              key=base64.b64encode(os.urandom(16)).decode('ascii')
+              s.sendall(('GET / HTTP/1.1\\r\\nHost: 127.0.0.1:5200\\r\\n'
+                  'Connection: Upgrade\\r\\nUpgrade: websocket\\r\\n'
+                  'Sec-WebSocket-Version: 13\\r\\nSec-WebSocket-Key: '+key+
+                  '\\r\\n\\r\\n').encode('ascii'))
+              result=s.recv(512)
+              print('OFFICIAL_WEBSOCKET_HANDSHAKE',repr(result),flush=True)
+              assert b'101' in result.split(b'\\r\\n',1)[0], 'Official EaglerXServer websocket Upgrade did not succeed'
+          PY
       - name: Acquire exact combined browser Minecraft artifact
         shell: bash
         env:
