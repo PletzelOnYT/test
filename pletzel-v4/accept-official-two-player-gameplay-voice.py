@@ -57,13 +57,16 @@ def verify_admitted(name):
  print("PAPER_REAL_PLAYER_LIST",sorted(players),flush=True)
  if name not in players:raise AssertionError(name+" not present in actual Paper multiplayer player list: "+str(sorted(players)))
 def username_notice_visible(page):
- # Genuine first-run 'Default Username Detected' has TWO 600px-wide
- # gray controls at y=480 and y=575, spanning x=370..905.
- # Check actual screenshots, not mock GUI state or noisy startup logs.
- frame=page.screenshot(type="jpeg",quality=40,timeout=30000)
+ # Genuine first-run 'Default Username Detected' has two gray native
+ # controls at y=480 and y=575, x=370..905. This remains an actual
+ # browser screenshot check, not a guess from bootstrap logging.
+ # Two live Minecraft renderers can make a full screenshot stall.
+ page.bring_to_front()
+ frame=page.screenshot(type="jpeg",quality=35,timeout=90000,
+   clip={"x":350,"y":455,"width":575,"height":160})
  img=Image.open(io.BytesIO(frame)).convert("RGB")
  return all(sum(img.getpixel(pt))>285 for pt in
-            ((370,480),(905,480),(370,575),(905,575)))
+            ((20,25),(555,25),(20,120),(555,120)))
 def dismiss_username_notice(page,idx,stage):
  for attempt in range(12):
   if not username_notice_visible(page):break
