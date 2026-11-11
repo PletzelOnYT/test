@@ -71,7 +71,7 @@ for e in events:
 elapsed=(end[0]-begin[0]) if begin and end else 0
 ticks=(end[1]-begin[1]) if begin and end else 0
 tps=(ticks/elapsed) if elapsed>0 else 0
-intervals=[(b[0]-a[0],b[1]-a[1]) for a,b in zip(beats,beats[1:]) if b[0]>a[0]]
+intervals=[(b[0]-a[0],b[1]-a[1]) for a,b in zip(beats,beats[1:]) if b[0]>a[0] and begin and end and a[0]>=begin[0] and b[0]<=end[0]]
 max_gap=max((v[0] for v in intervals if begin and v[0]>0 and v[0]<=elapsed),default=None)
 pages=[e for e in events if e["kind"]=="pageerror"]
 result={"mode":mode,"browser":"Playwright Chromium Xvfb","elapsed_seconds":round(elapsed,2),
