@@ -223,8 +223,13 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(3500);snap("21-inventory-closed")
   # Ensure no accidental terrain suffocation/death invalidated all GUI
   # screenshots. This now has its own explicit failure classification.
-  deaths=[e for e in events if "suffocated in a wall" in e["text"] or
-          "drowned" in e["text"] or "fell from a high place" in e["text"]]
+  # EagPerf "entity type=minecraft:drowned" refers to a mob, NOT the
+  # test player. Do not falsely fail the multi-mod session because a mob
+  # spawned. Genuine player death messages still fail acceptance.
+  deaths=[e for e in events if
+          ("suffocated in a wall" in e["text"] or
+           "drowned" in e["text"] or "fell from a high place" in e["text"])
+          and "entity type=minecraft:drowned" not in e["text"]]
   if deaths:
    raise RuntimeError("In-world player died before Schematica: "+
                       deaths[-1]["text"][:300])
