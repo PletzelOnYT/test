@@ -43,11 +43,27 @@ callback_old = """                userCon.connect( result.getTarget(), null, tru
 callback_new = """                if ( getVersion() >= ProtocolConstants.MINECRAFT_1_20_2
                         && Boolean.getBoolean( "pletzel.voice.postlogin.preconnect" ) )
                 {
-                    return; // already connected; official plugin finished its play-state Intent
+                    // Compatibility-only: connecting to the backend early
+                    // normally raises ServerSwitchEvent BEFORE the official
+                    // EaglerXServer PostLogin listener registers its Player.
+                    // Now that the official PostLogin Intent has completed,
+                    // notify listeners of the already-established server.
+                    // Its real voice manager can then send V5 S_ALLOWED.
+                    // Without this event the game joins but voice stays
+                    // permanently 'not advertised' even though configured.
+                    if ( userCon.getServer() != null )
+                    {
+                        bungee.getPluginManager().callEvent( new ServerSwitchEvent( userCon, null ) );
+                    }
+                    return; // already connected; never double-connect
                 }
                 userCon.connect( result.getTarget(), null, true, ServerConnectEvent.Reason.JOIN_PROXY );
 """
 assert src.count(callback_old) == 1
 src = src.replace(callback_old, callback_new, 1)
+# Only CI's explicitly opted-in Bungee needs this event-order correction.
+assert "import net.md_5.bungee.api.event.ServerConnectEvent;" in src
+src = src.replace("import net.md_5.bungee.api.event.ServerConnectEvent;",
+                  "import net.md_5.bungee.api.event.ServerConnectEvent;\\nimport net.md_5.bungee.api.event.ServerSwitchEvent;",1)
 p.write_text(src.replace(old, new, 1))
 print("BUNGEE_26_2_VOICE_EVENT_DEADLOCK_PATCHED: source compatibility only; awaiting actual server test")
