@@ -69,7 +69,8 @@ jobs:
             fi
             sleep 2
           done
-          docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.cfg -exec cat {} +' > official-voice-listeners.log 2>&1 || true
+          docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.yml -exec cat {} +' > official-voice-listeners.log 2>&1 || true
+          docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name settings.yml -exec cat {} +' > official-voice-settings.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'tail -n 150 /tmp/pletzel-paper.log' > official-voice-paper.log 2>&1 || true
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
           # Require an actual WebSocket HTTP/1.1 upgrade response before
