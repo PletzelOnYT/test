@@ -106,7 +106,13 @@ try:
   # spawned underwater and the Survival player drowned before /tp was sent.
   # Switch to Survival later (with a real water-breathing effect) to keep
   # tooltip/inventory assertions meaningful and reproducible.
-  page.mouse.click(640,255);page.wait_for_timeout(1800);snap("07-creative-mode-selected")
+  # Vanilla mode cycle is Survival -> Hardcore -> Creative.
+  # A single click unexpectedly selected Hardcore (commands disabled),
+  # which caused the earlier /tp test to submit an UNKNOWN command.
+  page.mouse.click(640,255);page.wait_for_timeout(900)
+  page.mouse.click(640,255);page.wait_for_timeout(1200)
+  page.mouse.click(640,426);page.wait_for_timeout(1000)
+  snap("07-creative-mode-and-cheats-on")
   page.mouse.click(404,672);page.wait_for_timeout(5500);snap("08-world-creation-started")
   began=time.monotonic()
   reached_world=False
