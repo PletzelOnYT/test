@@ -93,3 +93,33 @@ src = src.replace("import net.md_5.bungee.api.event.ServerConnectEvent;",
                   "import net.md_5.bungee.api.event.ServerConnectEvent;\nimport net.md_5.bungee.api.event.ServerSwitchEvent;",1)
 p.write_text(src.replace(old, new, 1))
 print("BUNGEE_26_2_VOICE_EVENT_DEADLOCK_PATCHED: source compatibility only; awaiting actual server test")
+
+# Bungee 1.20.2+ performs cutThrough at LoginSuccess, BEFORE the delayed
+# ServerConnectedEvent in handleLogin. The early ServerSwitchEvent advertises
+# voice, but the later ServerConnectedEvent invokes the official plugin's
+# handleServerPreConnect(), disabling voice with S_ALLOWED=false. It never
+# sends the matching post-connect notification. Match each late PRE event
+# with a genuine POST event once the real backend is attached.
+q = Path(sys.argv[1]) / "proxy/src/main/java/net/md_5/bungee/ServerConnector.java"
+connector = q.read_text()
+before = """        ServerConnectedEvent event = new ServerConnectedEvent( user, server );
+        bungee.getPluginManager().callEvent( event );
+"""
+after = """        ServerConnectedEvent event = new ServerConnectedEvent( user, server );
+        bungee.getPluginManager().callEvent( event );
+        // Modern protocol 764+ already switched in cutThrough during
+        // LoginSuccess. The late ServerConnectedEvent above disables official
+        // EaglerXServer voice. Replay the true backend's ServerSwitchEvent
+        // AFTER PreConnect only for the opt-in CI compatibility proxy.
+        if ( user.getPendingConnection().getVersion() >= ProtocolConstants.MINECRAFT_1_20_2
+                && Boolean.getBoolean( "pletzel.voice.postlogin.preconnect" )
+                && user.getServer() != null )
+        {
+            bungee.getPluginManager().callEvent( new ServerSwitchEvent( user, null ) );
+            System.out.println( "PLETZEL_VOICE_POST_SERVER_CONNECTED_REPLAY " + user.getName() );
+        }
+"""
+assert connector.count(before) == 1, "Unexpected pinned ServerConnector event code"
+assert "import net.md_5.bungee.api.event.ServerSwitchEvent;" in connector
+q.write_text(connector.replace(before, after, 1))
+print("BUNGEE_26_2_VOICE_POST_CONNECT_EVENT_ORDER_REPAIRED: official plugin unmodified")
