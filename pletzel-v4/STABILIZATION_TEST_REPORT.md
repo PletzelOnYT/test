@@ -30,7 +30,9 @@
 | Server-authoritative multiplayer movement/chunk/teleport | BLOCKED | No controlled multiplayer server session |
 | Physical Mac startup, rendering, input, TPS and memory | BLOCKED | GitHub Ubuntu Xvfb is not a physical Mac |
 | Audio and music resource completeness | FAIL | Actual browser console noted optional music pack unavailable, with background music/discs disabled; full copyrighted asset provenance must be verified before making a release completeness claim |
-| Touch/mouse switching, skin geometry, keyboard shortcuts | UNTESTED | Source patches exist, full repaired HTML interactive testing pending |
+| Touch/mouse switching with real Chromium pointer and touch events | PASS | [#42940784198](https://github.com/PletzelOnYT/test/actions/runs/42940784198): four consecutive toolbar activation/deactivation cycles, actual browser screenshots, no page errors |
+| Native Steve/Alex profile controls and visible model geometry | PASS | [#42940784198](https://github.com/PletzelOnYT/test/actions/runs/42940784198): original model and slim model selected in real game UI, correct labels and visually different arms; persistence and multiplayer skins still UNTESTED |
+| Chromebook F+3/F+5 alternatives, key rebinding and persistent input overrides | UNTESTED | Source patches exist, specific functional regression tests still missing |
 | Browser crash/recovery and multi-hour endurance | UNTESTED | No multi-hour hardware-realistic test |
 
 ## Critical fix evidence
