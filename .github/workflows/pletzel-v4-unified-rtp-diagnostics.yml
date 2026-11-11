@@ -1,8 +1,8 @@
-name: Pletzel V4 headed Chromium WebRTC received-audio RTP investigation
+name: Pletzel V4 stabilization — isolate real WebRTC silent-audio path
 on:
   push:
-    branches: [pletzel-v4-unified-voice-rtp-diagnostics]
-    paths: ['.github/workflows/pletzel-v4-unified-rtp-diagnostics.yml']
+    branches: [pletzel-v4-stabilization-voice-audio-20261110]
+    paths: ['.github/workflows/pletzel-v4-unified-rtp-diagnostics.yml', 'pletzel-v4/diagnose-eaglerx-real-rtp.py', 'pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java']
   workflow_dispatch:
 permissions:
   contents: read
