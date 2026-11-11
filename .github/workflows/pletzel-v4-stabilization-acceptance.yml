@@ -2,7 +2,8 @@ name: Pletzel V4 stabilization — exact repaired HTML gameplay and transport sm
 on:
   push:
     branches: [pletzel-v4-stabilization-unified-voice-20261110]
-    paths: ['.github/workflows/pletzel-v4-stabilization-acceptance.yml']
+    paths: ['.github/workflows/pletzel-v4-stabilization-acceptance.yml',
+            'pletzel-v4/accept-unified-world-save-reload.py']
   workflow_dispatch:
 permissions:
   contents: read
@@ -101,6 +102,14 @@ jobs:
           result=${PIPESTATUS[0]}
           echo "ONE_SESSION_EXIT=$result" >> "$GITHUB_ENV"
           exit 0
+      - name: REAL GAME — saved block and player position survive native world quit and reopen
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-unified-world-save-reload.py 2>&1 | tee repaired-world-save.log
+          result=${PIPESTATUS[0]}
+          echo "WORLD_SAVE_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
       - name: Strict evidence report — never convert failed tests to green
         if: always()
         shell: bash
@@ -114,6 +123,7 @@ jobs:
             'schematica_browser_file_chooser_and_cleanup': 'SCHEMATICA_EXIT',
             'settings_navigation_reload_screenshots': 'SETTINGS_EXIT',
             'same_world_all_four_mods_browser_execution': 'ONE_SESSION_EXIT',
+            'real_world_save_quit_reopen_server_block_persistence': 'WORLD_SAVE_EXIT',
           }
           results = {name: ('UNTESTED' if os.environ.get(env) is None else
                     'PASS' if os.environ.get(env) == '0' else 'FAIL')
@@ -148,6 +158,7 @@ jobs:
             inworld-schematic-evidence/
             map-shulker-settings-evidence/
             unified-one-session-evidence/
+            world-save-reload-evidence/
             eagler-voice-webrtc-browser-evidence/
           if-no-files-found: warn
           retention-days: 21
@@ -156,8 +167,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for k in VOICE_TEST_EXIT MAP_SHULKER_EXIT SHULKER_COMMAND_EXIT SCHEMATICA_EXIT SETTINGS_EXIT ONE_SESSION_EXIT; do
+          for k in VOICE_TEST_EXIT MAP_SHULKER_EXIT SHULKER_COMMAND_EXIT SCHEMATICA_EXIT SETTINGS_EXIT ONE_SESSION_EXIT WORLD_SAVE_EXIT; do
             value="${!k:-UNTESTED}"
             test "$value" = 0 || { echo "$k FAILED/BLOCKED: $value"; exit 1; }
           done
-          echo "All six smoke scripts executed successfully. NOT full release acceptance."
+          echo "All seven smoke scripts executed successfully. NOT full release acceptance."
