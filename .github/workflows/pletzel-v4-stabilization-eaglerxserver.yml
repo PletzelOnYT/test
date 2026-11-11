@@ -14,7 +14,7 @@ permissions:
 jobs:
   official-voice-server-integration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 180 # Native Wasm-GC build can outlast the old 50-minute dependent test job
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
