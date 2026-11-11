@@ -1,0 +1,57 @@
+name: Pletzel V4 fixed binary — verified real teleport and all-four-mod session
+on:
+  push:
+    branches: [pletzel-v4-stabilization-unified-voice-20261110]
+    paths:
+      - '.github/workflows/pletzel-v4-stabilization-teleport.yml'
+      - 'pletzel-v4/accept-one-unified-minecraft-session.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-teleport-four-mods:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Fetch exact SHA-pinned voice-repaired all-mod HTML artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42937082477
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -name '*.html' | head -1)" | tee exact-teleport-html-sha256.txt
+      - name: Install real Chromium with WebGL2 software renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Actually play combined game, teleport 1024 blocks and verify real map data + shulker + Schematica
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-one-unified-minecraft-session.py 2>&1 | tee real-teleport-four-mods.log
+      - name: Upload exact tested HTML SHA, real screenshots, event logs, no fake data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-teleport-four-mods-exact-binary-evidence
+          path: |
+            exact-teleport-html-sha256.txt
+            real-teleport-four-mods.log
+            unified-one-session-evidence/
+          if-no-files-found: warn
+          retention-days: 21
