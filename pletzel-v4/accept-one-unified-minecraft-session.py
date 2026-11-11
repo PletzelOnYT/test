@@ -130,6 +130,13 @@ try:
   page.mouse.click(640,360);page.wait_for_timeout(1500)
   send("/time query gametime")
   snap("10-genuine-commands-enabled")
+  # Creative-mode players do NOT consume empty maps when using them, so an
+  # empty map remains in slot 0 and the filled copy lands in slot 1.
+  # Switch to genuine Survival BEFORE creating either map so each use
+  # transforms the selected real stack, and protect underwater spawns.
+  send("/effect give @p minecraft:water_breathing 999999 0 true")
+  send("/effect give @p minecraft:regeneration 999999 2 true")
+  send("/gamemode survival")
   # Remove preexisting empty maps so one newly used map occupies hotbar 0.
   # Creative world setup previously left unused maps in slot 0, making the
   # test compare an EMPTY MAP with a filled one and falsely claim two IDs.
@@ -166,11 +173,8 @@ try:
   if not teleport_confirmed:
    raise RuntimeError("Teleport never reached client after 180 seconds; cannot claim distinct second map")
   page.wait_for_timeout(15000)
-  # Genuine Survival inventory is needed to verify the native shulker/map
-  # tooltips against a normal 9-slot hotbar. Grant breathing BEFORE switching
-  # so an underwater destination cannot kill the test player.
-  send("/effect give @p minecraft:water_breathing 999999 0 true")
-  send("/gamemode survival")
+  # Already in true Survival since before map 0; the real empty
+  # map is consumed on use and the second populated map takes slot 1.
   send("/clear @p minecraft:map")
   send("/give @p minecraft:map 1")
   page.keyboard.press("2");page.wait_for_timeout(1500)
