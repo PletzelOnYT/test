@@ -136,6 +136,10 @@ try:
   # transforms the selected real stack, and protect underwater spawns.
   send("/effect give @p minecraft:water_breathing 999999 0 true")
   send("/effect give @p minecraft:regeneration 999999 2 true")
+  # The old same-Y remote /tp landed INSIDE a mountain. Keep legitimate
+  # full-block collision enabled, but choose a valid above-terrain landing
+  # for the multi-feature test rather than continuing after player death.
+  send("/effect give @p minecraft:slow_falling 999999 0 true")
   send("/gamemode survival")
   # Remove preexisting empty maps so one newly used map occupies hotbar 0.
   # Creative world setup previously left unused maps in slot 0, making the
@@ -166,7 +170,7 @@ try:
   position_packets_before=sum("inbound packet type=ClientboundPlayerPositionPacket" in e["text"]
                               for e in events)
   teleport_started=time.monotonic()
-  send("/tp @p ~1024 ~ ~1024")
+  send("/tp @p ~1024 180 ~1024")
   # Do not infer teleport completion from a chat message or elapsed wall time.
   # A player-position packet is a necessary (not sufficient) check.
   teleport_confirmed=False
@@ -217,10 +221,14 @@ try:
   page.mouse.move(586,562);page.wait_for_timeout(4600);snap("19-red-populated-shulker-27-slots")
   page.mouse.move(532,562);page.wait_for_timeout(2000);snap("20-switch-back-to-empty-shulker")
   page.keyboard.press("Escape");page.wait_for_timeout(3500);snap("21-inventory-closed")
-  # Screenshot evidence from the prior acceptance shows the Survival player
-  # drowned while the automation waited between menus. Preserve genuine
-  # Survival map/Shulker interaction, then keep this same world alive for the
-  # long Schematica file-import and hologram rendering sequence.
+  # Ensure no accidental terrain suffocation/death invalidated all GUI
+  # screenshots. This now has its own explicit failure classification.
+  deaths=[e for e in events if "suffocated in a wall" in e["text"] or
+          "drowned" in e["text"] or "fell from a high place" in e["text"]]
+  if deaths:
+   raise RuntimeError("In-world player died before Schematica: "+
+                      deaths[-1]["text"][:300])
+  # Return to Creative before the long Schematica renderer sequence.
   send("/gamemode creative",delay=3)
   snap("21b-same-world-creative-schematica-safety")
 
