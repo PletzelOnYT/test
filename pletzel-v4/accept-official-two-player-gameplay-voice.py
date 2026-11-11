@@ -268,7 +268,11 @@ try:
   movement_attempts=[]
   for movement_try in range(3):
    page.bring_to_front()
-   page.mouse.click(640,360)
+   # Backgrounding Minecraft can open the native pause menu.
+   # Back to Game is Y=252 at this test resolution. Clicking Y=360
+   # activates Options... instead and invalidates the movement proof.
+   # In unpaused gameplay a left click at Y=252 is harmless.
+   page.mouse.click(640,252)
    page.wait_for_timeout(1500)
    page.keyboard.down("w")
    page.wait_for_timeout(5200)
@@ -287,6 +291,9 @@ try:
   # Only the actual native Minecraft V menu may request microphone permission.
   # A WebSocket connection or custom browser JS calling enable() is not proof.
   for idx,page in enumerate(pages):
+   page.bring_to_front()
+   page.mouse.click(640,252)
+   page.wait_for_timeout(1100)
    page.keyboard.press("v");page.wait_for_timeout(3200)
    snap(page,f"{idx}-native-eaglerx-v5-voice-screen")
    # Native EaglerXVoiceScreen: top=max(34,(guiHeight-290)/2), Enable
