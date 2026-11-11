@@ -154,6 +154,11 @@ try:
    # Native EaglerXVoiceScreen: top=max(34,(guiHeight-290)/2), Enable
    # bounds top+20..top+40. Auto UI scale at 1280x720 is 3, so center
    # is (34+30)*3=192 physical pixels. 245 selected the mute row.
+   # Global channel removes nondeterministic spawn-distance from the
+   # first proof of real two-client WebRTC audio. Proximity is tested
+   # separately after transport acceptance succeeds.
+   page.mouse.click(640,336);page.wait_for_timeout(800)
+   assert page.evaluate("!!globalThis.__pletzelEaglerVoice?.global"), "Native Channel: Global control did not select global voice"
    page.mouse.click(640,192);page.wait_for_timeout(7500)
    s=audio_stats(page)
    evidence[f"voice_{idx}_enabled"]=s
