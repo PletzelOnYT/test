@@ -379,6 +379,15 @@ jobs:
           python3 pletzel-v4/patch-eaglerx-voice-v5.py engine 2>&1 | tee logs/official-eaglerx-voice-source.log
           python3 pletzel-v4/test-eaglerx-v5-voice-source.py engine 2>&1 | tee logs/official-eaglerx-voice-source-test.log
           git -C engine diff --check
+      - name: Diagnose native EaglerXServer V5 login rejection with correct upstream UTF-8 U16 error decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-eaglerx-handshake-error.py
+          python3 pletzel-v4/repair-eaglerx-handshake-error.py engine 2>&1 | tee logs/official-v5-login-reason-source-fix.log
+          grep -Fq 'readServerError(allow, true)' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java
+          grep -Fq 'readServerError(finished, true)' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java
+          git -C engine diff --check
       - name: Record all four ACTUAL source integrations in the SAME engine tree before compile
         shell: bash
         run: |
