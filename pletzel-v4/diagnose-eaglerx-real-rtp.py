@@ -196,6 +196,40 @@ with TemporaryDirectory() as tmp:
    data["rtp_after"]={"sender":rtp_stats(a),"receiver":rtp_stats(b)}
    data["rms"]={"initial_silence":off,"transmitting_synthetic_audio":on,"muted_again":off_again}
    data["steps"].append("Measured received real-WebRTC audio RMS before, during and after push-to-talk")
+   # Diagnose the exact last-mile failure without turning this FAIL into PASS.
+   # replaceTrack() isolates the Web Audio send graph from raw browser microphone
+   # while keeping the SAME two peers, SDP, ICE and inbound analyser.
+   if on <= max(0.002, off*2):
+    direct_before = rtp_stats(b)
+    a.evaluate("""async () => {
+      const v=globalThis.__pletzelEaglerVoice;
+      const peer=Array.from(v.peers.values())[0];
+      const sender=peer.connection.getSenders().find(s=>s.track?.kind==='audio');
+      if (!sender) throw Error('No audio sender to isolate');
+      await sender.replaceTrack(v.stream.getAudioTracks()[0]);
+    }""")
+    time.sleep(0.5)
+    direct_on = b.evaluate(samplescript)
+    direct_during = rtp_stats(b)
+    a.evaluate("""() => {
+      globalThis.__pletzelEaglerVoice.stream.getAudioTracks()[0].enabled=false;
+    }""")
+    time.sleep(0.4)
+    direct_muted = b.evaluate(samplescript)
+    a.evaluate("""async () => {
+      const v=globalThis.__pletzelEaglerVoice;
+      v.stream.getAudioTracks()[0].enabled=true;
+      const peer=Array.from(v.peers.values())[0];
+      const sender=peer.connection.getSenders().find(s=>s.track?.kind==='audio');
+      await sender.replaceTrack(v.sendStream.getAudioTracks()[0]);
+    }""")
+    data["direct_microphone_diagnostic"]={
+      "description":"Temporary real microphone replaceTrack, same RTC peer and receiver; investigation only",
+      "originalWebAudioRMS":on, "rawMicDirectRMS":direct_on,
+      "rawMicDisabledRMS":direct_muted,
+      "rtp_before":direct_before,"rtp_during":direct_during
+    }
+    print("DIRECT_MICROPHONE_ISOLATION",json.dumps(data["direct_microphone_diagnostic"]),flush=True)
    assert on>max(0.002,off*2),"No audio increase when transmitting"
    assert off_again<max(0.005,on*0.35),"Mute did not silence received audio"
    for p in pages:
