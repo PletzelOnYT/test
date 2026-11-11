@@ -5,7 +5,7 @@ Tests the EXACT compiled Pletzel HTML, two independent real Chromium clients,
 server-authoritative RCON positions and genuine decoded WebRTC audio. It does
 not create Minecraft GUI overlays, synthesize login status or mock server data.
 """
-import http.server,json,re,subprocess,threading,time,traceback,sys
+import http.server,json,re,subprocess,threading,time,traceback,sys,shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
