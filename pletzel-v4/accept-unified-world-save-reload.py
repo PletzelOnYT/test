@@ -88,18 +88,28 @@ try:
   snap("07-genuine-pause-menu")
   page.mouse.click(625,470);page.wait_for_timeout(19000)
   snap("08-return-to-saved-world-list")
-  # On the 26.2 Select World screen, select the first newly created world
-  # and attempt the native double-click-to-play action.
-  page.mouse.dblclick(632,200,delay=180);page.wait_for_timeout(4000)
+  # Save and Quit returns to the Minecraft TITLE screen, not the saved
+  # world list. A previous test double-clicked the title graphic and then
+  # falsely interpreted the unchanged menu as reopened gameplay.
+  page.mouse.click(638,353);page.wait_for_timeout(3500)
+  snap("08b-singleplayer-selected-after-save")
+  # The native Singleplayer safety screen may appear again.
+  page.keyboard.press("Enter");page.wait_for_timeout(7500)
+  snap("08c-saved-world-selection")
+  prior_events=len(events)
+  # Native world list first entry, if present. Genuine mouse double-click.
+  page.mouse.dblclick(632,200,delay=180);page.wait_for_timeout(4500)
   snap("09-world-reopen-request")
   began=time.monotonic()
+  reopened=False
   while time.monotonic()-began<360:
-   beats=[e["text"] for e in events if "[EagPerfHeartbeat]" in e["text"]]
-   if any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>360 for t in beats[-20:]):
-    # This only indicates ticks in some world. Server block query below
-    # independently asserts persisted world identity/contents.
+   beats=[e["text"] for e in events[prior_events:] if "[EagPerfHeartbeat]" in e["text"]]
+   if any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in beats[-30:]):
+    reopened=True
     break
    page.wait_for_timeout(4500)
+  if not reopened:
+   raise AssertionError("No new world worker completed 320 ticks after attempting to select saved world")
   page.wait_for_timeout(3500)
   snap("10-rejoined-world-candidate")
   send("/execute if block ~ ~-1 ~ minecraft:diamond_block run say PLETZEL_SAVE_PROBE")
