@@ -7,6 +7,7 @@ on:
       - 'pletzel-v4/accept-official-eaglerx-server.py'
       - 'pletzel-v4/accept-official-two-player-gameplay-voice.py'
       - 'pletzel-v4/ci-official-rcon.py'
+      - 'pletzel-v4/ci-official-v5-login-preflight.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -178,6 +179,12 @@ jobs:
                   if b'101' not in result.split(b'\\r\\n',1)[0]:
                       print('OFFICIAL_WEBSOCKET_NON101_DIAGNOSTIC',repr(result[:128]),flush=True)
           PY
+      - name: Verify the real official V5 server can complete backend login before linking full browser audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/ci-official-v5-login-preflight.py
+          python3 -u pletzel-v4/ci-official-v5-login-preflight.py 2>&1 | tee official-voice-v5-backend-preflight.log
       - name: Acquire exact combined browser Minecraft artifact
         shell: bash
         env:
