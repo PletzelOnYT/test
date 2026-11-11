@@ -1,9 +1,10 @@
-name: Pletzel V4 ALL FOUR MODS unified native Minecraft 26.2 build
+name: Pletzel V4 stabilization — four-mod native Minecraft 26.2 with WebRTC audio repair
 on:
   push:
-    branches: [pletzel-v4-all-four-mods-unified]
+    branches: [pletzel-v4-stabilization-unified-voice-20261110]
     paths:
       - '.github/workflows/pletzel-v4-all-four-mods-native-build.yml'
+      - 'pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java'
   workflow_dispatch:
 permissions:
   contents: read
