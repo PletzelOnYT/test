@@ -125,8 +125,31 @@ try:
   page.wait_for_timeout(18000);snap("11-first-real-map-in-hand")
   # Second map MUST be used in a different geographic area. We neither patch
   # map pixel data nor manufacture client textures.
+  # Keep genuine Survival testing alive when the integrated server takes a
+  # long time to generate FULL chunks at a destination.
+  send("/effect give @p minecraft:water_breathing 999999 0 true")
+  send("/effect give @p minecraft:regeneration 999999 2 true")
+  position_packets_before=sum("inbound packet type=ClientboundPlayerPositionPacket" in e["text"]
+                              for e in events)
+  teleport_started=time.monotonic()
   send("/tp @p ~1024 ~ ~1024")
-  page.wait_for_timeout(65000);snap("12-moved-to-second-area")
+  # Do not infer teleport completion from a chat message or elapsed wall time.
+  # A player-position packet is a necessary (not sufficient) check.
+  teleport_confirmed=False
+  while time.monotonic()-teleport_started<180:
+   packet_count=sum("inbound packet type=ClientboundPlayerPositionPacket" in e["text"]
+                    for e in events)
+   if packet_count>position_packets_before:
+    teleport_confirmed=True
+    break
+   page.wait_for_timeout(3500)
+  teleport_delivery_seconds=round(time.monotonic()-teleport_started,1)
+  print("TELEPORT_DELIVERY",json.dumps({"observed_client_position_packet":teleport_confirmed,
+       "seconds":teleport_delivery_seconds}),flush=True)
+  snap("12-moved-to-second-area")
+  if not teleport_confirmed:
+   raise RuntimeError("Teleport never reached client after 180 seconds; cannot claim distinct second map")
+  page.wait_for_timeout(15000)
   send("/give @p minecraft:map 1")
   page.keyboard.press("2");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
@@ -196,6 +219,8 @@ if (out/"15-first-filled-map-tooltip.png").exists() and (out/"16-second-filled-m
  differences=sum(1 for p in ImageChops.difference(first.crop((480,300,1100,670)),
                   second.crop((480,300,1100,670))).getdata() if p!=(0,0,0))
 result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
+ "teleport": {"confirmed": teleport_confirmed if "teleport_confirmed" in locals() else None,
+              "client_position_delivery_seconds": teleport_delivery_seconds if "teleport_delivery_seconds" in locals() else None},
  "heartbeatCount":len(beats),"tooltipPixelDifferenceCount":differences,
  "schematicFileChosen":selected if "selected" in locals() else [],
  "fatal":fault,"pageErrors":[e for e in events if e["kind"]=="pageerror"][-30:],
