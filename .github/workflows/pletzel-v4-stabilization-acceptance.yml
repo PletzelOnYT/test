@@ -3,7 +3,8 @@ on:
   push:
     branches: [pletzel-v4-stabilization-unified-voice-20261110]
     paths: ['.github/workflows/pletzel-v4-stabilization-acceptance.yml',
-            'pletzel-v4/accept-unified-world-save-reload.py']
+            'pletzel-v4/accept-unified-world-save-reload.py',
+            'pletzel-v4/accept-one-unified-minecraft-session.py']
   workflow_dispatch:
 permissions:
   contents: read
