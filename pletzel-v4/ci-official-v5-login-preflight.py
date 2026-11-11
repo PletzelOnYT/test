@@ -9,6 +9,8 @@ import os
 import socket
 import struct
 import time
+import subprocess
+import threading
 
 HOST = "127.0.0.1"
 PORT = 5200
@@ -94,6 +96,29 @@ def version_response(payload):
     return nickname_selection
 
 
+def capture_live_backend_state():
+    """Observe the real in-container TCP backend connection while login waits."""
+    for seconds in (6, 12, 18):
+        time.sleep(6)
+        proc = subprocess.run(
+            ["docker", "exec", "pletzel-official-voice-ci", "sh", "-c",
+             "cat /proc/net/tcp /proc/net/tcp6"],
+            text=True, capture_output=True, timeout=8,
+        )
+        if proc.returncode:
+            print("OFFICIAL_LOGIN_BACKEND_TCP_OBSERVE_FAILED",
+                  proc.stderr[-120:], flush=True)
+            return
+        # TCP state 01 = established. Target Paper backend is :63DD (25565).
+        rows = [line.split() for line in proc.stdout.splitlines()
+                if len(line.split()) >= 4]
+        paper = [row for row in rows if
+                 (row[1].endswith(":63DD") or row[2].endswith(":63DD"))
+                 and row[3] == "01"]
+        print("OFFICIAL_LOGIN_BACKEND_TCP_AT", seconds, "seconds",
+              "established_connections", len(paper), flush=True)
+
+
 def main():
     with socket.create_connection((HOST, PORT), timeout=10) as sock:
         sock.settimeout(12)
@@ -117,11 +142,21 @@ def main():
         login = (b"\x04" + ascii8(USERNAME if nickname else "") + ascii8("default")
                  + b"\x00\x00\x00\x02\x01\x00")
         send_frame(sock, login)
+        threading.Thread(target=capture_live_backend_state, daemon=True).start()
         response = recv_binary(sock, "SERVER_ALLOW_LOGIN", 35)
         print("OFFICIAL_V5_LOGIN_RESPONSE", "packet", hex(response[0]), "length", len(response), flush=True)
         if response[0] == 0x06:
             raise AssertionError("Official server denied V5 login (reason omitted from CI to avoid sensitive text)")
         if response[0] == 0xFF:
+            # Upstream public kick message, never private credentials/SDP.
+            code = response[1] if len(response) > 1 else -1
+            msg = ""
+            if len(response) >= 4:
+                n = struct.unpack_from(">H", response, 2)[0]
+                if n <= len(response) - 4:
+                    msg = response[4:4+n].decode("utf-8", "replace")
+            print("OFFICIAL_SERVER_V5_ERROR_CODE", code,
+                  "message", msg[:180], flush=True)
             raise AssertionError("Official server sent V5 protocol error")
         assert response[0] == 0x05, "Official server did not complete actual proxy-to-Paper login handshake"
         print("OFFICIAL_V5_REAL_BACKEND_ALLOW_LOGIN_PASS: actual server returned 0x05", flush=True)
