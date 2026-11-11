@@ -23,8 +23,8 @@ jobs:
           APP="$PWD/Russian Snip.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           SOURCE="RussianSnipMac/Sources/RussianSnip.swift"
-          xcrun swiftc -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-arm64"
-          xcrun swiftc -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-arm64"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
           lipo -create "$RUNNER_TEMP/RussianSnip-arm64" "$RUNNER_TEMP/RussianSnip-x86_64" -output "$APP/Contents/MacOS/RussianSnip"
           chmod 755 "$APP/Contents/MacOS/RussianSnip"
           cat >"$APP/Contents/Info.plist" <<'PLIST'
