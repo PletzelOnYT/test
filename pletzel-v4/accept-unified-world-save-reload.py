@@ -42,7 +42,7 @@ try:
         if(/^[A-Za-z]$/.test(c))return ['Key'+c.toUpperCase(),c.toUpperCase().charCodeAt(0),c!==c.toLowerCase()];
         if(/^[0-9]$/.test(c))return ['Digit'+c,c.charCodeAt(0),false];
         const d={' ':['Space',32,false],'/':['Slash',191,false],'~':['Backquote',192,true],
-        ':':['Semicolon',186,true],'@':['Digit2',50,true],'-':['Minus',189,false],
+        ':':['Semicolon',186,true],'@':['Digit2',50,true],'-':['Minus',189,false],'_':['Minus',189,true],
         '.':['Period',190,false]};
         return d[c]||['Unidentified',0,false];
       }
