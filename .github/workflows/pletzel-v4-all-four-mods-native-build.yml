@@ -389,6 +389,14 @@ jobs:
           grep -Fq 'readServerError(finished, true)' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java
           grep -Fq 'int attemptTimeout = Math.max(30000, timeoutMillis);' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/WebSocketPacketBridge.java
           git -C engine diff --check
+      - name: Avoid blocking FULL world generation from real filled-map color sampling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-map-nonblocking-sampling.py
+          python3 pletzel-v4/repair-map-nonblocking-sampling.py engine 2>&1 | tee logs/real-map-nonblocking-chunk-sampler.log
+          grep -Fq 'getChunkNow(mapChunkX, mapChunkZ)' engine/game/src/main/java/net/minecraft/world/item/MapItem.java
+          git -C engine diff --check
       - name: Record all four ACTUAL source integrations in the SAME engine tree before compile
         shell: bash
         run: |
