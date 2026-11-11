@@ -22,26 +22,32 @@ src = p.read_text()
 old = """        // fire post-login event
         bungee.getPluginManager().callEvent( new PostLoginEvent( userCon, initialServer, eventLoopCallback( complete ) ) );
 """
-new = """        // EaglerXServer v1.1.1 on Minecraft protocol 764+ waits for PLAY
-        // before completing its PostLoginEvent Intent. New Bungee also waits
-        // for PostLoginEvent completion before connecting the backend, while
-        // the Eagler handshake cannot enter PLAY before a backend LoginSuccess.
-        // Preserve native ordering unless the narrowly scoped CI compatibility
-        // JVM flag is explicitly enabled. This fixes the circular wait without
-        // changing any official EaglerXServer plugin bytes or V5 packets.
+new = """        // EaglerXServer v1.1.1 on Minecraft 764+ waits for PLAY before
+        // completing its PostLoginEvent Intent, but modern Bungee's backend
+        // connection is normally delayed until that Intent completes.
+        // Test-only, explicitly opt-in proxy compatibility; untouched
+        // official EaglerXServer plugin and original event are preserved.
         if ( getVersion() >= ProtocolConstants.MINECRAFT_1_20_2
                 && Boolean.getBoolean( "pletzel.voice.postlogin.preconnect" ) )
         {
             userCon.connect( initialServer, null, true, ServerConnectEvent.Reason.JOIN_PROXY );
-            bungee.getPluginManager().callEvent( new PostLoginEvent( userCon, initialServer,
-                    eventLoopCallback( (result, error) -> { } ) ) );
-        } else
-        {
-            // Original unchanged behavior for ordinary server deployments.
-            bungee.getPluginManager().callEvent( new PostLoginEvent( userCon, initialServer, eventLoopCallback( complete ) ) );
         }
+        // fire post-login event
+        bungee.getPluginManager().callEvent( new PostLoginEvent( userCon, initialServer, eventLoopCallback( complete ) ) );
 """
+
 count = src.count(old)
 assert count == 1, f"Unexpected modern Bungee InitialHandler source: {count} anchors"
+callback_old = """                userCon.connect( result.getTarget(), null, true, ServerConnectEvent.Reason.JOIN_PROXY );
+"""
+callback_new = """                if ( getVersion() >= ProtocolConstants.MINECRAFT_1_20_2
+                        && Boolean.getBoolean( "pletzel.voice.postlogin.preconnect" ) )
+                {
+                    return; // already connected; official plugin finished its play-state Intent
+                }
+                userCon.connect( result.getTarget(), null, true, ServerConnectEvent.Reason.JOIN_PROXY );
+"""
+assert src.count(callback_old) == 1
+src = src.replace(callback_old, callback_new, 1)
 p.write_text(src.replace(old, new, 1))
 print("BUNGEE_26_2_VOICE_EVENT_DEADLOCK_PATCHED: source compatibility only; awaiting actual server test")
