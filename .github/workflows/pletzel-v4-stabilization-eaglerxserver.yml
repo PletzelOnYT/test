@@ -76,6 +76,12 @@ jobs:
           cfg=plugins/EaglercraftXServer/settings.yml
           test -f "$cfg" || { echo "Official EaglerXServer did not create its own config"; exit 2; }
           sed -i 's/enable_voice_service: false/enable_voice_service: true/' "$cfg"
+          # The real V5 server sent S_ALLOWED=false (EE 06 00) even though
+          # the voice service existed. Explicitly allow voice on every CI
+          # backend rather than relying on a generated settings default.
+          sed -i 's/enable_voice_all_servers: false/enable_voice_all_servers: true/' "$cfg"
+          grep -E 'enable_voice_service:|enable_voice_all_servers:|enable_voice_on_servers:|voice_backend_relay_mode:' "$cfg"
+          grep -E '^[[:space:]]*enable_voice_all_servers: true' "$cfg"
           sed -i 's/eagler_login_timeout: 10000/eagler_login_timeout: 90000/' "$cfg"
           sed -i 's/debug_log_new_channels: false/debug_log_new_channels: true/' "$cfg"
           sed -i 's/debug_log_client_brands: false/debug_log_client_brands: true/' "$cfg"
