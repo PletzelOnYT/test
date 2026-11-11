@@ -157,28 +157,34 @@ jobs:
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name settings.yml -exec cat {} +' > official-voice-settings.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'tail -n 150 /tmp/pletzel-paper.log' > official-voice-paper.log 2>&1 || true
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
-          # Require an actual WebSocket HTTP/1.1 upgrade response before
-          # proceeding with the two-browser native-client integration.
-          python - <<'PY'
+          # A successful proxy TCP connect and even a finished Paper RCON
+          # startup can precede EaglerXServer's listener registration and
+          # SQLite skin-cache initialization. A real HTTP 101 upgrade is the
+          # readiness gate, not a one-shot best-effort diagnostic.
+          for i in $(seq 1 60); do
+            if python - <<'PY'
           import socket,base64,os
-          with socket.create_connection(('127.0.0.1',5200),timeout=8) as s:
-              s.settimeout(8)
+          with socket.create_connection(('127.0.0.1',5200),timeout=5) as s:
+              s.settimeout(5)
               key=base64.b64encode(os.urandom(16)).decode('ascii')
               s.sendall(('GET / HTTP/1.1\\r\\nHost: 127.0.0.1:5200\\r\\n'
                   'Connection: Upgrade\\r\\nUpgrade: websocket\\r\\n'
                   'Sec-WebSocket-Version: 13\\r\\nSec-WebSocket-Key: '+key+
                   '\\r\\n\\r\\n').encode('ascii'))
-              try:
-                  result=s.recv(512)
-                  print('OFFICIAL_WEBSOCKET_HANDSHAKE',repr(result),flush=True)
-              except (TimeoutError,ConnectionResetError,OSError) as exc:
-                  print('OFFICIAL_WEBSOCKET_PROBE_INCONCLUSIVE',type(exc).__name__,str(exc),flush=True)
-                  # Continue to the STRICT actual Minecraft native client
-                  # test; this synthetic handshake never counts as PASS.
-              else:
-                  if b'101' not in result.split(b'\\r\\n',1)[0]:
-                      print('OFFICIAL_WEBSOCKET_NON101_DIAGNOSTIC',repr(result[:128]),flush=True)
+              result=s.recv(512)
+              assert b'101' in result.split(b'\\r\\n',1)[0],repr(result[:128])
+              print('OFFICIAL_WEBSOCKET_UPGRADE_READY',repr(result[:72]),flush=True)
           PY
+            then
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo 'BLOCKED: official EaglerXServer WebSocket listener never accepted HTTP 101'
+              docker logs pletzel-official-voice-ci 2>&1 | tail -n 120 || true
+              exit 2
+            fi
+            sleep 2
+          done
       - name: Verify the real official V5 server can complete backend login before linking full browser audio
         shell: bash
         run: |
