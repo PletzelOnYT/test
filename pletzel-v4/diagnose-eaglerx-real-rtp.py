@@ -238,7 +238,7 @@ with TemporaryDirectory() as tmp:
        const p=Array.from(globalThis.__pletzelEaglerVoice.peers.values())[0];
        const track=p.connection.getReceivers().map(r=>r.track).find(t=>t.kind==='audio');
        const el=document.createElement('audio');
-       el.autoplay=true;el.playsInline=true;el.controls=true;
+       el.autoplay=true;el.playsInline=true;el.controls=true;el.volume=0;
        el.srcObject=new MediaStream([track]);
        document.body.appendChild(el);
        try { await el.play(); } catch(e) { return {error:e.name+': '+e.message}; }
