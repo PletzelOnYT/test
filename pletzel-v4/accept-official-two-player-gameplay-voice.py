@@ -5,7 +5,7 @@ Tests the EXACT compiled Pletzel HTML, two independent real Chromium clients,
 server-authoritative RCON positions and genuine decoded WebRTC audio. It does
 not create Minecraft GUI overlays, synthesize login status or mock server data.
 """
-import http.server,json,re,subprocess,threading,time,traceback,sys,shutil
+import http.server,json,re,subprocess,threading,time,traceback,sys,shutil,base64
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -87,22 +87,29 @@ try:
   browser=pw.chromium.launch(headless=False,executable_path=chrome,args=["--no-sandbox","--disable-dev-shm-usage",
    "--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
    "--use-gl=desktop","--disable-features=Vulkan",
+   "--disable-background-timer-throttling","--disable-backgrounding-occluded-windows",
+   "--disable-renderer-backgrounding",
    "--use-fake-device-for-media-stream","--use-fake-ui-for-media-stream",
    "--autoplay-policy=no-user-gesture-required"])
   pages=[];connected_players=listed_players()
   assert not connected_players, ("The isolated Paper backend was not empty at test start",connected_players)
   for idx in range(2):
    context=browser.new_context(viewport={"width":1280,"height":720},permissions=["microphone"])
-   page=context.new_page();pages.append(page)
+   page=context.new_page();pages.append(page);page.bring_to_front()
    # Observe the *actual* browser WebSocket handshake on a real official
    # server. Log only short protocol headers (first 8 bytes), never auth
    # strings, tokens, skin data, microphone packets, SDP or ICE secrets.
    def attach_websocket(ws,idx=idx):
+    events[idx].append({"at":round(time.monotonic()-start,2),
+       "kind":"websocket-open","text":ws.url[:180]})
     if not ws.url.startswith("ws://127.0.0.1:5200"):return
     def capture(direction,payload):
      if not isinstance(payload,bytes) or not payload:return
      if len(events[idx])>15000:return
-     if payload[0] not in (0x01,0x02,0x03,0x04,0x05,0x06,0xff):return
+     # After login, log native voice 0xEE without noisy gameplay traffic.
+     admitted=any(e.get("server_assigned_username") for e in events[idx])
+     if admitted and payload[0] not in (0xEE,0xff):return
+     if payload[0] not in (0x01,0x02,0x03,0x04,0x05,0x06,0xEE,0xff):return
      event={"at":round(time.monotonic()-start,2),"kind":"official-v5-wire-"+direction,
             "length":len(payload),"packet":payload[0],"header8":payload[:8].hex()}
      # Official V3–V5 deny packets use U16 UTF-8 message length. Log only
@@ -157,6 +164,16 @@ try:
            "Eagler server rejected login" in e.get("text", "") for e in events[idx]):
       break
    snap(page,f"{idx}-actual-server-join")
+   if not joined:
+    print("OFFICIAL_NO_NEW_PLAYER_BROWSER_EVENTS",json.dumps([
+      e for e in events[idx] if e.get("kind") not in (
+         "official-v5-wire-received","official-v5-wire-sent")][-100:])[:17000],flush=True)
+    try:
+     frame=page.screenshot(type="jpeg",quality=55,timeout=30000)
+     print("OFFICIAL_FAILED_JOIN_SCREEN_JPEG_BASE64",
+           base64.b64encode(frame).decode("ascii"),flush=True)
+    except Exception as exc:
+     print("OFFICIAL_FAILED_JOIN_SCREEN_ERROR",str(exc),flush=True)
    profiles=observed_profile_names(events[idx])
    print("PAPER_LOGIN_IDENTITY_TRACE",json.dumps({"page":idx,"profiles":profiles,
        "before":sorted(players_before),"new":sorted(joined),"now":sorted(now)}),flush=True)
