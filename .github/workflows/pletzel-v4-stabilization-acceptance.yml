@@ -26,8 +26,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42966539320
-          expected_sha=33b38b3a24e1751e2ca5b4cc02426c5639964ec4
+          run=43051775408
+          expected_sha=f8017cc7ed705918713b02951edaf1fe57e62d74
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
@@ -51,10 +51,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri
+          # GitHub Ubuntu 24.04 already includes Chrome, Xvfb and WebGL.
+          # Avoid Playwright's install --with-deps, which previously never
+          # reached gameplay because the Ubuntu apt mirror DNS failed.
+          command -v google-chrome || command -v google-chrome-stable
+          command -v Xvfb
           python -m pip install 'playwright==1.56.0' Pillow
-          python -m playwright install --with-deps chromium
+          (google-chrome --version || google-chrome-stable --version)
       - name: Two real browsers — nonzero native WebRTC received-audio RMS and mute lifecycle
         shell: bash
         run: |
@@ -130,10 +133,10 @@ jobs:
                     'PASS' if os.environ.get(env) == '0' else 'FAIL')
                     for name,env in tests.items()}
           report = {
-            'game_build_commit':'33b38b3a24e1751e2ca5b4cc02426c5639964ec4',
-            'native_build_run':42966539320,
+            'game_build_commit':'f8017cc7ed705918713b02951edaf1fe57e62d74',
+            'native_build_run':43051775408,
             'exact_html_sha256_record':pathlib.Path('repaired-exact-html-sha256.txt').read_text().strip() if pathlib.Path('repaired-exact-html-sha256.txt').exists() else None,
-            'browser':'Playwright Chromium 141 / Ubuntu 24.04; Mac not tested',
+            'browser':'Preinstalled Google Chrome / Ubuntu 24.04; Mac not tested',
             'test_execution_results':results,
             'real_eaglerx_server_older_client_audio':'BLOCKED',
             'real_multiplayer_server_authoritative_movement':'BLOCKED',
