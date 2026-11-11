@@ -226,10 +226,14 @@ try:
   # EagPerf "entity type=minecraft:drowned" refers to a mob, NOT the
   # test player. Do not falsely fail the multi-mod session because a mob
   # spawned. Genuine player death messages still fail acceptance.
+  # Entity and spawn diagnostics legitimately contain 'drowned' when
+  # a Drowned MOB exists. A real player death must be a native CHAT death
+  # message, never an EagPerfHeartbeat/worldgen/AI log mentioning mobs.
   deaths=[e for e in events if
-          ("suffocated in a wall" in e["text"] or
-           "drowned" in e["text"] or "fell from a high place" in e["text"])
-          and "entity type=minecraft:drowned" not in e["text"]]
+          "[CHAT]" in e["text"] and
+          re.search(r"\\b(?:drowned|suffocated in a wall|fell from a high place|"
+                    r"was slain by|was shot by|was blown up|went up in flames|"
+                    r"hit the ground too hard)\\b",e["text"],re.I)]
   if deaths:
    raise RuntimeError("In-world player died before Schematica: "+
                       deaths[-1]["text"][:300])
