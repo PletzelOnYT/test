@@ -25,8 +25,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42937082477
-          expected_sha=091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          run=42966539320
+          expected_sha=33b38b3a24e1751e2ca5b4cc02426c5639964ec4
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
