@@ -23,7 +23,7 @@ threading.Thread(target=srv.serve_forever,daemon=True).start()
 start=time.monotonic(); events=[];shots=[];error=None
 try:
  with sync_playwright() as p:
-  b=p.chromium.launch(headless=False,args=[
+  b=p.chromium.launch(executable_path=__import__("shutil").which("google-chrome") or __import__("shutil").which("google-chrome-stable"),headless=False,args=[
     "--no-sandbox","--disable-dev-shm-usage","--enable-webgl",
     "--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
     "--use-gl=desktop","--disable-features=Vulkan"])
