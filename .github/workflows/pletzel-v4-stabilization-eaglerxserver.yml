@@ -12,7 +12,7 @@ permissions:
 jobs:
   official-voice-server-integration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -40,11 +40,23 @@ jobs:
           set -euo pipefail
           cd /opt/eaglerX-1.8-server-image/paper262
           echo 'eula=true' >eula.txt
-          printf '%s\n' 'online-mode=false' 'server-ip=127.0.0.1' 'server-port=25565' 'view-distance=3' 'simulation-distance=3' 'max-players=20' 'spawn-protection=0' 'motd=Pletzel V4 Official EaglerXServer 26.2 CI' >server.properties
+          printf '%s\n' 'online-mode=false' 'server-ip=127.0.0.1' 'server-port=25565' 'view-distance=3' 'simulation-distance=3' 'max-players=20' 'spawn-protection=0' 'enable-rcon=true' 'rcon.port=25575' 'rcon.password=pletzel-ci-rcon-local-only' 'motd=Pletzel V4 Official EaglerXServer 26.2 CI' >server.properties
           printf 'settings:\n  bungeecord: true\n' >spigot.yml
           java -Xms512M -Xmx2500M -jar server.jar nogui > /tmp/pletzel-paper.log 2>&1 &
           echo "Paper 26.2 PID=$!"
           cd /opt/eaglerX-1.8-server-image/bungee
+          # Official EaglerXServer v1.1.1 ships voice DISABLED by default.
+          # Bootstrap once to generate its real config, then enable its
+          # built-in voice service; no Pletzel-specific plugin or gateway.
+          timeout --signal=TERM --kill-after=5s 18s java -Xms256M -Xmx700M -jar bungee.jar > /tmp/eagler-first-boot.log 2>&1 || true
+          cfg=plugins/EaglercraftXServer/settings.yml
+          test -f "$cfg" || { echo "Official EaglerXServer did not create its own config"; exit 2; }
+          sed -i 's/enable_voice_service: false/enable_voice_service: true/' "$cfg"
+          sed -i 's/eagler_login_timeout: 10000/eagler_login_timeout: 90000/' "$cfg"
+          sed -i 's/debug_log_new_channels: false/debug_log_new_channels: true/' "$cfg"
+          sed -i 's/debug_log_client_brands: false/debug_log_client_brands: true/' "$cfg"
+          grep -F 'enable_voice_service: true' "$cfg"
+          sleep 3
           exec java -Xms256M -Xmx700M -jar bungee.jar
           BOOT
           cat >official-server/Dockerfile <<'DOCKER'
@@ -107,6 +119,9 @@ jobs:
             fi
             sleep 2
           done
+          docker cp pletzel-v4/ci-official-rcon.py pletzel-official-voice-ci:/tmp/pletzel-rcon.py
+          docker exec pletzel-official-voice-ci python3 /tmp/pletzel-rcon.py list | tee official-voice-paper-rcon-ready.log
+          docker exec pletzel-official-voice-ci sh -c 'grep -F "enable_voice_service: true" /opt/eaglerX-1.8-server-image/bungee/plugins/EaglercraftXServer/settings.yml' | tee official-voice-enabled.log
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.yml -exec cat {} +' > official-voice-listeners.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name settings.yml -exec cat {} +' > official-voice-settings.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'tail -n 150 /tmp/pletzel-paper.log' > official-voice-paper.log 2>&1 || true
@@ -157,7 +172,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-official-eaglerx-server.py 2>&1 | tee official-voice-real-browser.log
+          python -m py_compile pletzel-v4/accept-official-two-player-gameplay-voice.py pletzel-v4/ci-official-rcon.py
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-official-two-player-gameplay-voice.py 2>&1 | tee official-voice-real-browser.log
       - name: Preserve server logs and genuine Chrome screenshots even on failure
         if: always()
         shell: bash
@@ -173,6 +189,6 @@ jobs:
             official-voice-jar-sha256.log
             official-voice-server-plugin-files.txt
             official-voice-tested-html-sha256.txt
-            eaglerxserver-live-evidence/
+            official-two-player-acceptance-evidence/
           retention-days: 21
           if-no-files-found: warn
