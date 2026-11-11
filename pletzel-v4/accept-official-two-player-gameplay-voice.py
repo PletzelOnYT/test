@@ -325,6 +325,12 @@ try:
     "No official EaglerXServer V5 WebRTC peers after both native clients enabled"
   pages[0].wait_for_timeout(7000)
   baseline=audio_stats(pages[1])
+  # Native PTT refuses transmission while Minecraft has any GUI open.
+  # Switching to the second browser can pause the first, so restore its
+  # genuine game screen and focus before pressing the mapped R key.
+  pages[0].bring_to_front()
+  pages[0].mouse.click(640,252)
+  pages[0].wait_for_timeout(1300)
   pages[0].keyboard.down("r")
   pages[0].wait_for_timeout(12000)
   transmitting=audio_stats(pages[0])
