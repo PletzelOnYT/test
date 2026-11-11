@@ -23,7 +23,7 @@ threading.Thread(target=httpd.serve_forever,daemon=True).start()
 started=time.monotonic();events=[];screens=[];fault=None;begin=None;end=None
 try:
  with sync_playwright() as pw:
-  browser=pw.chromium.launch(headless=False,args=["--no-sandbox","--disable-dev-shm-usage",
+  browser=pw.chromium.launch(headless=os.environ.get("PLETZEL_CI_HEADLESS")=="1",args=["--no-sandbox","--disable-dev-shm-usage",
     "--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
     "--use-gl=desktop","--disable-features=Vulkan"])
   page=browser.new_page(viewport={"width":1280,"height":720},device_scale_factor=1)
