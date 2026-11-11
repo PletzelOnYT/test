@@ -261,9 +261,12 @@ with TemporaryDirectory() as tmp:
    assert on>max(0.002,off*2),"No audio increase when transmitting"
    assert off_again<max(0.005,on*0.35),"Mute did not silence received audio"
    for p in pages:
+    p.evaluate("globalThis.__voiceTestMic = globalThis.__pletzelEaglerVoice.stream.getAudioTracks()[0]")
     p.evaluate("globalThis.__pletzelEaglerVoice.stop()")
     assert p.evaluate("globalThis.__pletzelEaglerVoice.state")==0
     assert p.evaluate("globalThis.__pletzelEaglerVoice.peers.size")==0
+    assert p.evaluate("globalThis.__voiceTestMic.readyState")=="ended", "Mic track leaked on stop"
+    assert p.evaluate("document.querySelectorAll('audio').length")==0, "Remote decode activation audio element leaked"
    data["steps"].append("Both browser microphone tracks and peers closed on stop")
    assert not events,events
    for ctx in contexts:ctx.close()
