@@ -1,8 +1,8 @@
-name: Pletzel V4 one real Minecraft session Map+Shulker+Schematica acceptance
+name: Pletzel V4 stabilization — real same-session Map Shulker Schematica acceptance
 on:
   push:
-    branches: [pletzel-v4-all-four-mods-single-session]
-    paths: ['.github/workflows/pletzel-v4-unified-one-session.yml']
+    branches: [pletzel-v4-stabilization-single-session-20261110]
+    paths: ['.github/workflows/pletzel-v4-unified-one-session.yml', 'pletzel-v4/accept-one-unified-minecraft-session.py']
   workflow_dispatch:
 permissions:
   contents: read
