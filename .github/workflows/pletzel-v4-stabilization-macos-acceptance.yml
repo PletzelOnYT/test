@@ -36,14 +36,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42937082477
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          run=42966539320
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 33b38b3a24e1751e2ca5b4cc02426c5639964ec4
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
           test "$(find candidate -name '*.html' | wc -l)" -eq 1
           shasum -a 256 "$(find candidate -name '*.html' | head -1)" | tee hosted-macos-tested-sha256.txt
-          grep -q '^8ded0acb2a1eb732015bebc6265297984392acf7d1b257ff2aafe52abcbf2f9a ' hosted-macos-tested-sha256.txt
+          grep -q '^4813cce2c056089b85f6e296c122095e7791f5b68f9966a06a6e6c0d79b5e0af ' hosted-macos-tested-sha256.txt
       - name: Install Playwright and actual Chromium for macOS
         shell: bash
         run: |
