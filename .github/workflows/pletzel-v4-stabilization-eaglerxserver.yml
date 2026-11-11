@@ -1,0 +1,102 @@
+name: Pletzel V4 — official EaglerXServer v5 voice real-server integration investigation
+on:
+  push:
+    branches: [pletzel-v4-stabilization-unified-voice-20261110]
+    paths:
+      - '.github/workflows/pletzel-v4-stabilization-eaglerxserver.yml'
+      - 'pletzel-v4/accept-official-eaglerx-server.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  official-voice-server-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Pin official upstream EaglerXServer JAR, not a custom Pletzel server plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p official-server
+          curl -fL --retry 3 -o official-server/EaglerXServer.jar 'https://github.com/lax1dude/eaglerxserver/releases/download/v1.1.1/EaglerXServer.jar'
+          printf '%s  %s\n' '468cb07eb7ca466b21b439be75156d3d01579327f4c6dae5b67d471137a64208' 'official-server/EaglerXServer.jar' | sha256sum -c -
+          cat >official-server/Dockerfile <<'DOCKER'
+          FROM ghcr.io/yangchuansheng/eaglerx1.8server:2.2.7
+          RUN rm -f /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXBungee-1.3.6.jar
+          RUN rm -rf /opt/eaglerX-1.8-server-image/bungee/plugins/EaglercraftXBungee
+          RUN sed -i 's/host: 127.0.0.1:25577/host: 0.0.0.0:5200/' /opt/eaglerX-1.8-server-image/bungee/config.yml
+          COPY EaglerXServer.jar /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXServer.jar
+          DOCKER
+      - name: Start isolated official EaglerXServer with real Paper backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull -t pletzel-v4-official-voice-server-ci official-server
+          docker run -d --name pletzel-official-voice-ci --stop-timeout 45             -p 127.0.0.1:5200:5200 -p 127.0.0.1:5201:5201             -e MINECRAFT_VERSION=1.8             -e RCON_PASSWORD=pletzel-local-test-only             -e PUBLIC_GAME_URL=http://127.0.0.1:5200             pletzel-v4-official-voice-server-ci
+          sleep 35
+          docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-initial.log
+          docker exec pletzel-official-voice-ci sh -c 'find /eaglerX-1.8-server/bungee/plugins -maxdepth 3 -type f | head -35' | tee official-voice-server-plugin-files.txt
+          # Official upstream defaults target 0.0.0.0:25577. Match our real
+          # Bungee listener at 0.0.0.0:5200, then restart to load the config.
+          docker exec pletzel-official-voice-ci sh -c "find /eaglerX-1.8-server/bungee/plugins -name listeners.cfg -exec sed -i 's/0.0.0.0:25577/0.0.0.0:5200/g' {} +" || true
+          docker restart pletzel-official-voice-ci
+          for i in $(seq 1 100); do
+            if curl --max-time 3 -s -o /dev/null http://127.0.0.1:5200/; then
+              echo "Official server HTTP port responding"
+              break
+            fi
+            if [ "$i" -eq 100 ]; then
+              echo "Official EaglerXServer proxy did not become reachable"
+              docker logs pletzel-official-voice-ci
+              exit 2
+            fi
+            sleep 2
+          done
+          docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
+      - name: Acquire exact combined browser Minecraft artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42937082477
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          sha256sum "$(find candidate -name '*.html' | head -1)" | tee official-voice-tested-html-sha256.txt
+      - name: Install real Chromium for browser-to-official-server gameplay tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Native Minecraft multiplayer GUI probe (fail closed until actual join and audio)
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-official-eaglerx-server.py 2>&1 | tee official-voice-real-browser.log
+      - name: Preserve server logs and genuine Chrome screenshots even on failure
+        if: always()
+        shell: bash
+        run: |
+          docker logs pletzel-official-voice-ci >official-voice-server-final.log 2>&1 || true
+          echo "SERVER-DISCOVERY-STATUS: real cross-client audio remains unverified unless separate hard acceptance assertions pass"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-official-eaglerxserver-real-multiplayer-investigation
+          path: |
+            official-voice-*.log
+            official-voice-server-plugin-files.txt
+            official-voice-tested-html-sha256.txt
+            eaglerxserver-live-evidence/
+          retention-days: 21
+          if-no-files-found: warn
