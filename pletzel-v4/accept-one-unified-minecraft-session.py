@@ -146,8 +146,19 @@ try:
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("11-first-real-map-in-hand")
   send("/execute if items entity @p hotbar.0 minecraft:filled_map run say PLETZEL_FIRST_FILLED_MAP")
-  if not any("PLETZEL_FIRST_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
-   raise RuntimeError("Map 0 not a real filled_map in hotbar slot 0")
+  # Under heavy new-map chunk generation the integrated server can have
+  # a 1-3 FPS renderer and a delayed chat-response path. Wait for the
+  # authoritative server reply; do not confuse immediate absence with FAIL.
+  map0_confirmed=False
+  for _ in range(12):
+   if any("PLETZEL_FIRST_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
+    map0_confirmed=True
+    break
+   page.wait_for_timeout(3000)
+  if not map0_confirmed:
+   page.keyboard.press("t");page.wait_for_timeout(1500)
+   snap("map0-native-command-diagnostics")
+   raise RuntimeError("Map 0 not confirmed as real filled_map in hotbar slot 0 after 36 seconds")
   # Second map MUST be used in a different geographic area. We neither patch
   # map pixel data nor manufacture client textures.
   # Keep genuine Survival testing alive when the integrated server takes a
@@ -181,8 +192,19 @@ try:
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("13-second-real-map-in-hand")
   send("/execute if items entity @p hotbar.1 minecraft:filled_map run say PLETZEL_SECOND_FILLED_MAP")
-  if not any("PLETZEL_SECOND_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
-   raise RuntimeError("Map 1 not a real filled_map in hotbar slot 1")
+  # Under heavy new-map chunk generation the integrated server can have
+  # a 1-3 FPS renderer and a delayed chat-response path. Wait for the
+  # authoritative server reply; do not confuse immediate absence with FAIL.
+  map1_confirmed=False
+  for _ in range(12):
+   if any("PLETZEL_SECOND_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
+    map1_confirmed=True
+    break
+   page.wait_for_timeout(3000)
+  if not map1_confirmed:
+   page.keyboard.press("t");page.wait_for_timeout(1500)
+   snap("map1-native-command-diagnostics")
+   raise RuntimeError("Map 1 not confirmed as real filled_map in hotbar slot 1 after 36 seconds")
   page.keyboard.press("e");page.wait_for_timeout(5500);snap("14-real-inventory")
   # At default 1280x720 GUI scale ~3, first two hotbar slots in the survival inventory.
   page.mouse.move(410,555);page.wait_for_timeout(6000);snap("15-first-filled-map-tooltip")
