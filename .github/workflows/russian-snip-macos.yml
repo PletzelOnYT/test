@@ -1,0 +1,101 @@
+name: Build Russian Snip ready-to-use macOS app
+on:
+  push:
+    branches: [russian-snip-ready-app-20261111]
+    paths:
+      - "RussianSnipMac/**"
+      - ".github/workflows/russian-snip-macos.yml"
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: Compile universal .app and make installation ZIP
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Build Intel and Apple Silicon versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          APP="$PWD/Russian Snip.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          SOURCE="RussianSnipMac/Sources/RussianSnip.swift"
+          xcrun swiftc -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-arm64"
+          xcrun swiftc -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
+          lipo -create "$RUNNER_TEMP/RussianSnip-arm64" "$RUNNER_TEMP/RussianSnip-x86_64" -output "$APP/Contents/MacOS/RussianSnip"
+          chmod 755 "$APP/Contents/MacOS/RussianSnip"
+          cat >"$APP/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleDevelopmentRegion</key><string>en</string>
+          <key>CFBundleExecutable</key><string>RussianSnip</string>
+          <key>CFBundleIdentifier</key><string>app.russiansnip.desktop</string>
+          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+          <key>CFBundleName</key><string>Russian Snip</string>
+          <key>CFBundleDisplayName</key><string>Russian Snip</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleIconFile</key><string>AppIcon</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          <key>CFBundleVersion</key><string>1</string>
+          <key>LSMinimumSystemVersion</key><string>13.0</string>
+          <key>NSHighResolutionCapable</key><true/>
+          <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
+          </dict></plist>
+          PLIST
+          plutil -lint "$APP/Contents/Info.plist"
+      - name: Make application icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >"$RUNNER_TEMP/make_icon.swift" <<'SWIFT'
+          import AppKit
+          import Foundation
+          let size: CGFloat = 1024
+          let image = NSImage(size: NSSize(width: size, height: size))
+          image.lockFocus()
+          let background = NSBezierPath(roundedRect: NSRect(x: 26, y: 26, width: 972, height: 972), xRadius: 210, yRadius: 210)
+          NSColor(calibratedRed: 0.29, green: 0.29, blue: 0.75, alpha: 1).setFill()
+          background.fill()
+          let text = "Я" as NSString
+          let font = NSFont.systemFont(ofSize: 650, weight: .bold)
+          let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+          let measure = text.size(withAttributes: attributes)
+          text.draw(at: NSPoint(x: (size - measure.width) / 2, y: (size - measure.height) / 2 - 12), withAttributes: attributes)
+          image.unlockFocus()
+          let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
+          let data = rep.representation(using: .png, properties: [:])!
+          try data.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
+          SWIFT
+          /usr/bin/swift "$RUNNER_TEMP/make_icon.swift" "$RUNNER_TEMP/icon.png"
+          ICONSET="$RUNNER_TEMP/AppIcon.iconset"
+          mkdir -p "$ICONSET"
+          for i in 16 32 128 256 512; do
+            name=$(printf 'icon_%sx%s.png' "$i" "$i")
+            sips -s format png -z "$i" "$i" "$RUNNER_TEMP/icon.png" --out "$ICONSET/$name" >/dev/null
+            j=$((i*2))
+            name=$(printf 'icon_%sx%s@2x.png' "$i" "$i")
+            sips -s format png -z "$j" "$j" "$RUNNER_TEMP/icon.png" --out "$ICONSET/$name" >/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o "$PWD/Russian Snip.app/Contents/Resources/AppIcon.icns"
+      - name: Sign and verify standalone application
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$PWD/Russian Snip.app"
+          codesign --force --sign - --timestamp=none "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          lipo -info "$APP/Contents/MacOS/RussianSnip"
+          file "$APP/Contents/MacOS/RussianSnip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-ready.zip"
+          unzip -t "Russian-Snip-Mac-ready.zip" | tail -n 2
+      - name: Publish compiled downloadable Mac app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Russian-Snip-Mac-Compiled-App
+          path: Russian-Snip-Mac-ready.zip
+          if-no-files-found: error
+          retention-days: 30
