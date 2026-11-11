@@ -25,10 +25,32 @@ jobs:
           mkdir -p official-server
           curl -fL --retry 3 -o official-server/EaglerXServer.jar 'https://github.com/lax1dude/eaglerxserver/releases/download/v1.1.1/EaglerXServer.jar'
           printf '%s  %s\n' '468cb07eb7ca466b21b439be75156d3d01579327f4c6dae5b67d471137a64208' 'official-server/EaglerXServer.jar' | sha256sum -c -
+          # Real Minecraft 26.2 has protocol 776. Do NOT use the Docker
+          # sample's 1.8.8 Paper (protocol 47) or obsolete Bungee 1.21.
+          curl -fsSL --retry 3 -H 'User-Agent: PletzelV4CI/1.0'             'https://fill.papermc.io/v3/projects/paper/versions/26.2/builds' -o official-server/paper-builds.json
+          paper_url=$(jq -r '[.[] | select(.channel == "STABLE")] | sort_by(.id) | last | .downloads["server:default"].url // empty' official-server/paper-builds.json)
+          test -n "$paper_url" || { echo 'BLOCKED: no official stable Paper 26.2 server build'; exit 2; }
+          curl -fL --retry 3 -H 'User-Agent: PletzelV4CI/1.0' "$paper_url" -o official-server/Paper26.2.jar
+          test "$(stat -c %s official-server/Paper26.2.jar)" -gt 10000000
+          curl -fL --retry 3 'https://hub.spigotmc.org/jenkins/job/BungeeCord/2104/artifact/bootstrap/target/BungeeCord.jar' -o official-server/BungeeCord.jar
+          test "$(stat -c %s official-server/BungeeCord.jar)" -gt 1000000
+          sha256sum official-server/{Paper26.2.jar,BungeeCord.jar,EaglerXServer.jar} | tee official-voice-jar-sha256.log
+          cat >official-server/start-ci-server.sh <<'BOOT'
+          #!/bin/bash
+          set -euo pipefail
+          cd /opt/eaglerX-1.8-server-image/paper262
+          echo 'eula=true' >eula.txt
+          printf '%s\n' 'online-mode=false' 'server-ip=127.0.0.1' 'server-port=25565' 'view-distance=3' 'simulation-distance=3' 'max-players=20' 'spawn-protection=0' 'motd=Pletzel V4 Official EaglerXServer 26.2 CI' >server.properties
+          printf 'settings:\n  bungeecord: true\n' >spigot.yml
+          java -Xms512M -Xmx2500M -jar server.jar nogui > /tmp/pletzel-paper.log 2>&1 &
+          echo "Paper 26.2 PID=$!"
+          cd /opt/eaglerX-1.8-server-image/bungee
+          exec java -Xms256M -Xmx700M -jar bungee.jar
+          BOOT
           cat >official-server/Dockerfile <<'DOCKER'
-          FROM eclipse-temurin:17-jre AS java17
+          FROM eclipse-temurin:25-jre AS java25
           FROM ghcr.io/yangchuansheng/eaglerx1.8server:2.2.7
-          COPY --from=java17 /opt/java/openjdk /opt/java/openjdk
+          COPY --from=java25 /opt/java/openjdk /opt/java/openjdk
           ENV JAVA_HOME=/opt/java/openjdk
           ENV PATH="/opt/java/openjdk/bin:$PATH"
           RUN rm -f /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXBungee-1.3.6.jar
@@ -37,23 +59,39 @@ jobs:
           RUN sed -i 's/host: 127.0.0.1:25577/host: 0.0.0.0:25577/' /opt/eaglerX-1.8-server-image/bungee/config.yml
           RUN sed -i 's/max_players: 1/max_players: 20/' /opt/eaglerX-1.8-server-image/bungee/config.yml
           COPY EaglerXServer.jar /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXServer.jar
+          COPY BungeeCord.jar /opt/eaglerX-1.8-server-image/bungee/bungee.jar
+          RUN mkdir -p /opt/eaglerX-1.8-server-image/paper262
+          COPY Paper26.2.jar /opt/eaglerX-1.8-server-image/paper262/server.jar
+          COPY start-ci-server.sh /opt/eaglerX-1.8-server-image/start-ci-server.sh
           DOCKER
       - name: Start isolated official EaglerXServer with real Paper backend
         shell: bash
         run: |
           set -euo pipefail
           docker build --pull -t pletzel-v4-official-voice-server-ci official-server
-          # Start real Bungee and real Paper directly: the full management
-          # image's entrypoint immediately shuts down if Paper readiness fails.
-          # A dedicated CI instance prints the actual proxy errors to stdout.
+          # Native Java 25 matching Paper 26.2 protocol 776 and 26.2-capable
+          # BungeeCord #2104; official EaglerXServer plugin untouched.
           docker run -d --name pletzel-official-voice-ci --stop-timeout 45 \
             -p 127.0.0.1:5200:25577 \
             --entrypoint /bin/bash pletzel-v4-official-voice-server-ci \
-            -c 'set -e; cd /opt/eaglerX-1.8-server-image/server-1.8; printf "eula=true\\n" > eula.txt; ./run.sh > /tmp/pletzel-paper.log 2>&1 & cd /opt/eaglerX-1.8-server-image/bungee; exec ./run.sh'
+            /opt/eaglerX-1.8-server-image/start-ci-server.sh
           sleep 25
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-initial.log
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -maxdepth 3 -type f | head -35' | tee official-voice-server-plugin-files.txt
           docker exec pletzel-official-voice-ci sh -c 'tail -n 90 /tmp/pletzel-paper.log' >official-voice-paper-initial.log 2>&1 || true
+          # Wait for the actual 26.2 Paper backend, not just proxy socket.
+          for i in $(seq 1 150); do
+            if docker exec pletzel-official-voice-ci /bin/bash -lc 'echo > /dev/tcp/127.0.0.1/25565' >/dev/null 2>&1; then
+              echo 'OFFICIAL_BACKEND_PAPER26_2_READY'
+              break
+            fi
+            if [ "$i" -eq 150 ]; then
+              echo 'BLOCKED: actual Paper 26.2 server did not start'
+              docker exec pletzel-official-voice-ci sh -c 'tail -n 250 /tmp/pletzel-paper.log' || true
+              exit 2
+            fi
+            sleep 2
+          done
           # The EaglerXServer listener uses native Minecraft TCP AND
           # WebSocket. curl --fail on / is not a valid readiness check; it
           # can fail even with an operational WebSocket listener.
@@ -132,6 +170,7 @@ jobs:
           name: pletzel-v4-official-eaglerxserver-real-multiplayer-investigation
           path: |
             official-voice-*.log
+            official-voice-jar-sha256.log
             official-voice-server-plugin-files.txt
             official-voice-tested-html-sha256.txt
             eaglerxserver-live-evidence/
