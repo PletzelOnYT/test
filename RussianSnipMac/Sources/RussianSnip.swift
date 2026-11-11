@@ -167,7 +167,7 @@ final class SnipState: ObservableObject {
                     status = "Text changed; translate again."
                 }
             } catch {
-                error = error.localizedDescription
+                self.error = error.localizedDescription
                 status = "Translation unavailable. Offline OCR and pronunciation still work."
             }
             translating = false
