@@ -15,6 +15,7 @@
 | Test | Result | Evidence / reason |
 |---|---|---|
 | Original combined Java + TeaVM Wasm-GC link | PASS | Build [#42844549237](https://github.com/PletzelOnYT/test/actions/runs/42844549237); does **not** prove gameplay |
+| Standalone repaired HTML boot directly from file:// OFFLINE | PASS | [#42943012916](https://github.com/PletzelOnYT/test/actions/runs/42943012916): Chromium with HTTP(S) network blocked displayed genuine native profile/title screens and live 1280x720 canvas, zero external requests and page exceptions; world/playthrough offline not tested |
 | Two-browser native WebRTC sound + mute/talk/mute | PASS | [#42936877240](https://github.com/PletzelOnYT/test/actions/runs/42936877240): received RMS 0.00111 / 0.23143 / 0.00118, cleanup succeeds; **Java native adapter JS source**, not an actual external Minecraft voice-enabled server |
 | Exact compiled HTML with repaired voice | UNTESTED | [#42937082477](https://github.com/PletzelOnYT/test/actions/runs/42937082477) native compile / link underway at last check |
 | Singleplayer first world boot and actual completed server ticks | PASS | [#42849879185](https://github.com/PletzelOnYT/test/actions/runs/42849879185), genuine integrated server reported 320+ completed ticks |
