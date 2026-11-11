@@ -36,15 +36,25 @@ def server_position(username):
  nums=re.findall(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?",ans.split("[")[-1])
  if len(nums)<3:raise AssertionError("No Paper authoritative coordinates for "+username+": "+ans)
  return [float(v) for v in nums[:3]]
-def username(events_one):
+def observed_profile_names(events_one):
+ # The game may initialize and change its local profile more than once.
+ # Do not confuse the first startup log with the name Paper admitted.
+ names=[]
  for e in events_one:
   m=re.search(r"Setting user:\s+([A-Za-z0-9_]{3,16})",e.get("text", ""))
-  if m:return m.group(1)
- raise AssertionError("Actual Java player profile username not seen")
-def verify_admitted(name):
+  if m and m.group(1) not in names:names.append(m.group(1))
+ return names
+def listed_players():
  response=server_command("list")
- print("PAPER_REAL_PLAYER_LIST",response,flush=True)
- if name not in response:raise AssertionError(name+" not present in actual Paper multiplayer player list: "+response)
+ m=re.search(r"players online:\s*(.*)$",response,re.I)
+ assert m is not None,"Unexpected live Paper RCON player-list format: "+response
+ names=[n.strip() for n in m.group(1).split(",") if n.strip()]
+ assert all(re.fullmatch(r"[A-Za-z0-9_]{3,16}",n) for n in names),response
+ return set(names)
+def verify_admitted(name):
+ players=listed_players()
+ print("PAPER_REAL_PLAYER_LIST",sorted(players),flush=True)
+ if name not in players:raise AssertionError(name+" not present in actual Paper multiplayer player list: "+str(sorted(players)))
 def audio_stats(page):
  return page.evaluate("""async () => {
   const v=globalThis.__pletzelEaglerVoice;
@@ -123,18 +133,35 @@ try:
    page.mouse.click(638,593);page.wait_for_timeout(3000)
    page.keyboard.type("ws://127.0.0.1:5200",delay=45)
    page.keyboard.press("Enter")
-   name=username(events[idx])
+   # A startup 'Setting user:' log is NOT a trustworthy server identity:
+   # prior runs selected the first bootstrap nickname and falsely rejected
+   # an actual Paper admission under the final, regenerated profile name.
+   # Require an exactly-one-player transition in the real RCON list, AND
+   # keep all previously admitted players online during the transition.
+   joined=set();players_before=set(connected_players)
    for attempt in range(35):
     page.wait_for_timeout(4000)
-    response=server_command("list")
-    if name in response:break
+    now=listed_players()
+    joined=now-players_before
+    if len(joined)==1 and players_before.issubset(now):break
     if any("Couldn't connect to server" in e.get("text", "") or
            "Eagler server rejected login" in e.get("text", "") for e in events[idx]):
       break
    snap(page,f"{idx}-actual-server-join")
+   profiles=observed_profile_names(events[idx])
+   print("PAPER_LOGIN_IDENTITY_TRACE",json.dumps({"page":idx,"profiles":profiles,
+       "before":sorted(players_before),"new":sorted(joined),"now":sorted(now)}),flush=True)
+   assert len(joined)==1 and now==players_before|joined, (
+     f"Expected exactly one NEW Paper player for browser {idx}; "
+     f"before={sorted(players_before)} after={sorted(now)} profiles={profiles}")
+   assert any(e.get("kind")=="official-v5-wire-received" for e in events[idx]), (
+     f"Browser {idx} did not receive native V5 WebSocket packets")
+   name=next(iter(joined))
    verify_admitted(name)
+   connected_players.add(name)
    pages[-1].wait_for_timeout(6000)
    evidence[f"player_{idx}"]={"username":name,"paper_join":"confirmed",
+      "browser_profile_names":profiles,"identity_verified_by":"unique live Paper RCON admission",
       "position":server_position(name)}
    print("PAPER_ACTUAL_LOGIN_CONFIRMED",idx,name,evidence[f"player_{idx}"],flush=True)
   # Deliberately exercise real movement and compare with Paper RCON's
