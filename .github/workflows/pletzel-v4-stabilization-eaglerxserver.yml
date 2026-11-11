@@ -26,7 +26,11 @@ jobs:
           curl -fL --retry 3 -o official-server/EaglerXServer.jar 'https://github.com/lax1dude/eaglerxserver/releases/download/v1.1.1/EaglerXServer.jar'
           printf '%s  %s\n' '468cb07eb7ca466b21b439be75156d3d01579327f4c6dae5b67d471137a64208' 'official-server/EaglerXServer.jar' | sha256sum -c -
           cat >official-server/Dockerfile <<'DOCKER'
+          FROM eclipse-temurin:17-jre AS java17
           FROM ghcr.io/yangchuansheng/eaglerx1.8server:2.2.7
+          COPY --from=java17 /opt/java/openjdk /opt/java/openjdk
+          ENV JAVA_HOME=/opt/java/openjdk
+          ENV PATH="/opt/java/openjdk/bin:$PATH"
           RUN rm -f /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXBungee-1.3.6.jar
           RUN rm -rf /opt/eaglerX-1.8-server-image/bungee/plugins/EaglercraftXBungee
           # Preserve official plugin's default inject_address=0.0.0.0:25577.
@@ -61,7 +65,11 @@ jobs:
             if [ "$i" -eq 45 ]; then
               echo "Official EaglerXServer native TCP proxy not listening"
               docker logs pletzel-official-voice-ci
-              docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.cfg -exec cat {} +' > official-voice-listeners.log 2>&1 || true
+              exit 2
+            fi
+            sleep 2
+          done
+          docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.cfg -exec cat {} +' > official-voice-listeners.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'tail -n 150 /tmp/pletzel-paper.log' > official-voice-paper.log 2>&1 || true
           docker logs pletzel-official-voice-ci 2>&1 | tee official-voice-server-running.log
           # Require an actual WebSocket HTTP/1.1 upgrade response before
