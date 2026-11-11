@@ -1,0 +1,163 @@
+name: Pletzel V4 stabilization — exact repaired HTML gameplay and transport smoke
+on:
+  push:
+    branches: [pletzel-v4-stabilization-unified-voice-20261110]
+    paths: ['.github/workflows/pletzel-v4-stabilization-acceptance.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  actual-repaired-html:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Wait for the NEW voice-repaired combined native build and verify commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run=42937082477
+          expected_sha=091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
+          deadline=$(( $(date +%s) + 6900 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Native repaired game BUILD FAILED: $conclusion"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo "REPAIRED_HTML BLOCKED: build timeout"; exit 4; }
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          game="$(find candidate -name '*.html' | head -1)"
+          test "$(stat -c %s "$game")" -gt 85000000
+          sha256sum "$game" | tee repaired-exact-html-sha256.txt
+          echo "This exact HTML is used by every following Minecraft browser test."
+      - name: Install real Chromium, WebGL, and graphics dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Two real browsers — nonzero native WebRTC received-audio RMS and mute lifecycle
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/diagnose-eaglerx-real-rtp.py 2>&1 | tee repaired-voice-transport.log
+          result=${PIPESTATUS[0]}
+          echo "VOICE_TEST_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: REAL GAME — native Map and Shulker tooltip item interactions
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-map-shulker.py 2>&1 | tee repaired-map-shulker.log
+          result=${PIPESTATUS[0]}
+          echo "MAP_SHULKER_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: REAL GAME — original Shulker GUI actual inventory and command test
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-real-shulker-command.py 2>&1 | tee repaired-real-shulker.log
+          result=${PIPESTATUS[0]}
+          echo "SHULKER_COMMAND_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: REAL GAME — Schematica real file chooser, ghost candidate, and unload
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-all-mods-schematica.py 2>&1 | tee repaired-schematica.log
+          result=${PIPESTATUS[0]}
+          echo "SCHEMATICA_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: REAL GAME — native Controls toggles and reload screenshot evidence
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-unified-settings-persistence.py 2>&1 | tee repaired-settings.log
+          result=${PIPESTATUS[0]}
+          echo "SETTINGS_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: REAL GAME — all four mods in one world and same browser
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/accept-one-unified-minecraft-session.py 2>&1 | tee repaired-one-session.log
+          result=${PIPESTATUS[0]}
+          echo "ONE_SESSION_EXIT=$result" >> "$GITHUB_ENV"
+          exit 0
+      - name: Strict evidence report — never convert failed tests to green
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          tests = {
+            'native_voice_two_chromium_real_audio': 'VOICE_TEST_EXIT',
+            'native_map_shulker_browser_interaction': 'MAP_SHULKER_EXIT',
+            'shulker_real_inventory_commands': 'SHULKER_COMMAND_EXIT',
+            'schematica_browser_file_chooser_and_cleanup': 'SCHEMATICA_EXIT',
+            'settings_navigation_reload_screenshots': 'SETTINGS_EXIT',
+            'same_world_all_four_mods_browser_execution': 'ONE_SESSION_EXIT',
+          }
+          results = {name: ('UNTESTED' if os.environ.get(env) is None else
+                    'PASS' if os.environ.get(env) == '0' else 'FAIL')
+                    for name,env in tests.items()}
+          report = {
+            'game_build_commit':'091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3',
+            'native_build_run':42937082477,
+            'exact_html_sha256_record':pathlib.Path('repaired-exact-html-sha256.txt').read_text().strip() if pathlib.Path('repaired-exact-html-sha256.txt').exists() else None,
+            'browser':'Playwright Chromium 141 / Ubuntu 24.04; Mac not tested',
+            'test_execution_results':results,
+            'real_eaglerx_server_older_client_audio':'BLOCKED',
+            'real_multiplayer_server_authoritative_movement':'BLOCKED',
+            'physical_mac_performance':'BLOCKED',
+            'source_only_or_screenshot_only_not_full_visual_proof':True,
+            'full_release_accepted':False,
+            'notes':'These are component and browser smoke tests. Screenshot-only checks still require authentic reference review and functional assertions. No server or physical Mac was available.',
+          }
+          pathlib.Path('repaired-exact-html-acceptance.json').write_text(json.dumps(report, indent=2))
+          print(json.dumps(report, indent=2))
+          PY
+      - name: Upload screenshots, real browser logs, candidate SHA-256, and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-repaired-exact-html-stabilization-evidence
+          path: |
+            repaired-*.log
+            repaired-exact-html-sha256.txt
+            repaired-exact-html-acceptance.json
+            map-shulker-real-inventory-evidence/
+            real-shulker-command-evidence/
+            inworld-schematic-evidence/
+            map-shulker-settings-evidence/
+            unified-one-session-evidence/
+            eagler-voice-webrtc-browser-evidence/
+          if-no-files-found: warn
+          retention-days: 21
+      - name: Fail CI if any attempted smoke test failed or was not executed
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for k in VOICE_TEST_EXIT MAP_SHULKER_EXIT SHULKER_COMMAND_EXIT SCHEMATICA_EXIT SETTINGS_EXIT ONE_SESSION_EXIT; do
+            value="${!k:-UNTESTED}"
+            test "$value" = 0 || { echo "$k FAILED/BLOCKED: $value"; exit 1; }
+          done
+          echo "All six smoke scripts executed successfully. NOT full release acceptance."
