@@ -31,13 +31,27 @@ try:
    p.on("console",lambda m,i=i:events.append({"page":i,"at":round(time.monotonic()-started,1),"kind":m.type,"text":m.text[:1600]}))
    p.on("pageerror",lambda e,i=i:events.append({"page":i,"at":round(time.monotonic()-started,1),"kind":"pageerror","text":str(e)[:1600]}))
    p.goto(f"http://127.0.0.1:{srv.server_address[1]}/{html.name}?perfdebug",wait_until="domcontentloaded",timeout=150000)
-   p.wait_for_timeout(28000)
+   p.wait_for_timeout(42000)
    p.mouse.click(638,618);p.wait_for_timeout(2600)
    p.mouse.click(638,572);p.wait_for_timeout(3500)
    p.screenshot(path=str(out/f"{i}-title.png"),timeout=45000)
-   p.mouse.click(638,426);p.wait_for_timeout(7000)
-   p.screenshot(path=str(out/f"{i}-native-multiplayer.png"),timeout=45000)
-   screens+= [f"{i}-title",f"{i}-native-multiplayer"]
+   p.mouse.click(638,426);p.wait_for_timeout(4000)
+   p.screenshot(path=str(out/f"{i}-multiplayer-safety-warning.png"),timeout=45000)
+   p.mouse.click(400,566);p.wait_for_timeout(7500)
+   p.screenshot(path=str(out/f"{i}-native-server-list.png"),timeout=45000)
+   screens+= [f"{i}-title",f"{i}-multiplayer-safety-warning",f"{i}-native-server-list"]
+   # Browser WebSocket probe only; this never claims a native Minecraft join.
+   try:
+    ws=p.evaluate("""async () => await new Promise(resolve => {
+       const conn=new WebSocket('ws://127.0.0.1:5200/');
+       const timer=setTimeout(()=>{try{conn.close()}catch(e){}resolve({state:'TIMEOUT'})},8000);
+       conn.onopen=()=>{clearTimeout(timer);conn.close();resolve({state:'OPEN'})};
+       conn.onerror=()=>{clearTimeout(timer);resolve({state:'ERROR'})};
+       conn.onclose=e=>{clearTimeout(timer);resolve({state:'CLOSED',code:e.code})};
+    })""")
+    print("LIVE_OFFICIAL_WS_CLIENT_PROBE",i,ws,flush=True)
+   except Exception as exc:
+    print("LIVE_OFFICIAL_WS_CLIENT_PROBE",i,str(exc)[:250],flush=True)
   b.close()
 except Exception:
  fault=traceback.format_exc();print("LIVE_SERVER_BROWSER_ERROR",fault[-4000:],flush=True)
