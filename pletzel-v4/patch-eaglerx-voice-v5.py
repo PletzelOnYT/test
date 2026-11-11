@@ -93,7 +93,7 @@ replace(handshake,
 '''\t\t\t\tout.writeByte(0); // standard capability varint
 \t\t\t\tout.writeByte(0); // extended capability count''',
 '''\t\t\t\tout.writeByte(0x02); // official EaglerXServer V5 VOICE capability bit 1
-\t\t\t\tout.writeByte(0); // VOICE_V0 capability version
+\t\t\t\tout.writeByte(0x01); // Voice V0 advertised as version bitmask bit 0, per EaglerXServer processCapabilities
 \t\t\t\tout.writeByte(0); // extended capability count''',
 "negotiate official voice capability V0")
 
