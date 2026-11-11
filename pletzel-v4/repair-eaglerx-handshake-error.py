@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repair official EaglerXServer V3–V5 post-version rejection length decoding.
+"""Repair official EaglerXServer V3–V5 login-denial and error lengths.
 
 EaglerXServer WebSocketEaglerInitialHandler.sendErrorCode sends UTF-8
 errors with a U16 length once canSendV3Kick becomes true after version
@@ -18,6 +18,12 @@ old1='readServerError(allow, handshakeVersion == 3)'
 old2='readServerError(finished, handshakeVersion == 3)'
 assert s.count(old1)==1,(old1,s.count(old1))
 assert s.count(old2)==1,(old2,s.count(old2))
+# The official HandshakerV3 implementation is inherited by V4/V5 and
+# encodes SERVER_DENY_LOGIN using a two-byte UTF-8 length for ALL three.
+# The donor incorrectly parsed only V3 with U16, making V5 denials unreadable.
+deny_old='int length = handshakeVersion == 3 ? allow.u16() : allow.u8();'
+assert s.count(deny_old)==1,("official V5 deny payload length",s.count(deny_old))
+s=s.replace(deny_old,'int length = allow.u16(); // official HandshakerV3-V5 deny payload',1)
 s=s.replace(old1,'readServerError(allow, true)',1)
 s=s.replace(old2,'readServerError(finished, true)',1)
 old3='private static String readServerError(Reader reader, boolean v3) {\n\t\tint code = reader.u8();\n\t\tint length = v3 ? reader.u16() : reader.u8();'
@@ -39,4 +45,4 @@ old="int attemptTimeout = Math.max(3500, timeoutMillis / attempts);"
 new="int attemptTimeout = Math.max(30000, timeoutMillis); // per-endpoint Minecraft 26.2 V5 login deadline"
 assert text.count(old)==1,"Unexpected native Eagler WebSocket timeout implementation"
 bridge.write_text(text.replace(old,new,1),encoding="utf-8")
-print("Repaired real EaglerXServer V5 U16 login-error strings and premature 7.5-second endpoint timeout; voice v0 negotiation preserved",flush=True)
+print("Repaired official EaglerXServer V5 U16 login-denial and error strings and premature 7.5-second endpoint timeout; voice V0 negotiation preserved",flush=True)
