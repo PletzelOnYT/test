@@ -80,6 +80,22 @@ try:
   for idx in range(2):
    context=browser.new_context(viewport={"width":1280,"height":720},permissions=["microphone"])
    page=context.new_page();pages.append(page)
+   # Observe the *actual* browser WebSocket handshake on a real official
+   # server. Log only short protocol headers (first 8 bytes), never auth
+   # strings, tokens, skin data, microphone packets, SDP or ICE secrets.
+   def attach_websocket(ws,idx=idx):
+    if not ws.url.startswith("ws://127.0.0.1:5200"):return
+    def capture(direction,payload):
+     if not isinstance(payload,bytes) or not payload:return
+     if len(events[idx])>15000:return
+     if payload[0] not in (0x01,0x02,0x03,0x04,0x05,0x06,0xff):return
+     event={"at":round(time.monotonic()-start,2),"kind":"official-v5-wire-"+direction,
+            "length":len(payload),"packet":payload[0],"header8":payload[:8].hex()}
+     events[idx].append(event)
+     print("V5_NATIVE_WIRE_HEADER",json.dumps({"page":idx,**event}),flush=True)
+    ws.on("framesent",lambda buf:capture("sent",buf))
+    ws.on("framereceived",lambda buf:capture("received",buf))
+   page.on("websocket",attach_websocket)
    page.on("console",lambda m,idx=idx:events[idx].append({"at":round(time.monotonic()-start,2),
        "kind":m.type,"text":m.text[:1800]}))
    page.on("pageerror",lambda e,idx=idx:events[idx].append({"at":round(time.monotonic()-start,2),
