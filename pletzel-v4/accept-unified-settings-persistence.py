@@ -24,7 +24,7 @@ events=[];screens=[];problem=None
 start=time.monotonic()
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(headless=False,args=["--no-sandbox","--disable-dev-shm-usage",
+  browser=p.chromium.launch(executable_path=__import__("shutil").which("google-chrome") or __import__("shutil").which("google-chrome-stable"),headless=False,args=["--no-sandbox","--disable-dev-shm-usage",
        "--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
        "--use-gl=desktop","--disable-features=Vulkan"])
   page=browser.new_page(viewport={"width":1280,"height":720},device_scale_factor=1)
