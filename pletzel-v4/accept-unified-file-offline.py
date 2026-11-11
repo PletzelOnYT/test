@@ -8,13 +8,13 @@ not full singleplayer acceptance.
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from PIL import Image,ImageStat
-import time,json,traceback,sys
+import time,json,traceback,sys,os
 htmls=list(Path("candidate").rglob("*.html"));assert len(htmls)==1
 html=htmls[0].resolve();out=Path("offline-file-url-evidence");out.mkdir(exist_ok=True)
 events=[];http_requests=[];screens=[];fault=None;started=time.monotonic()
 try:
  with sync_playwright() as pw:
-  browser=pw.chromium.launch(headless=False,args=["--no-sandbox","--disable-dev-shm-usage",
+  browser=pw.chromium.launch(headless=os.environ.get("PLETZEL_CI_HEADLESS")=="1",args=["--no-sandbox","--disable-dev-shm-usage",
     "--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
     "--use-gl=desktop","--disable-features=Vulkan"])
   ctx=browser.new_context(viewport={"width":1280,"height":720})
