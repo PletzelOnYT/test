@@ -7,7 +7,7 @@
 - Original four-mod integration source: `fda0b34781b31f510e90a49b815d9887ca36763c`, native build [#42844549237](https://github.com/PletzelOnYT/test/actions/runs/42844549237).
 - Previous combined HTML SHA-256: `513bb8628b0c934943e42efc6a68acaa14f9b2c4c0db0ee97b42fb74ff132a19` (from old exact-binary Chromium run [#42845572891](https://github.com/PletzelOnYT/test/actions/runs/42845572891)).
 - Native voice repair in `pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java`, integrated into the *new* combined native compile source at build trigger commit `091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3`, [native build #42937082477](https://github.com/PletzelOnYT/test/actions/runs/42937082477).
-- New exact repaired HTML digest: **not yet available**; record only after final packaging, downloaded artifact and hash verification.
+- New exact repaired HTML digest: **`8ded0acb2a1eb732015bebc6265297984392acf7d1b257ff2aafe52abcbf2f9a`**, independently verified from downloaded [native build #42937082477](https://github.com/PletzelOnYT/test/actions/runs/42937082477/artifacts/13821065027) standalone HTML (89,703,312 bytes).
 - Test environment for linked automation: GitHub Actions Ubuntu 24.04 with real Playwright Chromium 141 and Xvfb software WebGL. No real Mac or external EaglerX v5 voice-enabled server has been exercised.
 
 ## Current tests (individual assertions, not feature-wide acceptance)
