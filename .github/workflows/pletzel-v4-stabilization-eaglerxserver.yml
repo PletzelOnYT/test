@@ -72,6 +72,11 @@ jobs:
           # Preserve official plugin's default inject_address=0.0.0.0:25577.
           RUN sed -i 's/host: 127.0.0.1:25577/host: 0.0.0.0:25577/' /opt/eaglerX-1.8-server-image/bungee/config.yml
           RUN sed -i 's/max_players: 1/max_players: 20/' /opt/eaglerX-1.8-server-image/bungee/config.yml
+          # The native V5 login packet requests server 'default'. The source
+          # Bungee sample config only has 'lobby', so the requested backend was
+          # unresolved. Keep lobby, but expose a matching backend alias.
+          RUN sed -i "/^servers:$/a\\  default:\\n    motd: 'Pletzel Official 26.2 CI'\\n    address: localhost:25565\\n    restricted: false" /opt/eaglerX-1.8-server-image/bungee/config.yml
+          RUN grep -A 9 '^servers:' /opt/eaglerX-1.8-server-image/bungee/config.yml
           COPY EaglerXServer.jar /opt/eaglerX-1.8-server-image/bungee/plugins/EaglerXServer.jar
           COPY BungeeCord.jar /opt/eaglerX-1.8-server-image/bungee/bungee.jar
           RUN mkdir -p /opt/eaglerX-1.8-server-image/paper262
