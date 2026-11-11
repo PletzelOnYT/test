@@ -51,10 +51,36 @@ callback_new = """                if ( getVersion() >= ProtocolConstants.MINECRA
                     // Its real voice manager can then send V5 S_ALLOWED.
                     // Without this event the game joins but voice stays
                     // permanently 'not advertised' even though configured.
-                    if ( userCon.getServer() != null )
+                    // Backend connects asynchronously on the different
+                    // ServerConnector path. Its first ServerConnectedEvent may
+                    // arrive after post-login, and can disable voice, while
+                    // ServerSwitchEvent can fire before Eagler initialized the
+                    // player and therefore never re-enable the voice channel.
+                    // Re-emit the REAL server-switch notification only after
+                    // backend cutThrough has set userCon.getServer(), on the
+                    // same Netty event loop. This does not forge voice packets.
+                    // Retry readiness rather than guessing a fixed delay.
+                    ch.getHandle().eventLoop().schedule( new Runnable()
                     {
-                        bungee.getPluginManager().callEvent( new ServerSwitchEvent( userCon, null ) );
-                    }
+                        private int checks;
+
+                        @Override
+                        public void run()
+                        {
+                            if ( userCon.getServer() != null )
+                            {
+                                bungee.getPluginManager().callEvent( new ServerSwitchEvent( userCon, null ) );
+                                System.out.println( "PLETZEL_VOICE_SERVER_SWITCH_REPLAY " + userCon.getName() );
+                            } else if ( ++checks < 90 )
+                            {
+                                ch.getHandle().eventLoop().schedule( this, 250L,
+                                        java.util.concurrent.TimeUnit.MILLISECONDS );
+                            } else
+                            {
+                                System.out.println( "PLETZEL_VOICE_SERVER_SWITCH_MISSING_BACKEND " + userCon.getName() );
+                            }
+                        }
+                    }, 1000L, java.util.concurrent.TimeUnit.MILLISECONDS );
                     return; // already connected; never double-connect
                 }
                 userCon.connect( result.getTarget(), null, true, ServerConnectEvent.Reason.JOIN_PROXY );
