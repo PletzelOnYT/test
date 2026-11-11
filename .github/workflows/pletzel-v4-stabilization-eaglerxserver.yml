@@ -158,7 +158,20 @@ jobs:
           set -euo pipefail
           run=42966539320
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 33b38b3a24e1751e2ca5b4cc02426c5639964ec4
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          # The pinned native Wasm-GC link is long-running. Wait for its
+          # actual successful completion instead of treating "in_progress"
+          # (null conclusion) as a gameplay or voice failure.
+          deadline=$(( $(date +%s) + 6900 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$status" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Native four-mod build failed: $conclusion"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo "BLOCKED: exact native build did not complete"; exit 4; }
+            sleep 30
+          done
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
           sha256sum "$(find candidate -name '*.html' | head -1)" | tee official-voice-tested-html-sha256.txt
