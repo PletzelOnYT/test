@@ -38,7 +38,7 @@ def server_position(username):
  return [float(v) for v in nums[:3]]
 def username(events_one):
  for e in events_one:
-  m=re.search(r"Setting user:\s+([A-Za-z0-9_]{3,16})",e["text"])
+  m=re.search(r"Setting user:\s+([A-Za-z0-9_]{3,16})",e.get("text", ""))
   if m:return m.group(1)
  raise AssertionError("Actual Java player profile username not seen")
 def verify_admitted(name):
@@ -117,8 +117,8 @@ try:
     page.wait_for_timeout(4000)
     response=server_command("list")
     if name in response:break
-    if any("Couldn't connect to server" in e["text"] or
-           "Eagler server rejected login" in e["text"] for e in events[idx]):
+    if any("Couldn't connect to server" in e.get("text", "") or
+           "Eagler server rejected login" in e.get("text", "") for e in events[idx]):
       break
    snap(page,f"{idx}-actual-server-join")
    verify_admitted(name)
