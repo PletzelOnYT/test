@@ -163,7 +163,10 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(1000)
   page.keyboard.press("Escape");page.wait_for_timeout(1000)
   snap("23-one-session-before-schematica")
-  page.keyboard.press("Escape");page.wait_for_timeout(1500);snap("24-one-session-pause")
+  # This screenshot is ALREADY the genuine pause menu; another Escape
+  # unpauses the game, so subsequent Options/Schematica mouse clicks
+  # would act on blocks instead of GUI buttons.
+  snap("24-one-session-pause")
   page.mouse.click(478,394);page.wait_for_timeout(2400);snap("25-one-session-options")
   page.mouse.click(875,579);page.wait_for_timeout(2800);snap("26-one-session-schematica-menu")
   page.mouse.click(410,183);page.wait_for_timeout(8000);snap("27-one-session-schematic-import")
