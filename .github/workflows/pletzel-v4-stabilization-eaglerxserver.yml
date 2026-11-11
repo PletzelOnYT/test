@@ -133,7 +133,24 @@ jobs:
             sleep 2
           done
           docker cp pletzel-v4/ci-official-rcon.py pletzel-official-voice-ci:/tmp/pletzel-rcon.py
-          docker exec pletzel-official-voice-ci python3 /tmp/pletzel-rcon.py list | tee official-voice-paper-rcon-ready.log
+          # Paper opens its TCP listener before finishing world initialization.
+          # A successful 25565 socket connection is not proof that its RCON
+          # service has started. Poll the actual RCON endpoint to eliminate
+          # this deterministic startup race, preserving failure evidence.
+          for i in $(seq 1 90); do
+            if docker exec pletzel-official-voice-ci python3 /tmp/pletzel-rcon.py list >official-voice-paper-rcon-ready.log 2>&1; then
+              echo 'OFFICIAL_PAPER_RCON_ACCEPTANCE_READY'
+              cat official-voice-paper-rcon-ready.log
+              break
+            fi
+            if [ "$i" -eq 90 ]; then
+              echo 'BLOCKED: Paper 26.2 RCON did not become ready'
+              cat official-voice-paper-rcon-ready.log
+              docker exec pletzel-official-voice-ci sh -c 'tail -n 200 /tmp/pletzel-paper.log' || true
+              exit 2
+            fi
+            sleep 2
+          done
           docker exec pletzel-official-voice-ci sh -c 'grep -F "enable_voice_service: true" /opt/eaglerX-1.8-server-image/bungee/plugins/EaglercraftXServer/settings.yml' | tee official-voice-enabled.log
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name listeners.yml -exec cat {} +' > official-voice-listeners.log 2>&1 || true
           docker exec pletzel-official-voice-ci sh -c 'find /opt/eaglerX-1.8-server-image/bungee/plugins -name settings.yml -exec cat {} +' > official-voice-settings.log 2>&1 || true
