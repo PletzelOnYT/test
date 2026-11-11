@@ -34,7 +34,7 @@ try:
    ans=[]
    for e in events:
     if "[EagPerfHeartbeat]" in e["text"]:
-     m=re.search(r"lastTick=(\\d+)",e["text"])
+     m=re.search(r"lastTick=(\d+)",e["text"])
      if m:ans.append((e["at"],int(m.group(1)),e["text"]))
    return ans
   def snap(name):
@@ -66,7 +66,7 @@ finally:httpd.shutdown()
 beats=[]
 for e in events:
  if "[EagPerfHeartbeat]" in e["text"]:
-  m=re.search(r"lastTick=(\\d+)",e["text"])
+  m=re.search(r"lastTick=(\d+)",e["text"])
   if m:beats.append((e["at"],int(m.group(1))))
 elapsed=(end[0]-begin[0]) if begin and end else 0
 ticks=(end[1]-begin[1]) if begin and end else 0
