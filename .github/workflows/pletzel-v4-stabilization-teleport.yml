@@ -24,8 +24,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42937082477
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3
+          run=42966539320
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 33b38b3a24e1751e2ca5b4cc02426c5639964ec4
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-all-four-mods-complete-html -D candidate
