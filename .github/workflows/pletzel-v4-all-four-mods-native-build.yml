@@ -387,6 +387,7 @@ jobs:
           python3 pletzel-v4/repair-eaglerx-handshake-error.py engine 2>&1 | tee logs/official-v5-login-reason-source-fix.log
           grep -Fq 'readServerError(allow, true)' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java
           grep -Fq 'readServerError(finished, true)' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java
+          grep -Fq 'int attemptTimeout = Math.max(30000, timeoutMillis);' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/WebSocketPacketBridge.java
           git -C engine diff --check
       - name: Record all four ACTUAL source integrations in the SAME engine tree before compile
         shell: bash
