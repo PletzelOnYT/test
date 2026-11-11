@@ -261,15 +261,29 @@ try:
   # Deliberately exercise real movement and compare with Paper RCON's
   # post-movement authoritative coordinates, not local browser pixels.
   page=pages[0];name=evidence["player_0"]["username"]
+  # Browser 1 was most recently brought to front for login. The two-player
+  # headful Chrome test must first focus browser 0's real game canvas:
+  # sending W into an occluded window is not evidence of Minecraft movement.
   before=server_position(name)
-  page.keyboard.down("w");page.wait_for_timeout(7200);page.keyboard.up("w")
-  page.wait_for_timeout(4000)
-  after=server_position(name)
-  delta=sum((b-a)**2 for a,b in zip(before,after))**0.5
-  evidence["actual_movement"]={"before":before,"after":after,"delta_blocks":delta}
+  movement_attempts=[]
+  for movement_try in range(3):
+   page.bring_to_front()
+   page.mouse.click(640,360)
+   page.wait_for_timeout(1500)
+   page.keyboard.down("w")
+   page.wait_for_timeout(5200)
+   page.keyboard.up("w")
+   page.wait_for_timeout(2500)
+   after=server_position(name)
+   delta=sum((b-a)**2 for a,b in zip(before,after))**0.5
+   movement_attempts.append({"attempt":movement_try+1,"before":before,"after":after,"delta_blocks":delta})
+   print("PAPER_MOVEMENT_FOCUSED_ATTEMPT",json.dumps(movement_attempts[-1]),flush=True)
+   if delta>0.15:break
+  evidence["actual_movement"]={"before":before,"after":after,"delta_blocks":delta,
+     "attempts":movement_attempts}
   print("PAPER_SERVER_AUTHORITATIVE_MOVEMENT",json.dumps(evidence["actual_movement"]),flush=True)
   snap(page,"player0-after-authoritative-movement")
-  assert delta>0.15,"RCON position unchanged despite native W movement"
+  assert delta>0.15,"RCON position unchanged despite foreground game-canvas W movement"
   # Only the actual native Minecraft V menu may request microphone permission.
   # A WebSocket connection or custom browser JS calling enable() is not proof.
   for idx,page in enumerate(pages):
