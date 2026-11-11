@@ -15,7 +15,7 @@ read=lambda x:x.read_text()
 
 h=read(game/"net/lax1dude/eaglercraft/v1_8/socket/EaglerXHandshake.java")
 assert "out.writeByte(0x02); // official EaglerXServer V5 VOICE capability bit 1" in h
-assert "out.writeByte(0); // VOICE_V0 capability version" in h
+assert "out.writeByte(0x01); // Voice V0 advertised as version bitmask bit 0, per EaglerXServer processCapabilities" in h
 assert "out.writeByte(0); // extended capability count" in h
 skin=read(game/"net/lax1dude/eaglercraft/v1_8/profile/EaglerSkinCache26.java")
 assert "this.eaglerVoiceReceiver.accept(payload)" in skin
