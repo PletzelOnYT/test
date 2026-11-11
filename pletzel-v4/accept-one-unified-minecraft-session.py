@@ -216,8 +216,13 @@ if (out/"15-first-filled-map-tooltip.png").exists() and (out/"16-second-filled-m
  second=Image.open(out/"16-second-filled-map-tooltip.png").convert("RGB")
  # A broad tooltip region is intentionally saved for human pixel verification.
  # Different pixels ALONE are not proof of two real map data sets.
- differences=sum(1 for p in ImageChops.difference(first.crop((480,300,1100,670)),
-                  second.crop((480,300,1100,670))).getdata() if p!=(0,0,0))
+ # The two real 1280x720 tooltip previews move by +54 pixels in X
+ # because inventory hotbar slots 0 and 1 have different mouse anchors.
+ # Comparing a broad unaligned region produced 40,000+ false differences
+ # while the genuine 174x172 terrain-map pixels were BIT-IDENTICAL.
+ # Compare terrain INSIDE the map parchment at identical local offsets.
+ differences=sum(1 for p in ImageChops.difference(first.crop((455,494,629,666)),
+                  second.crop((509,494,683,666))).getdata() if p!=(0,0,0))
 result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
  "teleport": {"confirmed": teleport_confirmed if "teleport_confirmed" in locals() else None,
               "client_position_delivery_seconds": teleport_delivery_seconds if "teleport_delivery_seconds" in locals() else None},
@@ -242,6 +247,6 @@ result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,
 (out/"all-events.json").write_text(json.dumps(events,indent=2))
 print("REAL_MAP_GAMEPLAY_RESULT",json.dumps({"screens":len(shots),"commands":len(cmds),
  "heartbeatCount":len(beats),"tooltipPixelDiff":differences,"fault":fault})[:3000],flush=True)
-if fault or len(shots)<29 or not selected:
+if fault or len(shots)<29 or not selected or not (differences is not None and differences>100):
  raise SystemExit(2)
 print("BROWSER EXECUTION DONE; human preview content checks still required.",flush=True)
