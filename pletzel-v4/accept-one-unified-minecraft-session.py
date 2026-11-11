@@ -111,7 +111,9 @@ try:
   # which caused the earlier /tp test to submit an UNKNOWN command.
   page.mouse.click(640,255);page.wait_for_timeout(900)
   page.mouse.click(640,255);page.wait_for_timeout(1200)
-  page.mouse.click(640,426);page.wait_for_timeout(1000)
+  # Real Create World screenshot shows switching to Creative AUTOMATICALLY
+  # selects Allow Cheats: ON. The extra click below toggled it back OFF and
+  # made every subsequent /give and /tp an unknown command.
   snap("07-creative-mode-and-cheats-on")
   page.mouse.click(404,672);page.wait_for_timeout(5500);snap("08-world-creation-started")
   began=time.monotonic()
