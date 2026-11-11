@@ -10,7 +10,7 @@ on:
 jobs:
   package:
     name: Compile universal .app and make installation ZIP
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 25
     steps:
       - name: Check out source
