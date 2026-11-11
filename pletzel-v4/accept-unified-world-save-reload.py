@@ -96,20 +96,27 @@ try:
   # The native Singleplayer safety screen may appear again.
   page.keyboard.press("Enter");page.wait_for_timeout(7500)
   snap("08c-saved-world-selection")
+  # The original double-click only selected the entry; the screenshot
+  # showed the explicit Play Selected World button still available.
+  # Require an actual new StartServer event, not mere prewarm-worker heartbeats.
   prior_events=len(events)
-  # Native world list first entry, if present. Genuine mouse double-click.
-  page.mouse.dblclick(632,200,delay=180);page.wait_for_timeout(4500)
+  page.mouse.click(632,200)
+  page.wait_for_timeout(850)
+  page.mouse.click(402,595)
+  page.wait_for_timeout(5500)
   snap("09-world-reopen-request")
   began=time.monotonic()
   reopened=False
   while time.monotonic()-began<360:
-   beats=[e["text"] for e in events[prior_events:] if "[EagPerfHeartbeat]" in e["text"]]
-   if any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in beats[-30:]):
+   newevents=[e["text"] for e in events[prior_events:]]
+   started=any("Worker received StartServer for world" in t for t in newevents)
+   beats=[t for t in newevents if "[EagPerfHeartbeat]" in t]
+   if started and any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in beats[-30:]):
     reopened=True
     break
    page.wait_for_timeout(4500)
   if not reopened:
-   raise AssertionError("No new world worker completed 320 ticks after attempting to select saved world")
+   raise AssertionError("Reopened world did not issue StartServer AND complete 320 real ticks after Play Selected World")
   page.wait_for_timeout(3500)
   snap("10-rejoined-world-candidate")
   send("/execute if block ~ ~-1 ~ minecraft:diamond_block run say PLETZEL_SAVE_PROBE")
