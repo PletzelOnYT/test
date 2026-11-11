@@ -129,8 +129,8 @@ jobs:
                     'PASS' if os.environ.get(env) == '0' else 'FAIL')
                     for name,env in tests.items()}
           report = {
-            'game_build_commit':'091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3',
-            'native_build_run':42937082477,
+            'game_build_commit':'33b38b3a24e1751e2ca5b4cc02426c5639964ec4',
+            'native_build_run':42966539320,
             'exact_html_sha256_record':pathlib.Path('repaired-exact-html-sha256.txt').read_text().strip() if pathlib.Path('repaired-exact-html-sha256.txt').exists() else None,
             'browser':'Playwright Chromium 141 / Ubuntu 24.04; Mac not tested',
             'test_execution_results':results,
