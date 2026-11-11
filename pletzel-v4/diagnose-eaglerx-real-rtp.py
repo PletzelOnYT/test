@@ -230,6 +230,34 @@ with TemporaryDirectory() as tmp:
       "rtp_before":direct_before,"rtp_during":direct_during
     }
     print("DIRECT_MICROPHONE_ISOLATION",json.dumps(data["direct_microphone_diagnostic"]),flush=True)
+    # A real HTMLAudioElement gives Chromium an explicit remote playout sink.
+    # If the RTP jitter buffer starts decoding only now, the previous zero
+    # samples were due to playout not being pulled rather than missing packets.
+    if direct_on <= max(0.002, off*2):
+     sink_status=b.evaluate("""async () => {
+       const p=Array.from(globalThis.__pletzelEaglerVoice.peers.values())[0];
+       const track=p.connection.getReceivers().map(r=>r.track).find(t=>t.kind==='audio');
+       const el=document.createElement('audio');
+       el.autoplay=true;el.playsInline=true;el.controls=true;
+       el.srcObject=new MediaStream([track]);
+       document.body.appendChild(el);
+       try { await el.play(); } catch(e) { return {error:e.name+': '+e.message}; }
+       globalThis.__voiceTestHtmlAudio=el;
+       return {paused:el.paused,muted:el.muted,readyState:el.readyState,
+               volume:el.volume,trackState:track.readyState};
+     }""")
+     a.evaluate("globalThis.__pletzelEaglerVoice.transmit(true)")
+     time.sleep(0.6)
+     html_audio_on=b.evaluate(samplescript)
+     html_audio_rtp=rtp_stats(b)
+     a.evaluate("globalThis.__pletzelEaglerVoice.transmit(false)")
+     time.sleep(0.4)
+     html_audio_off=b.evaluate(samplescript)
+     data["explicit_html_audio_sink"]={"playback":sink_status,
+        "transmitRMS":html_audio_on,"mutedRMS":html_audio_off,
+        "rtp":html_audio_rtp}
+     print("HTML_AUDIO_SINK_ISOLATION",json.dumps(data["explicit_html_audio_sink"]),flush=True)
+
    assert on>max(0.002,off*2),"No audio increase when transmitting"
    assert off_again<max(0.005,on*0.35),"Mute did not silence received audio"
    for p in pages:
