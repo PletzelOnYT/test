@@ -71,7 +71,10 @@ def audio_stats(page):
 }""")
 try:
  with sync_playwright() as pw:
-  browser=pw.chromium.launch(headless=False,args=["--no-sandbox","--disable-dev-shm-usage",
+  # Prefer the actual preinstalled Ubuntu Chrome. Playwright falls back
+  # to its downloaded Chromium only on a runner without system Chrome.
+  chrome=shutil.which("google-chrome") or shutil.which("google-chrome-stable")
+  browser=pw.chromium.launch(headless=False,executable_path=chrome,args=["--no-sandbox","--disable-dev-shm-usage",
    "--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
    "--use-gl=desktop","--disable-features=Vulkan",
    "--use-fake-device-for-media-stream","--use-fake-ui-for-media-stream",
