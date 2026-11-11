@@ -102,8 +102,11 @@ try:
   page.keyboard.press("Enter");page.wait_for_timeout(18000);snap("05-world-chooser")
   # New World choice only after Continue. It never bypasses the warning.
   page.mouse.click(638,282);page.wait_for_timeout(25000);snap("06-create-world-menu")
-  # Source-calibrated vanilla Create World "Allow Cheats" option.
-  page.mouse.click(640,426);page.wait_for_timeout(1600);snap("07-allow-cheats-enabled")
+  # Use the actual Creative world-selection button. Earlier test worlds
+  # spawned underwater and the Survival player drowned before /tp was sent.
+  # Switch to Survival later (with a real water-breathing effect) to keep
+  # tooltip/inventory assertions meaningful and reproducible.
+  page.mouse.click(640,255);page.wait_for_timeout(1800);snap("07-creative-mode-selected")
   page.mouse.click(404,672);page.wait_for_timeout(5500);snap("08-world-creation-started")
   began=time.monotonic()
   reached_world=False
@@ -127,8 +130,6 @@ try:
   # map pixel data nor manufacture client textures.
   # Keep genuine Survival testing alive when the integrated server takes a
   # long time to generate FULL chunks at a destination.
-  send("/effect give @p minecraft:water_breathing 999999 0 true")
-  send("/effect give @p minecraft:regeneration 999999 2 true")
   position_packets_before=sum("inbound packet type=ClientboundPlayerPositionPacket" in e["text"]
                               for e in events)
   teleport_started=time.monotonic()
@@ -150,6 +151,11 @@ try:
   if not teleport_confirmed:
    raise RuntimeError("Teleport never reached client after 180 seconds; cannot claim distinct second map")
   page.wait_for_timeout(15000)
+  # Genuine Survival inventory is needed to verify the native shulker/map
+  # tooltips against a normal 9-slot hotbar. Grant breathing BEFORE switching
+  # so an underwater destination cannot kill the test player.
+  send("/effect give @p minecraft:water_breathing 999999 0 true")
+  send("/gamemode survival")
   send("/give @p minecraft:map 1")
   page.keyboard.press("2");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
