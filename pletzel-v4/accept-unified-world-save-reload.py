@@ -74,7 +74,7 @@ try:
   begun=time.monotonic()
   while time.monotonic()-begun<360:
    beats=[e["text"] for e in events if "[EagPerfHeartbeat]" in e["text"]]
-   if any((m:=re.search(r"lastTick=(\\d+)",t)) and int(m.group(1))>320 for t in beats):break
+   if any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in beats):break
    page.wait_for_timeout(4000)
   else:raise AssertionError("World failed to complete 320 genuine integrated-server ticks")
   page.mouse.click(640,360);page.wait_for_timeout(1200);snap("05-first-playable-world")
@@ -95,7 +95,7 @@ try:
   began=time.monotonic()
   while time.monotonic()-began<360:
    beats=[e["text"] for e in events if "[EagPerfHeartbeat]" in e["text"]]
-   if any((m:=re.search(r"lastTick=(\\d+)",t)) and int(m.group(1))>360 for t in beats[-20:]):
+   if any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>360 for t in beats[-20:]):
     # This only indicates ticks in some world. Server block query below
     # independently asserts persisted world identity/contents.
     break
