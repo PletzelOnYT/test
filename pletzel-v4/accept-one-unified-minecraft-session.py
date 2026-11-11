@@ -145,6 +145,12 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(3500);snap("21-inventory-closed")
   page.set_viewport_size({"width":1024,"height":768});page.wait_for_timeout(3500)
   page.keyboard.press("e");page.wait_for_timeout(4000);snap("22-resized-inventory")
+  # All following native GUI coordinates were calibrated at 1280x720.
+  # A prior test kept the 1024x768 viewport after this responsive-layout
+  # checkpoint and missed the actual Schematica import button entirely.
+  page.set_viewport_size({"width":1280,"height":720})
+  page.wait_for_timeout(3000)
+  snap("22b-restored-native-viewport")
   page.keyboard.press("Escape");page.wait_for_timeout(1000)
   page.keyboard.press("Escape");page.wait_for_timeout(1500)
   page.keyboard.press("Escape");page.wait_for_timeout(1000)
