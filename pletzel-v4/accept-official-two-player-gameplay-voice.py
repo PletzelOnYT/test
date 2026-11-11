@@ -91,6 +91,14 @@ try:
      if payload[0] not in (0x01,0x02,0x03,0x04,0x05,0x06,0xff):return
      event={"at":round(time.monotonic()-start,2),"kind":"official-v5-wire-"+direction,
             "length":len(payload),"packet":payload[0],"header8":payload[:8].hex()}
+     # Official V3–V5 deny packets use U16 UTF-8 message length. Log only
+     # the public server denial reason; never record handshake auth material.
+     if direction=="received" and payload[0] in (0x06,0xff) and len(payload)>=4:
+      off=1 if payload[0]==0x06 else 2
+      if len(payload)>=off+2:
+       n=int.from_bytes(payload[off:off+2],"big")
+       if n<=len(payload)-off-2:
+        event["server_denial"]=payload[off+2:off+2+min(n,200)].decode("utf-8","replace")
      events[idx].append(event)
      print("V5_NATIVE_WIRE_HEADER",json.dumps({"page":idx,**event}),flush=True)
     ws.on("framesent",lambda buf:capture("sent",buf))
