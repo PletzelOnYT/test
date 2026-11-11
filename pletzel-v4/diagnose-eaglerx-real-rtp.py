@@ -50,7 +50,7 @@ with TemporaryDirectory() as tmp:
  error=None
  try:
   with sync_playwright() as pw:
-   browser=pw.chromium.launch(headless=False,args=[
+   browser=pw.chromium.launch(executable_path=__import__("shutil").which("google-chrome") or __import__("shutil").which("google-chrome-stable"),headless=False,args=[
     "--no-sandbox","--disable-dev-shm-usage","--use-fake-device-for-media-stream",
     "--use-fake-ui-for-media-stream","--autoplay-policy=no-user-gesture-required",
     "--use-file-for-fake-audio-capture="+str(pcm),
