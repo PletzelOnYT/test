@@ -29,4 +29,14 @@ assert s.count('readServerError(allow, true)')==1
 assert s.count('readServerError(finished, true)')==1
 assert 'out.writeByte(0x02); // official EaglerXServer V5 VOICE capability bit 1' in s, "Do not lose native voice capability advertisement"
 p.write_text(s,encoding="utf-8")
-print("Repaired real EaglerXServer V5 U16 login-error strings; voice v0 negotiation preserved",flush=True)
+# Eagler 26.2 donor code splits one 15-second connection budget across
+# TWO identical WebSocket candidates (7.5s each). Modern 26.2 Bungee/Paper
+# may need longer for its real backend login state. Keep a bounded 30-second
+# *per-attempt* deadline so a legitimate server reply is not discarded.
+bridge=root/"game/src/main/java/net/lax1dude/eaglercraft/v1_8/socket/WebSocketPacketBridge.java"
+text=bridge.read_text(encoding="utf-8")
+old="int attemptTimeout = Math.max(3500, timeoutMillis / attempts);"
+new="int attemptTimeout = Math.max(30000, timeoutMillis); // per-endpoint Minecraft 26.2 V5 login deadline"
+assert text.count(old)==1,"Unexpected native Eagler WebSocket timeout implementation"
+bridge.write_text(text.replace(old,new,1),encoding="utf-8")
+print("Repaired real EaglerXServer V5 U16 login-error strings and premature 7.5-second endpoint timeout; voice v0 negotiation preserved",flush=True)
