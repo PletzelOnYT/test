@@ -143,6 +143,13 @@ try:
   page.mouse.move(586,562);page.wait_for_timeout(4600);snap("19-red-populated-shulker-27-slots")
   page.mouse.move(532,562);page.wait_for_timeout(2000);snap("20-switch-back-to-empty-shulker")
   page.keyboard.press("Escape");page.wait_for_timeout(3500);snap("21-inventory-closed")
+  # Screenshot evidence from the prior acceptance shows the Survival player
+  # drowned while the automation waited between menus. Preserve genuine
+  # Survival map/Shulker interaction, then keep this same world alive for the
+  # long Schematica file-import and hologram rendering sequence.
+  send("/gamemode creative",delay=3)
+  snap("21b-same-world-creative-schematica-safety")
+
   page.set_viewport_size({"width":1024,"height":768});page.wait_for_timeout(3500)
   page.keyboard.press("e");page.wait_for_timeout(4000);snap("22-resized-inventory")
   # All following native GUI coordinates were calibrated at 1280x720.
