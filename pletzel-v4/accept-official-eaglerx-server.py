@@ -40,6 +40,15 @@ try:
    p.mouse.click(400,566);p.wait_for_timeout(7500)
    p.screenshot(path=str(out/f"{i}-native-server-list.png"),timeout=45000)
    screens+= [f"{i}-title",f"{i}-multiplayer-safety-warning",f"{i}-native-server-list"]
+   if i==0:
+    # Real Minecraft native Direct Connection UI to the official v5 proxy.
+    p.mouse.click(638,593);p.wait_for_timeout(3300)
+    p.screenshot(path=str(out/f"{i}-native-direct-connect.png"),timeout=45000)
+    screens.append(f"{i}-native-direct-connect")
+    p.keyboard.type("ws://127.0.0.1:5200",delay=55)
+    p.keyboard.press("Enter");p.wait_for_timeout(23500)
+    p.screenshot(path=str(out/f"{i}-native-server-join-result.png"),timeout=45000)
+    screens.append(f"{i}-native-server-join-result")
    # Browser WebSocket probe only; this never claims a native Minecraft join.
    try:
     ws=p.evaluate("""async () => await new Promise(resolve => {
