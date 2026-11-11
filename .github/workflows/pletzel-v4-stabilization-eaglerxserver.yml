@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/pletzel-v4-stabilization-eaglerxserver.yml'
       - 'pletzel-v4/accept-official-eaglerx-server.py'
+      - 'pletzel-v4/accept-official-two-player-gameplay-voice.py'
+      - 'pletzel-v4/ci-official-rcon.py'
   workflow_dispatch:
 permissions:
   contents: read
