@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/pletzel-v4-all-four-mods-native-build.yml'
       - 'pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java'
+      - 'pletzel-v4/patch-eaglerx-voice-v5.py'
+      - 'pletzel-v4/test-eaglerx-v5-voice-source.py'
   workflow_dispatch:
 permissions:
   contents: read
