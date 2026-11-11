@@ -7,6 +7,7 @@ on:
       - 'pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java'
       - 'pletzel-v4/patch-eaglerx-voice-v5.py'
       - 'pletzel-v4/test-eaglerx-v5-voice-source.py'
+      - 'pletzel-v4/repair-remote-teleport-ticket-expiry.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -201,6 +202,14 @@ jobs:
           python3 pletzel-v4/repair-singleplayer-stream-backpressure.py engine 2>&1 | tee logs/singleplayer-stream-backpressure.log
           grep -Fq 'WEB_MIN_CHUNKS_PER_TICK = 0.25F' engine/game/src/main/java/net/minecraft/server/network/PlayerChunkSender.java
           grep -Fq 'EMERGENCY_BACKLOG_BUDGET_MILLIS = 32.0' engine/game/src/main/java/net/lax1dude/eaglercraft/v1_8/sp/SingleplayerInboundPumpPolicy.java
+          git -C engine diff --check
+      - name: Preserve genuine FULL destination-loading ticket during asynchronous long-distance teleport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-remote-teleport-ticket-expiry.py
+          python3 pletzel-v4/repair-remote-teleport-ticket-expiry.py engine | tee logs/teleport-full-ticket-lifetime.log
+          grep -Fq 'EAGLER_TELEPORT = register("eagler_teleport", 12000L, FLAG_LOADING)' engine/game/src/main/java/net/minecraft/server/level/TicketType.java
           git -C engine diff --check
       - name: Defer browser trial spawner tick instead of synchronous neighbor FULL-chunk wait
         shell: bash
