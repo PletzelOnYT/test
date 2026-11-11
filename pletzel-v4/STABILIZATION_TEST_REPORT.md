@@ -1,0 +1,51 @@
+# Pletzel V4 — Stabilization Acceptance Record
+
+**State: NOT ACCEPTED.** This file tracks actual observed evidence, not a release announcement. No test gets PASS solely because Java/TeaVM compiled or a menu rendered.
+
+## Provenance
+
+- Original four-mod integration source: `fda0b34781b31f510e90a49b815d9887ca36763c`, native build [#42844549237](https://github.com/PletzelOnYT/test/actions/runs/42844549237).
+- Previous combined HTML SHA-256: `513bb8628b0c934943e42efc6a68acaa14f9b2c4c0db0ee97b42fb74ff132a19` (from old exact-binary Chromium run [#42845572891](https://github.com/PletzelOnYT/test/actions/runs/42845572891)).
+- Native voice repair in `pletzel-v4/eaglerx-voice/PlatformEaglerVoice26.java`, integrated into the *new* combined native compile source at build trigger commit `091209f36bbaf93933dcf8d8ae0e4a6b8db3f1f3`, [native build #42937082477](https://github.com/PletzelOnYT/test/actions/runs/42937082477).
+- New exact repaired HTML digest: **not yet available**; record only after final packaging, downloaded artifact and hash verification.
+- Test environment for linked automation: GitHub Actions Ubuntu 24.04 with real Playwright Chromium 141 and Xvfb software WebGL. No real Mac or external EaglerX v5 voice-enabled server has been exercised.
+
+## Current tests (individual assertions, not feature-wide acceptance)
+
+| Test | Result | Evidence / reason |
+|---|---|---|
+| Original combined Java + TeaVM Wasm-GC link | PASS | Build [#42844549237](https://github.com/PletzelOnYT/test/actions/runs/42844549237); does **not** prove gameplay |
+| Two-browser native WebRTC sound + mute/talk/mute | PASS | [#42936877240](https://github.com/PletzelOnYT/test/actions/runs/42936877240): received RMS 0.00111 / 0.23143 / 0.00118, cleanup succeeds; **Java native adapter JS source**, not an actual external Minecraft voice-enabled server |
+| Exact compiled HTML with repaired voice | UNTESTED | [#42937082477](https://github.com/PletzelOnYT/test/actions/runs/42937082477) native compile / link underway at last check |
+| Singleplayer first world boot and actual completed server ticks | PASS | [#42849879185](https://github.com/PletzelOnYT/test/actions/runs/42849879185), genuine integrated server reported 320+ completed ticks |
+| Long-running singleplayer steady 20 TPS and complete visible chunks | UNTESTED | Short heartbeat bursts exist; cannot extrapolate to endurance or Mac |
+| Distant teleport arrives promptly and client location changes | FAIL | Same-world log showed teleport accepted by server but client position packet delayed approximately 131 seconds on initial run; second run did not deliver within the measured observation window |
+| Two genuinely different map previews from different locations | FAIL | Real filled maps IDs 0/1 existed, but correctly aligned terrain images were bit-identical; test created second map before destination position was delivered |
+| Real empty + populated Shulker tooltip interaction | PASS | [#42845572891](https://github.com/PletzelOnYT/test/actions/runs/42845572891), actual /give items and 27-slot inventory screenshots; visual parity against reference mod still separately needs review |
+| Map/Shulker ON/OFF controls through native UI | PASS | [#42846565732](https://github.com/PletzelOnYT/test/actions/runs/42846565732): toggles and reload screenshots; full semantic persistence check remains to be proven |
+| Schematica file chooser in separate real browser session | PASS | [#42845572891](https://github.com/PletzelOnYT/test/actions/runs/42845572891): actual .schematic selection; hologram color/orientation not established by file chooser |
+| Schematica import and hologram in SAME map+shulker session | FAIL | Earlier combined sessions [#42849879185](https://github.com/PletzelOnYT/test/actions/runs/42849879185) and [#42937718554](https://github.com/PletzelOnYT/test/actions/runs/42937718554) never triggered the chooser because the test was on death/gameplay screen; repaired navigation test [#42939271086](https://github.com/PletzelOnYT/test/actions/runs/42939271086) requires review |
+| Native in-game world save, quit, reload and changed block | UNTESTED | Browser test added to combined branch; must run against exact repaired HTML |
+| Real external EaglerXServer V5 voice interoperability | BLOCKED | No controlled remote server and older native peer connected |
+| Server-authoritative multiplayer movement/chunk/teleport | BLOCKED | No controlled multiplayer server session |
+| Physical Mac startup, rendering, input, TPS and memory | BLOCKED | GitHub Ubuntu Xvfb is not a physical Mac |
+| Audio and music resource completeness | FAIL | Actual browser console noted optional music pack unavailable, with background music/discs disabled; full copyrighted asset provenance must be verified before making a release completeness claim |
+| Touch/mouse switching, skin geometry, keyboard shortcuts | UNTESTED | Source patches exist, full repaired HTML interactive testing pending |
+| Browser crash/recovery and multi-hour endurance | UNTESTED | No multi-hour hardware-realistic test |
+
+## Critical fix evidence
+
+The native voice receiver now installs a hidden, **zero-volume** HTML audio playout sink for the WebRTC remote MediaStream. Chromium's WebRTC audio decoder otherwise delivered RTP packets but `totalSamplesReceived=0`. Audible audio stays routed only through the game's WebAudio gain and spatial HRTF panner; the sink is removed when a peer closes. The exact original strict RMS assertion passed only **after** this source change. No custom Pletzel plugin/gateway is introduced.
+
+The game acceptance runner was also corrected to:
+1. Restore its original 1280×720 viewport after responsive-layout testing before using fixed GUI click coordinates.
+2. Avoid pressing Escape when already paused (which previously closed the pause menu).
+3. Use Creative mode during long Schematica automation so a Survival death does not invalidate GUI clicks.
+4. Wait for an actual received player-position packet after a distant teleport before declaring the second map geographically distinct.
+5. Compare normalized, aligned terrain preview crops rather than unrelated pixel changes from moving a tooltip.
+
+## Exact-binary regression
+
+The [strict stabilization acceptance workflow](https://github.com/PletzelOnYT/test/actions/workflows/pletzel-v4-stabilization-acceptance.yml) downloads the new build by exact run and source commit; hashes the HTML; records screenshots, console and telemetry; executes native tooltip, Schematica, WebRTC, settings, same-world and save/reload scripts; and fails the workflow if **any** attempted smoke script fails. These are not substitutes for a real EaglerX server, real Mac or extensive vanilla gameplay suite.
+
+**Release gate:** not satisfied. Preserve PASS/FAIL/BLOCKED/UNTESTED distinctions and do not ship as 100% accepted while gamebreaking issues remain.
