@@ -167,8 +167,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=42966539320
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 33b38b3a24e1751e2ca5b4cc02426c5639964ec4
+          run=43051775408
+          # Only a newly compiled binary with the official VOICE_V0 version
+          # mask 0x01 is eligible for a real-server voice acceptance PASS.
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = f8017cc7ed705918713b02951edaf1fe57e62d74
           # The pinned native Wasm-GC link is long-running. Wait for its
           # actual successful completion instead of treating "in_progress"
           # (null conclusion) as a gameplay or voice failure.
