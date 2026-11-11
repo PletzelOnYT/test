@@ -5,7 +5,8 @@ Tests the EXACT compiled Pletzel HTML, two independent real Chromium clients,
 server-authoritative RCON positions and genuine decoded WebRTC audio. It does
 not create Minecraft GUI overlays, synthesize login status or mock server data.
 """
-import http.server,json,re,subprocess,threading,time,traceback,sys,shutil,base64
+import http.server,json,re,subprocess,threading,time,traceback,sys,shutil,base64,io
+from PIL import Image
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -55,6 +56,23 @@ def verify_admitted(name):
  players=listed_players()
  print("PAPER_REAL_PLAYER_LIST",sorted(players),flush=True)
  if name not in players:raise AssertionError(name+" not present in actual Paper multiplayer player list: "+str(sorted(players)))
+def username_notice_visible(page):
+ # Genuine first-run 'Default Username Detected' has TWO 600px-wide
+ # gray controls at y=480 and y=575, spanning x=370..905.
+ # Check actual screenshots, not mock GUI state or noisy startup logs.
+ frame=page.screenshot(type="jpeg",quality=40,timeout=30000)
+ img=Image.open(io.BytesIO(frame)).convert("RGB")
+ return all(sum(img.getpixel(pt))>285 for pt in
+            ((370,480),(905,480),(370,575),(905,575)))
+def dismiss_username_notice(page,idx,stage):
+ for attempt in range(12):
+  if not username_notice_visible(page):break
+  print("OFFICIAL_FIRST_RUN_NOTICE",idx,stage,attempt,flush=True)
+  snap(page,f"{idx}-{stage}-username-dialog-{attempt}")
+  page.mouse.click(640,575) # Actual 'Continue Anyway'
+  page.wait_for_timeout(2800)
+ assert not username_notice_visible(page), (
+  f"Browser {idx} is still blocked by native username-onboarding during {stage}")
 def audio_stats(page):
  return page.evaluate("""async () => {
   const v=globalThis.__pletzelEaglerVoice;
@@ -140,15 +158,59 @@ try:
    page.goto(f"http://127.0.0.1:{srv.server_address[1]}/{html.name}?perfdebug",
              wait_until="domcontentloaded",timeout=180000)
    page.wait_for_timeout(30000)
-   page.mouse.click(638,618);page.wait_for_timeout(3200)
-   page.mouse.click(638,572);page.wait_for_timeout(4300)
+   # First-run dialog sometimes paints AFTER the original blind clicks.
+   # Wait for the real profile and dismiss the actual wide-button prompt.
+   profile_ready=False
+   for init in range(28):
+    if username_notice_visible(page):
+     dismiss_username_notice(page,idx,"startup")
+     profile_ready=True
+     page.wait_for_timeout(3500)
+     break
+    if observed_profile_names(events[idx]):
+     profile_ready=True
+     page.wait_for_timeout(3500)
+     dismiss_username_notice(page,idx,"late-startup")
+     break
+    page.wait_for_timeout(2700)
+   assert profile_ready, f"Browser {idx} never reached a real player profile"
+   page.wait_for_timeout(3500)
+   dismiss_username_notice(page,idx,"before-title")
    snap(page,f"{idx}-actual-title")
-   page.mouse.click(638,426);page.wait_for_timeout(4300)
-   page.mouse.click(400,566);page.wait_for_timeout(8000)
-   snap(page,f"{idx}-actual-multiplayer-list")
-   page.mouse.click(638,593);page.wait_for_timeout(3000)
-   page.keyboard.type("ws://127.0.0.1:5200",delay=45)
-   page.keyboard.press("Enter")
+   reached_direct_connect=False
+   for nav_attempt in range(4):
+    dismiss_username_notice(page,idx,f"before-multiplayer-{nav_attempt}")
+    page.mouse.click(638,426);page.wait_for_timeout(4500)
+    if username_notice_visible(page):
+     dismiss_username_notice(page,idx,f"multiplayer-interrupt-{nav_attempt}")
+     continue
+    page.mouse.click(400,566);page.wait_for_timeout(7000)
+    if username_notice_visible(page):
+     dismiss_username_notice(page,idx,f"list-interrupt-{nav_attempt}")
+     continue
+    snap(page,f"{idx}-actual-multiplayer-list")
+    page.mouse.click(638,593);page.wait_for_timeout(3200)
+    if username_notice_visible(page):
+     dismiss_username_notice(page,idx,f"connect-interrupt-{nav_attempt}")
+     continue
+    page.keyboard.type("ws://127.0.0.1:5200",delay=45)
+    page.keyboard.press("Enter")
+    for observe in range(12):
+     page.wait_for_timeout(2500)
+     if any(e.get("kind")=="websocket-open" and "127.0.0.1:5200" in e.get("text","")
+            for e in events[idx]):
+      reached_direct_connect=True
+      break
+     if username_notice_visible(page):
+      dismiss_username_notice(page,idx,f"login-interrupt-{nav_attempt}")
+      break
+    if reached_direct_connect:break
+    print("OFFICIAL_GUI_NAVIGATION_RETRY",idx,nav_attempt,flush=True)
+    page.keyboard.press("Escape");page.wait_for_timeout(1400)
+    page.keyboard.press("Escape");page.wait_for_timeout(1400)
+   assert reached_direct_connect, (
+     f"Browser {idx} never opened its real WebSocket after native multiplayer UI")
+   print("OFFICIAL_REAL_WEBSOCKET_FROM_GAME_GUI",idx,flush=True)
    # A startup 'Setting user:' log is NOT a trustworthy server identity:
    # prior runs selected the first bootstrap nickname and falsely rejected
    # an actual Paper admission under the final, regenerated profile name.
