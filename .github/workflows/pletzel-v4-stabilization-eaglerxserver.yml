@@ -209,10 +209,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri
+          # GitHub Ubuntu 24.04 runners already ship Google Chrome and
+          # generally include Xvfb. Do not stall acceptance for minutes on
+          # a redundant Playwright Chromium CDN download.
+          if ! command -v Xvfb >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri
+          fi
           python -m pip install 'playwright==1.56.0' Pillow
-          python -m playwright install --with-deps chromium
+          if command -v google-chrome >/dev/null 2>&1 || command -v google-chrome-stable >/dev/null 2>&1; then
+            (google-chrome --version || google-chrome-stable --version) 2>&1
+          else
+            python -m playwright install --with-deps chromium
+          fi
       - name: Native Minecraft multiplayer GUI probe (fail closed until actual join and audio)
         shell: bash
         run: |
