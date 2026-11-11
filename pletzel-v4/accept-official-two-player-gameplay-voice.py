@@ -89,7 +89,8 @@ try:
    "--use-gl=desktop","--disable-features=Vulkan",
    "--use-fake-device-for-media-stream","--use-fake-ui-for-media-stream",
    "--autoplay-policy=no-user-gesture-required"])
-  pages=[]
+  pages=[];connected_players=listed_players()
+  assert not connected_players, ("The isolated Paper backend was not empty at test start",connected_players)
   for idx in range(2):
    context=browser.new_context(viewport={"width":1280,"height":720},permissions=["microphone"])
    page=context.new_page();pages.append(page)
@@ -112,6 +113,14 @@ try:
        n=int.from_bytes(payload[off:off+2],"big")
        if n<=len(payload)-off-2:
         event["server_denial"]=payload[off+2:off+2+min(n,200)].decode("utf-8","replace")
+     # V5 ALLOW_LOGIN (0x05) contains the SERVER-ASSIGNED public name.
+     # Correlate this native wire identity with the actual Paper RCON login.
+     if direction=="received" and payload[0]==0x05 and len(payload)>2:
+      n=payload[1]
+      if n<128 and len(payload)>=2+n:
+       assigned=payload[2:2+n].decode("ascii","replace")
+       if re.fullmatch(r"[A-Za-z0-9_]{3,16}",assigned):
+        event["server_assigned_username"]=assigned
      events[idx].append(event)
      print("V5_NATIVE_WIRE_HEADER",json.dumps({"page":idx,**event}),flush=True)
     ws.on("framesent",lambda buf:capture("sent",buf))
@@ -157,6 +166,12 @@ try:
    assert any(e.get("kind")=="official-v5-wire-received" for e in events[idx]), (
      f"Browser {idx} did not receive native V5 WebSocket packets")
    name=next(iter(joined))
+   assigned=[e.get("server_assigned_username") for e in events[idx]
+             if e.get("server_assigned_username")]
+   print("OFFICIAL_V5_SERVER_ASSIGNED_NAME",idx,assigned,flush=True)
+   assert assigned and name==assigned[-1], (
+      f"Actual Paper login {name} is not linked to browser {idx} V5 "
+      f"ALLOW_LOGIN identity {assigned}")
    verify_admitted(name)
    connected_players.add(name)
    pages[-1].wait_for_timeout(6000)
