@@ -130,10 +130,17 @@ try:
   page.mouse.click(640,360);page.wait_for_timeout(1500)
   send("/time query gametime")
   snap("10-genuine-commands-enabled")
+  # Remove preexisting empty maps so one newly used map occupies hotbar 0.
+  # Creative world setup previously left unused maps in slot 0, making the
+  # test compare an EMPTY MAP with a filled one and falsely claim two IDs.
+  send("/clear @p minecraft:map")
   send("/give @p minecraft:map 1")
   page.keyboard.press("1");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("11-first-real-map-in-hand")
+  send("/execute if items entity @p hotbar.0 minecraft:filled_map run say PLETZEL_FIRST_FILLED_MAP")
+  if not any("PLETZEL_FIRST_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
+   raise RuntimeError("Map 0 not a real filled_map in hotbar slot 0")
   # Second map MUST be used in a different geographic area. We neither patch
   # map pixel data nor manufacture client textures.
   # Keep genuine Survival testing alive when the integrated server takes a
@@ -164,10 +171,14 @@ try:
   # so an underwater destination cannot kill the test player.
   send("/effect give @p minecraft:water_breathing 999999 0 true")
   send("/gamemode survival")
+  send("/clear @p minecraft:map")
   send("/give @p minecraft:map 1")
   page.keyboard.press("2");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("13-second-real-map-in-hand")
+  send("/execute if items entity @p hotbar.1 minecraft:filled_map run say PLETZEL_SECOND_FILLED_MAP")
+  if not any("PLETZEL_SECOND_FILLED_MAP" in e["text"] and "[CHAT]" in e["text"] for e in events):
+   raise RuntimeError("Map 1 not a real filled_map in hotbar slot 1")
   page.keyboard.press("e");page.wait_for_timeout(5500);snap("14-real-inventory")
   # At default 1280x720 GUI scale ~3, first two hotbar slots in the survival inventory.
   page.mouse.move(410,555);page.wait_for_timeout(6000);snap("15-first-filled-map-tooltip")
