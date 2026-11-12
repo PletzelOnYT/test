@@ -38,31 +38,29 @@ try:
    page.screenshot(path=str(out/(name+".png")),timeout=45000)
    shots.append({"name":name,"elapsed":round(time.monotonic()-start,1)})
    print("SCREENSHOT",name,shots[-1]["elapsed"],flush=True)
-  def mark_held_as_art(label):
-   page.keyboard.press("Escape");page.wait_for_timeout(1400)
-   page.mouse.click(478,394);page.wait_for_timeout(1200)
-   page.mouse.click(875,579);page.wait_for_timeout(1200)
-   snap(label+"-schematic-settings")
-   page.mouse.click(410,652);page.wait_for_timeout(1300)
-   snap(label+"-building-settings")
-   page.mouse.click(410,470);page.wait_for_timeout(1400)
-   snap(label+"-mapart-settings")
-   page.mouse.click(875,255);page.wait_for_timeout(1600)
-   snap(label+"-mark-as-art")
-   page.mouse.click(410,405);page.wait_for_timeout(950)
-   page.mouse.click(875,470);page.wait_for_timeout(950)
-   page.mouse.click(875,652);page.wait_for_timeout(950)
-   page.mouse.click(640,672);page.wait_for_timeout(950)
-   page.mouse.move(640,252);page.wait_for_timeout(250)
-   page.mouse.click(640,252);page.wait_for_timeout(1300)
   def cached_pixels():
-   entries=page.evaluate("""() => Array.from({length:localStorage.length},(_,i)=>{
-      const key=localStorage.key(i);
-      return {key,body:localStorage.getItem(key)};
-   }).filter(x=>x.key.includes('.pletzel.mapart26.pixel.'))""")
+   # Observe the real IndexedDB object store, NOT an emulated map or
+   # stale localStorage entry. Both packed data and keys must persist.
+   entries=page.evaluate("""async () => {
+     const db=await new Promise((resolve,reject)=>{
+       const req=indexedDB.open('pletzel-map-art-v1',1);
+       req.onsuccess=()=>resolve(req.result);
+       req.onerror=()=>reject(req.error);
+     });
+     return await new Promise((resolve,reject)=>{
+       const tx=db.transaction('pixels','readonly');
+       const store=tx.objectStore('pixels');
+       const keys=store.getAllKeys(),values=store.getAll();
+       tx.oncomplete=()=>{
+         const data=(keys.result||[]).map((key,i)=>({key,value:values.result[i]}));
+         db.close();resolve(data);
+       };
+       tx.onerror=()=>reject(tx.error);
+     });
+   }""")
    good={}
    for item in entries:
-    try: data=base64.b64decode(item["body"])
+    try: data=base64.b64decode(item["value"])
     except Exception: continue
     if len(data)==16392 and data.startswith(b"PMART26\x01"):
      good[item["key"]]=data.hex()
@@ -137,7 +135,7 @@ try:
   page.keyboard.press("1");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("11-first-real-map-in-hand")
-  mark_held_as_art("first-map")
+  # Normal maps automatically preview and persist without manual marking.
   # Second map MUST be used in a different geographic area. We neither patch
   # map pixel data nor manufacture client textures.
   send("/tp @p ~1024 ~ ~1024")
@@ -146,11 +144,11 @@ try:
   page.keyboard.press("2");page.wait_for_timeout(1500)
   page.mouse.click(640,360,button="right")
   page.wait_for_timeout(18000);snap("13-second-real-map-in-hand")
-  mark_held_as_art("second-map")
+  # Normal map #2 also auto-persists its authentic server pixels.
   saved_before=cached_pixels()
   print("REAL_MAP_ART_PERSISTED_BEFORE_RESTART",len(saved_before),flush=True)
   if len(saved_before)<2:
-   raise AssertionError("Real filled-map artwork bytes missing from durable browser storage")
+   raise AssertionError("Normal filled-map pixel bytes missing from real browser IndexedDB")
   page.keyboard.press("e");page.wait_for_timeout(5500);snap("14-real-inventory")
   # At default 1280x720 GUI scale ~3, first two hotbar slots in the survival inventory.
   page.mouse.move(410,555);page.wait_for_timeout(6000);snap("15-first-filled-map-tooltip")
