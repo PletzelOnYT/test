@@ -410,6 +410,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo 'SOURCE_GUI_FILE_IMPORT_CONTEXT:'
+          grep -A35 -B4 -F 'FileChooserResult result' engine/game/src/main/java/net/pletzel/schematica/SchematicaScreen.java || true
           python3 pletzel-v4/patch-multiformat-freecam.py engine 2>&1 | tee logs/multiformat-freecam-source-patch.log
           grep -Fq 'NATIVE_MULTIFORMAT_FREECAM_PATCH_APPLIED' logs/multiformat-freecam-source-patch.log
           grep -Fq 'public final KeyMapping keyFreecam' engine/game/src/main/java/net/minecraft/client/Options.java
