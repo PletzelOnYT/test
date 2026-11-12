@@ -68,6 +68,10 @@ public final class SchematicaWorldRenderer {
     private static final class SourceSection {
         final List<SourceCell> cells=new ArrayList<>();
         final BitSet solidBlocks=new BitSet(4096);
+        // Sparse local block lookup; never allocate a full 4096-cell array
+        // per section just because one distant schematic block exists.
+        final it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<BlockState> expectedBlocks=
+            new it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<>();
     }
     private record DrawCell(BlockPos pos, BlockState expected, List<BakedQuad> quads) {}
     private static final class MeshSection {
@@ -91,6 +95,25 @@ public final class SchematicaWorldRenderer {
     private static int localIndex(BlockPos pos) {
         return (pos.getX()&15)|((pos.getY()&15)<<4)|((pos.getZ()&15)<<8);
     }
+    /**
+     * Read-only lookup for Easy Pick. Uses the SAME progressive spatial index
+     * as the hologram; no million-cell linear scan on right-click. A source
+     * section not yet indexed returns null rather than choosing a wrong item.
+     */
+    public static BlockState expectedAt(final BlockPos worldPos) {
+        if (!SchematicaSession.loaded()) return null;
+        if (indexVersion!=SchematicaSession.version()) {
+            INDEX.clear();
+            MESH_CACHE.clear();
+            cachedCellCount=0;
+            indexCursor=0;
+            indexVersion=SchematicaSession.version();
+        }
+        indexSome();
+        SourceSection source=INDEX.get(SectionPos.asLong(worldPos));
+        return source == null ? null : source.expectedBlocks.get(localIndex(worldPos));
+    }
+
     private static void indexSome() {
         final List<SchematicaSession.Cell> all=SchematicaSession.cells();
         final long start=System.nanoTime();
@@ -106,6 +129,7 @@ public final class SchematicaWorldRenderer {
             long key=SectionPos.asLong(world);
             SourceSection section=INDEX.computeIfAbsent(key,k->new SourceSection());
             section.cells.add(new SourceCell(world,expected));
+            section.expectedBlocks.put(localIndex(world),expected);
             if (expected.isSolidRender()) section.solidBlocks.set(localIndex(world));
         }
     }
