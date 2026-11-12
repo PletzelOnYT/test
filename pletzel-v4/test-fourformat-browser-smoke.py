@@ -52,6 +52,15 @@ try:
    current["index"]=idx
    click(410,183,f"import-{idx}-{name}",5 if idx<8 else 12)
    snap(f"after-import-{idx}")
+  # Native Java reports only after the full NBT decode and session publish.
+  # A chooser opening is NOT enough: every valid file must really load.
+  decoded=[evt["text"] for evt in events if "[PletzelSchematicImport]" in evt["text"]]
+  valid=fixture_names[:-1]
+  missing=[name for name in valid if not any("[PletzelSchematicImport] LOADED "+name in line for line in decoded)]
+  badRejected=any("[PletzelSchematicImport] FAILED " in line for line in decoded)
+  if missing or not badRejected:
+   raise AssertionError("Schematic importer failed native decode acceptance: missing="+repr(missing)+
+     ", corrupt file rejected="+repr(badRejected)+", logs="+repr(decoded[-15:]))
   click(868,394,"move-schematic-to-player")
   click(876,672,"exit-schematica")
   click(650,675,"exit-options")
@@ -77,7 +86,8 @@ except Exception:
  fatal=traceback.format_exc();print(fatal[-3000:],flush=True)
 srv.shutdown()
 heartbeats=[x["text"] for x in events if "[EagPerfHeartbeat]" in x["text"]]
-result={"screens":screens,"fileSelection":selected,"heartbeatCount":len(heartbeats),"exception":fatal,"errors":[x for x in events if x["kind"] in ("error","pageerror")][-35:],"note":"Screenshots need visual verification, a file chooser event alone is not proof of loaded schematic hologram."}
+import_logs=[x["text"] for x in events if "[PletzelSchematicImport]" in x["text"]]
+result={"screens":screens,"fileSelection":selected,"nativeImportLogs":import_logs,"heartbeatCount":len(heartbeats),"exception":fatal,"errors":[x for x in events if x["kind"] in ("error","pageerror")][-35:],"note":"Screenshots need visual verification, a file chooser event alone is not proof of loaded schematic hologram."}
 (out/"results.json").write_text(json.dumps(result,indent=2))
 (out/"full-console.json").write_text(json.dumps(events,indent=2))
 print(json.dumps(result)[:7000],flush=True)
