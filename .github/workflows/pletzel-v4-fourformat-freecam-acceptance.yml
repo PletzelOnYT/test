@@ -1,7 +1,7 @@
 name: Pletzel V4 no-voice four-format real-browser acceptance
 on:
   push:
-    branches: [pletzel-v4-litematica-freecam-no-voice-20261111]
+    branches: [pletzel-v4-litematica-freecam-no-voice-20261111, pletzel-v4-freecam-direction-settings-isolated-20261111]
     paths: ['.github/workflows/pletzel-v4-fourformat-freecam-acceptance.yml', 'pletzel-v4/test-fourformat-browser-smoke.py', 'pletzel-v4/make-fourformat-fixtures.py']
   workflow_dispatch:
 permissions:
@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43143377675
-          expected_sha=6fa545d622bfb890d514c77d657fb05e83ecfda1
+          run=43148646942
+          expected_sha=443bd9ade1e07308b131431b1a010da058291090
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
