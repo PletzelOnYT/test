@@ -163,14 +163,54 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(3500);snap("21-inventory-closed")
   page.set_viewport_size({"width":1024,"height":768});page.wait_for_timeout(3500)
   page.keyboard.press("e");page.wait_for_timeout(4000);snap("22-resized-inventory")
-  page.keyboard.press("Escape");page.wait_for_timeout(1000)
+  page.keyboard.press("Escape");page.wait_for_timeout(900)
+  # Save the actual integrated server world before reloading the page. Select
+  # empty hotbar slot 9 so the rejoin does NOT immediately activate maps.
+  page.keyboard.press("9");page.wait_for_timeout(700)
+  page.keyboard.press("Escape");page.wait_for_timeout(1900)
+  page.mouse.click(625,470);page.wait_for_timeout(19000)
+  snap("23-save-and-quit-before-restart")
   page.reload(wait_until="domcontentloaded",timeout=150000)
-  page.wait_for_timeout(3500)
+  page.wait_for_timeout(26000)
   saved_after=cached_pixels()
   print("REAL_MAP_ART_PERSISTED_AFTER_RELOAD",len(saved_after),flush=True)
   if saved_before!=saved_after:
-   raise AssertionError("Map art localStorage changed after browser game restart")
-  snap("23-persistent-mapart-db-after-browser-reload")
+   raise AssertionError("Map art localStorage changed after same-origin full game restart")
+  snap("24-reloaded-main-menu")
+  # Rejoin the genuine saved world, WITHOUT holding or opening either map.
+  page.mouse.click(638,353);page.wait_for_timeout(3500)
+  page.keyboard.press("Enter");page.wait_for_timeout(7500)
+  snap("25-reloaded-world-selection")
+  previous_count=len(events)
+  page.mouse.click(632,200);page.wait_for_timeout(850)
+  page.mouse.click(402,595);page.wait_for_timeout(5500)
+  begun=time.monotonic()
+  rejoined=False
+  while time.monotonic()-begun<360:
+   newevents=[e["text"] for e in events[previous_count:]]
+   started=any("Worker received StartServer for world" in t for t in newevents)
+   freshbeats=[t for t in newevents if "[EagPerfHeartbeat]" in t]
+   if started and any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in freshbeats[-30:]):
+    rejoined=True;break
+   page.wait_for_timeout(4500)
+  if not rejoined:
+   raise AssertionError("Saved world did not genuinely reopen after browser reload")
+  page.keyboard.press("e");page.wait_for_timeout(6000)
+  page.mouse.move(410,555);page.wait_for_timeout(6000)
+  snap("26-map0-cached-tooltip-after-rejoin")
+  page.mouse.move(464,555);page.wait_for_timeout(6000)
+  snap("27-map1-cached-tooltip-after-rejoin")
+  from PIL import Image
+  def colors_after(name,box):
+   im=Image.open(out/(name+".png")).convert("RGB").crop(box)
+   return len({im.getpixel((x,y)) for x in range(8,im.width-8,5)
+                                  for y in range(8,im.height-8,5)})
+  reloaded_colors=[
+   colors_after("26-map0-cached-tooltip-after-rejoin",(450,500,628,675)),
+   colors_after("27-map1-cached-tooltip-after-rejoin",(504,500,682,675))]
+  print("REAL_MAP_ART_REJOIN_COLOR_COUNTS",reloaded_colors,flush=True)
+  if any(count<10 for count in reloaded_colors):
+   raise AssertionError("Real cached artwork did not reappear on hover after restarting same world")
   browser.close()
 except Exception:
  fault=traceback.format_exc()
@@ -216,7 +256,7 @@ result={"screenshots":shots,"vanillaCommandsSubmitted":cmds,"realMapHoverSamples
   "Check two distinct map IDs and distinct real terrain map colors",
   "Check no synthetic terrain or browser overlay was used",
   "Check map updates after receiving a later vanilla map packet",
-  "Full same-world rejoin and live tooltip after reload not covered by storage-only restart check",
+  "Multiplayer server-scoped map-art retrieval requires separate actual-server testing",
   "Check multiplayer map data and map item in a chest independently",
   "Check real empty shulker has exactly 27 empty native slots",
   "Check red shulker slot 0 diamond 42 and slot 8 golden apples 5",
