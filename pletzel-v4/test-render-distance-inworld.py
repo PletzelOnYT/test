@@ -81,9 +81,9 @@ try:
    # Video Done -> Options Done -> Pause Back To Game.
    resume()
    begin=len(events)
-   page.evaluate("let s=window.__pletzelRenderDistanceFrames; s.enabled=true; s.previous=null; s.frames=[]")
+   page.evaluate("() => { const s=window.__pletzelRenderDistanceFrames; s.enabled=true; s.previous=null; s.frames=[]; }")
    page.wait_for_timeout(15500)
-   frames=page.evaluate("let s=window.__pletzelRenderDistanceFrames; s.enabled=false; s.frames") or []
+   frames=page.evaluate("() => { const s=window.__pletzelRenderDistanceFrames; s.enabled=false; return s.frames; }") or []
    frames=sorted(float(f) for f in frames if f>0)
    mean_ms=statistics.mean(frames) if frames else None
    p99_ms=frames[max(0,min(len(frames)-1,math.ceil(.99*len(frames))-1))] if frames else None
