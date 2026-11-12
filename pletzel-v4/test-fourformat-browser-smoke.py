@@ -57,6 +57,14 @@ try:
   click(650,675,"exit-options")
   click(625,255,"resume-world",8)
   snap("final-inworld-after-all-imports")
+  # Explicitly reject our previous false green: the Done control had dropped
+  # off-screen and a supposed "in-world" screenshot was still the mod menu.
+  from PIL import Image
+  im=Image.open(out/"final-inworld-after-all-imports.png").convert("RGB")
+  samples=[im.getpixel((x,185)) for x in range(250,371,10)]
+  gray=sum(1 for p in samples if max(p)-min(p)<8)/len(samples)
+  if gray>0.8:
+   raise AssertionError("Still in Schematica menu after Done; UI clipped or click navigation failed")
   page.keyboard.press("Escape");time.sleep(3)
   click(475,394,"12-reopen-options")
   click(880,578,"13-reopen-schematica")
