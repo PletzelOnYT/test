@@ -237,7 +237,7 @@ try:
    raise AssertionError("Normal gameplay did not select Stone before placement")
   # Extract the ACTUAL ghost target logged by Minecraft, not a relative
   # player coordinate that drifts when the player falls during screenshots.
-  target_match=re.search(r"target=BlockPos\\{x=(-?\\d+), y=(-?\\d+), z=(-?\\d+)\\}",placement_events[0])
+  target_match=re.search(r"target=BlockPos\{x=(-?\d+), y=(-?\d+), z=(-?\d+)\}",placement_events[0])
   if not target_match: raise AssertionError("Native Easy Pick did not expose target BlockPos")
   tx,ty,tz=map(int,target_match.groups())
   send(f"/execute if block {tx} {ty} {tz} minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
