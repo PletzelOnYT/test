@@ -8,7 +8,7 @@ Playwright mouse event consumed by the native Minecraft control mapping.
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import http.server,threading,traceback,json,time,re,sys,runpy
+import http.server,threading,traceback,json,time,re,sys,runpy,base64,gzip
 root=Path("candidate");html=list(root.rglob("*.html"));assert len(html)==1,html
 game=html[0].resolve()
 out=Path("easy-pick-real-chrome-evidence");out.mkdir(exist_ok=True)
@@ -41,6 +41,21 @@ try:
   def snap(name):
    page.screenshot(path=str(out/(name+".png")),timeout=60000)
    shots.append(name);print("EASYPICK_SHOT",name,elapsed(),flush=True)
+  def stored_easy_pick():
+   # The 26.2 EagRuntime profile is saved as GZIP/Base64 under the
+   # client namespace + ".g". Read the real browser storage, not a mock.
+   entries=page.evaluate("""() => Array.from({length:localStorage.length},(_,i)=>{
+     const key=localStorage.key(i);
+     return {key,body:localStorage.getItem(key)};
+   }).filter(x=>x.key.endsWith('.g'))""")
+   for item in entries:
+    try:
+     contents=gzip.decompress(base64.b64decode(item["body"])).decode("utf8")
+    except Exception:
+     continue
+    for line in contents.splitlines():
+     if line.startswith("pletzelEasyPick:"):return line.strip()
+   return None
   def click(x,y,wait=1200):
    page.mouse.click(x,y)
    page.wait_for_timeout(wait)
@@ -141,6 +156,9 @@ try:
   snap("10-easy-pick-toggle-on")
   if not any("[PletzelEasyPick] SETTING enabled=true" in s for s in console_text()):
    raise AssertionError("Native Easy Pick OFF/ON switch was not activated")
+  saved=stored_easy_pick()
+  print("EASYPICK_REAL_OPTIONS_STORAGE",saved,flush=True)
+  assert saved=="pletzelEasyPick:true",("Easy Pick ON was not persisted in native Minecraft options",saved)
   close_schematic()
   page.keyboard.press("9");page.wait_for_timeout(700)
   for slot in range(10):
@@ -168,6 +186,13 @@ try:
   # Confirm setting remains enabled on reopening the native options screen.
   open_schematic();snap("12-native-setting-retained")
   close_schematic()
+  # Same browser origin, fresh game boot: persisted profile must survive a
+  # genuine page reload (not merely toggling a JS variable).
+  page.reload(wait_until="domcontentloaded",timeout=150000)
+  page.wait_for_timeout(5000)
+  reloaded=stored_easy_pick()
+  print("EASYPICK_RELOADED_OPTIONS_STORAGE",reloaded,flush=True)
+  assert reloaded=="pletzelEasyPick:true",("Saved option lost on actual browser reload",reloaded)
   browser.close()
 except Exception:
  fault=traceback.format_exc()
@@ -178,7 +203,7 @@ report={"actions":commands,"screenshots":shots,"slotObservations":observations,
         "fault":fault,"pageErrors":[e for e in events if e["kind"]=="pageerror"][-15:],
         "unverified":["Actual multiplayer server placement has not been exercised",
           "Normal placement outcome after blocked player-collision targets not independently measured",
-          "Persistent options across full browser restart requires a separate test",
+          "LocalStorage persistence on reload is checked; UI restoration after full world reopen not separately checked",
           "No proof of correct slab/stair orientation without actual physical build screenshots"]}
 (out/"result.json").write_text(json.dumps(report,indent=2))
 (out/"console.json").write_text(json.dumps(events,indent=2))
