@@ -56,9 +56,9 @@ def session(s):
 
 def screen(s):
     s=s.replace("Choose a classic .schematic file","Choose .litematic / .schematic / .schem / .nbt")
-    s=rep(s,
-       'EagRuntime.displayFileChooser("application/octet-stream", ".schematic");',
-       'EagRuntime.displayFileChooser("application/octet-stream", ".litematic,.schematic,.schem,.nbt");')
+    s,n=re.subn(r'EagRuntime\.displayFileChooser\([^;]*\);',
+       'EagRuntime.displayFileChooser("application/octet-stream", ".litematic,.schematic,.schem,.nbt");',s,count=1)
+    if n!=1:raise RuntimeError("No native chooser invocation to extend")
     s=s.replace("Choose .schematic in the browser file picker","Choose a supported schematic in the browser file picker")
     s=rep(s,
        'if (!result.fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".schematic")) {\n                status="Only classic .schematic supported"; return;\n            }',
