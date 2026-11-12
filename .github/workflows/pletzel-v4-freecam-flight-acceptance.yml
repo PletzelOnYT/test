@@ -1,0 +1,52 @@
+name: Pletzel V4 Freecam real keyboard and six-direction camera acceptance
+on:
+  push:
+    branches: [pletzel-v4-litematica-freecam-no-voice-20261111]
+    paths:
+      - '.github/workflows/pletzel-v4-freecam-flight-acceptance.yml'
+      - 'pletzel-v4/test-freecam-real-flight.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  freecam-real:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify and fetch exact native three-mod Freecam HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=43143377675
+          expected_sha=6fa545d622bfb890d514c77d657fb05e83ecfda1
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-corrected-shulker-gui-complete-html -D candidate
+          test "$(find candidate -iname '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -iname '*.html' | head -1)" | tee exact-html-sha256.txt
+      - name: Native keybinding and six-direction visual camera restoration in real Chrome
+        shell: bash
+        run: |
+          set -o pipefail
+          command -v google-chrome || command -v google-chrome-stable
+          python -m pip install --no-input 'playwright==1.56.0' Pillow
+          xvfb-run -a -s '-screen 0 1280x768x24' python -u pletzel-v4/test-freecam-real-flight.py 2>&1 | tee freecam-real-flight.log
+      - name: Upload real screenshots, errors and metrics even on failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-freecam-six-direction-real-browser-evidence
+          path: |
+            exact-html-sha256.txt
+            freecam-real-flight.log
+            freecam-real-flight-evidence/
+          retention-days: 30
+          if-no-files-found: warn
