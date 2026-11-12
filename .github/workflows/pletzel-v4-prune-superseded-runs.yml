@@ -1,0 +1,49 @@
+name: Prune superseded Pletzel V4 repair CI jobs only
+on:
+  push:
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-prune-superseded-runs.yml'
+permissions:
+  contents: read
+  actions: write
+jobs:
+  prune-obsolete-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Release CI capacity for latest exact source build and seven real-gameplay suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          test "$repo" = "PletzelOnYT/test"
+          branch="pletzel-v4-easyplace-mapart-red-20261112"
+          keep_build=43330230377
+          keep_acceptance=43330671657
+          keep_distance=43330358935
+          keep_fps=43330365101
+          # Only the project's own superseded workflows may be cancelled;
+          # never touch unrelated repositories, branches, or workflows.
+          gh api "repos/$repo/actions/runs?branch=$branch&per_page=100" --jq '.workflow_runs[] | [.id,.name,.status] | @tsv' |
+          while IFS=$'\t' read -r id name status; do
+            case "$name" in
+              "Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")
+                test "$id" = "$keep_build" && continue;;
+              "Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance")
+                test "$id" = "$keep_acceptance" && continue;;
+              "Pletzel V4 Easy Place actual render distance 2 4 8 16 chunk acceptance")
+                test "$id" = "$keep_distance" && continue;;
+              "Pletzel V4 new Easy Place vs previous no-voice real WebGL FPS comparison")
+                test "$id" = "$keep_fps" && continue;;
+              "Pletzel V4 Easy Place source and browser-test preflight")
+                continue;;
+              *) continue;;
+            esac
+            test "$status" = completed && continue
+            echo "Cancel obsolete Pletzel-only run $id: $name ($status)"
+            gh api -X POST "repos/$repo/actions/runs/$id/cancel" || true
+          done
+          echo "Preserved latest source build $keep_build; seven-suite Chrome $keep_acceptance; distance $keep_distance; FPS $keep_fps"
