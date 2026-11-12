@@ -20,8 +20,17 @@ threading.Thread(target=srv.serve_forever,daemon=True).start()
 start=time.monotonic(); events=[]; shots=[]; cmds=[]; fault=None
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path=__import__("shutil").which("google-chrome") or __import__("shutil").which("google-chrome-stable"),headless=False,args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--enable-unsafe-swiftshader","--use-gl=desktop","--disable-features=Vulkan"])
-  page=browser.new_page(viewport={"width":1280,"height":720})
+  # A persistent Chrome profile is required to test a *real browser
+  # process restart*, rather than the much weaker page.reload() case.
+  profile_dir=str(Path("mapart-chrome-persistent-profile").resolve())
+  chrome_args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl",
+      "--ignore-gpu-blocklist","--enable-unsafe-swiftshader",
+      "--use-gl=desktop","--disable-features=Vulkan"]
+  chrome_path=__import__("shutil").which("google-chrome") or __import__("shutil").which("google-chrome-stable")
+  browser=p.chromium.launch_persistent_context(user_data_dir=profile_dir,
+      executable_path=chrome_path,headless=False,
+      viewport={"width":1280,"height":720},args=chrome_args)
+  page=browser.pages[0] if browser.pages else browser.new_page()
   # No auto-create: navigate world creation UI and enable real server commands.
   page.on("console",lambda m:events.append({"t":round(time.monotonic()-start,1),"kind":m.type,"text":m.text[:1800]}))
   page.on("pageerror",lambda e:events.append({"t":round(time.monotonic()-start,1),"kind":"pageerror","text":str(e)[:1800]}))
@@ -170,12 +179,21 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(1900)
   page.mouse.click(625,470);page.wait_for_timeout(19000)
   snap("23-save-and-quit-before-restart")
-  page.reload(wait_until="domcontentloaded",timeout=150000)
+  browser.close() # Browser process and all game workers are fully gone.
+  print("REAL_MAP_ART_BROWSER_PROCESS_CLOSED",flush=True)
+  browser=p.chromium.launch_persistent_context(user_data_dir=profile_dir,
+      executable_path=chrome_path,headless=False,
+      viewport={"width":1280,"height":720},args=chrome_args)
+  page=browser.pages[0] if browser.pages else browser.new_page()
+  page.on("console",lambda m:events.append({"t":round(time.monotonic()-start,1),"kind":m.type,"text":m.text[:1800]}))
+  page.on("pageerror",lambda e:events.append({"t":round(time.monotonic()-start,1),"kind":"pageerror","text":str(e)[:1800]}))
+  page.goto("http://127.0.0.1:%d/%s?perfdebug"%(srv.server_address[1],html.name),
+      wait_until="domcontentloaded",timeout=150000)
   page.wait_for_timeout(26000)
   saved_after=cached_pixels()
   print("REAL_MAP_ART_PERSISTED_AFTER_RELOAD",len(saved_after),flush=True)
   if saved_before!=saved_after:
-   raise AssertionError("Map art localStorage changed after same-origin full game restart")
+   raise AssertionError("Map art bytes changed after actual Chromium process close and fresh launch")
   snap("24-reloaded-main-menu")
   # Rejoin the genuine saved world, WITHOUT holding or opening either map.
   page.mouse.click(638,353);page.wait_for_timeout(3500)
