@@ -179,6 +179,25 @@ try:
     # Move the player, never move the schematic: aim straight at the
     # bedrock floor below the next indexed schematic position.
     send("/tp @p ~1 ~ ~ 0 90",900)
+  # Independent actual placement proof. We move TWO blocks behind the
+  # first hologram cell, look down at the bedrock support face, and send one
+  # REAL right mouse hold. Only vanilla placement may create the stone.
+  send("/tp @p ~-9 ~ ~-2 0 38")
+  send("/setblock ~ ~ ~2 minecraft:air")
+  snap("11b-supported-vanilla-placement-target")
+  page.keyboard.press("9");page.wait_for_timeout(700)
+  placement_at=len(events)
+  hold_use(2700)
+  snap("11c-after-real-mouse-placement")
+  placement_events=[e["text"] for e in events[placement_at:]
+                    if "[PletzelEasyPick] SELECT slot=0 " in e["text"]]
+  if not placement_events:
+   raise AssertionError("Normal gameplay did not select Stone before placement")
+  send("/execute if block ~ ~ ~2 minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
+  if not any("PLETZEL_EASY_PICK_REAL_PLACEMENT_OK" in x["text"] for x in events):
+   raise AssertionError("Real server did not confirm vanilla stone placement at the schematic target")
+  print("EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
+
   # Compare real hotbar/main-inventory screenshots, not fabricated item data.
   page.keyboard.press("e");page.wait_for_timeout(2200)
   snap("11a-inventory-after-selection")
@@ -202,7 +221,7 @@ finally:
 report={"actions":commands,"screenshots":shots,"slotObservations":observations,
         "fault":fault,"pageErrors":[e for e in events if e["kind"]=="pageerror"][-15:],
         "unverified":["Actual multiplayer server placement has not been exercised",
-          "Normal placement outcome after blocked player-collision targets not independently measured",
+          "Single real stone placement checks server response; other rotated or multi-block placements are not independently verified",
           "LocalStorage persistence on reload is checked; UI restoration after full world reopen not separately checked",
           "No proof of correct slab/stair orientation without actual physical build screenshots"]}
 (out/"result.json").write_text(json.dumps(report,indent=2))
