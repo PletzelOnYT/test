@@ -141,9 +141,22 @@ public final class MapArtStore26 {
           (!mc.options.pletzelExcludeExplorer.get() || (!itemExplorer&&!isExplorer(live)));
     }
 
+    /**
+     * A newly created client MapItemSavedData has a 16384-byte array of zeroes
+     * before any real map-color packet. That is NOT proof that the map was
+     * actually observed, so it must never overwrite persisted artwork.
+     * Previously observed packed colors remain untouched until actual pixels
+     * arrive from the server. A fully transparent/empty map cannot be
+     * distinguished from an uninitialized map and is left unlearned.
+     */
+    public static boolean hasObservedColors(MapItemSavedData live) {
+        if(live==null||live.colors==null||live.colors.length!=PIXELS)return false;
+        for(byte color:live.colors)if(color!=0)return true;
+        return false;
+    }
     /** Exactly the actual map pixel bytes, copied unchanged, plus version. */
     public static void observe(MapId id,MapItemSavedData live) {
-        if(id==null||live==null||live.colors==null||live.colors.length!=PIXELS)return;
+        if(id==null||!hasObservedColors(live))return;
         Minecraft mc=Minecraft.getInstance();
         if(mc==null||mc.options==null||!mc.options.pletzelRememberMapArt.get())return;
         if(!canPreview(id,false,live))return;
