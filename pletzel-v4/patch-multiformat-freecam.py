@@ -61,8 +61,11 @@ def session(s):
 
 def screen(s):
     s=s.replace("Choose a classic .schematic file","Choose .litematic / .schematic / .schem / .nbt")
+    # Do not filter by MIME or OS extension; Chrome/Safari may hide valid
+    # schematic files if a particular extension is not registered. The Java
+    # selection handler checks extensions and parses actual NBT after selection.
     s,n=re.subn(r'EagRuntime\.displayFileChooser\([^;]*\);',
-       'EagRuntime.displayFileChooser(".litematic,.schematic,.schem,.nbt", null);',s,count=1)
+       'EagRuntime.displayFileChooser("", null);',s,count=1)
     if n!=1:raise RuntimeError("No native chooser invocation to extend")
     s=s.replace("Choose .schematic in the browser file picker","Choose a supported schematic in the browser file picker")
     s=rep(s,
