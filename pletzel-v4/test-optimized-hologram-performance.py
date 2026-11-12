@@ -43,6 +43,10 @@ threading.Thread(target=server.serve_forever,daemon=True).start()
 start=time.monotonic()
 events=[];fault=None;selected=[];stages=[];current={"name":None}
 RafScript="""() => {
+  // Exactly one rAF sampler per page. Starting one per stage would duplicate
+  // frame intervals and invalidate the before/after FPS comparison.
+  if (window.__pletzelRafRunning) return;
+  window.__pletzelRafRunning=true;
   window.__pletzelSample = {frames: [], prev: null, collecting: false};
   function track(ts) {
     const s=window.__pletzelSample;
