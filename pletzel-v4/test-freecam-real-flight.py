@@ -81,6 +81,10 @@ try:
     shot(page,"09-return-options")
     page.mouse.click(635,670);page.wait_for_timeout(850)
     shot(page,"09-return-pause")
+    # Preposition the mouse while the pause menu still owns input. If
+    # Playwright moves it 420 px upward as it resumes, pointer lock turns
+    # the Minecraft camera toward empty sky and visual flight looks static.
+    page.mouse.move(635,250);page.wait_for_timeout(450)
     page.mouse.click(635,250);page.wait_for_timeout(1500)
     base=shot(page,"10-world-after-binding")
     # World terrain and camera angle may change while navigating menus. Compare
