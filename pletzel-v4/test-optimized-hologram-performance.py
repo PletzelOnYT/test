@@ -102,7 +102,8 @@ try:
    shot(name)
   page.goto("http://127.0.0.1:%d/%s?perfdebug"%(server.server_address[1],game.name),
             wait_until="domcontentloaded",timeout=150000)
-  # Exact same wait and same world seed/config on both candidates.
+  # Same browser, timing windows and imported geometry. The auto-created
+  # world's seed is not verified identical; report that comparability limit.
   page.wait_for_timeout(135000)
   shot("01-ready-world")
   beats=[e for e in events if "[EagPerfHeartbeat]" in e["text"]]
@@ -142,6 +143,7 @@ result={"flavor":args.flavor,"file":game.name,"created":elapsed(),"stages":stage
         "pageErrors":[e for e in events if e["kind"]=="pageerror"][-15:],
         "limits":["Chrome CI software WebGL is not physical Mac GPU","JS heap excludes some WebAssembly/VRAM",
                   "FPS samples are client frame pacing, not native GPU draw-call profiling",
+                  "The auto-created world seed is not verified identical across runs",
                   "Only the available default render distance is benchmarked in this script"]}
 (out/"result.json").write_text(json.dumps(result,indent=2))
 (out/"console.json").write_text(json.dumps(events,indent=2))
