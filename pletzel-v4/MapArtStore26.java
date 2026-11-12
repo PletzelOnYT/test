@@ -41,8 +41,16 @@ public final class MapArtStore26 {
         Minecraft mc=Minecraft.getInstance();
         if(mc==null || mc.level==null) return null;
         String origin;
-        if(mc.getSingleplayerServer()!=null) {
-            origin="save:"+mc.getSingleplayerServer().getWorldPath(LevelResource.ROOT);
+        // WasmGC singleplayer uses a dedicated server worker. In that mode
+        // Minecraft.singleplayerServer is INTENTIONALLY null on the browser
+        // client, even in a fully playable local world. The worker controller
+        // retains the exact level storage ID passed to launchLocalServerWorker.
+        if(mc.isLocalServer()) {
+            String worldId=net.lax1dude.eaglercraft.v1_8.sp.SingleplayerServerController26.getPletzelActiveWorldId();
+            if(worldId!=null&&!worldId.isEmpty())origin="save:"+worldId;
+            else if(mc.getSingleplayerServer()!=null)
+                origin="save:"+mc.getSingleplayerServer().getWorldPath(LevelResource.ROOT);
+            else return null; // never cross-contaminate unknown local worlds
         } else if(mc.getCurrentServer()!=null) {
             origin="server:"+mc.getCurrentServer().ip;
         } else return null;
