@@ -78,3 +78,15 @@ jobs:
             world-save-reload-evidence/
           retention-days: 30
           if-no-files-found: warn
+
+  publish-accepted-real-html:
+    needs: [chrome]
+    if: ${{ needs.chrome.result == 'success' }}
+    uses: ./.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml
+    permissions:
+      contents: write
+      actions: read
+    with:
+      build_run_id: '43312823341'
+      source_sha: '030de9839a11eda529b294dc8cab2e67f7b8c715'
+      acceptance_run_id: ${{ github.run_id }}
