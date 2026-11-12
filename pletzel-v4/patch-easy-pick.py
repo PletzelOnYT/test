@@ -56,6 +56,7 @@ replace(screen,
             b -> {
                 boolean next=!this.minecraft.options.pletzelEasyPick.get();
                 this.minecraft.options.pletzelEasyPick.set(next);
+                System.out.println("[PletzelEasyPick] SETTING enabled="+next);
                 this.minecraft.options.save();
                 b.setMessage(Component.literal("Easy Pick: " + (next ? "ON" : "OFF")));
                 status="Easy Pick " + (next?"ON":"OFF") +
