@@ -31,6 +31,7 @@ public final class MapArtStore26 {
     private static final int PIXELS=128*128, MAX_DISK_MAPS=128, MAX_MEMORY_MAPS=24;
     private static final byte[] HEADER=new byte[]{'P','M','A','R','T','2','6',1};
     private static final LinkedHashMap<String,byte[]> MEMORY=new LinkedHashMap<>(32,.75f,true);
+    private static final LinkedHashMap<String,MapItemSavedData> RENDER_DATA=new LinkedHashMap<>(32,.75f,true);
     private static final Map<String,Integer> LABELS=new LinkedHashMap<>();
     private static final Map<String,Long> LAST_CHECK=new LinkedHashMap<>();
     private static String currentWorld="";
@@ -54,7 +55,7 @@ public final class MapArtStore26 {
         if(world==null) return null;
         if(!world.equals(currentWorld)) {
             currentWorld=world;
-            MEMORY.clear(); LABELS.clear(); LAST_CHECK.clear();
+            MEMORY.clear(); RENDER_DATA.clear(); LABELS.clear(); LAST_CHECK.clear();
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(world.getBytes(StandardCharsets.UTF_8));
     }
@@ -68,6 +69,7 @@ public final class MapArtStore26 {
     }
     private static void capMemory() {
         while(MEMORY.size()>MAX_MEMORY_MAPS) MEMORY.remove(MEMORY.keySet().iterator().next());
+        while(RENDER_DATA.size()>MAX_MEMORY_MAPS) RENDER_DATA.remove(RENDER_DATA.keySet().iterator().next());
     }
     private static String[] indexed() {
         String k=registry();if(k==null)return new String[0];
@@ -156,7 +158,10 @@ public final class MapArtStore26 {
         System.arraycopy(HEADER,0,output,0,HEADER.length);
         System.arraycopy(live.colors,0,output,HEADER.length,PIXELS);
         EagRuntime.setStorage(k,output);
-        MEMORY.put(k,live.colors.clone());capMemory();register(id);
+        MEMORY.put(k,live.colors.clone());
+        MapItemSavedData rendered=RENDER_DATA.get(k);
+        if(rendered!=null)System.arraycopy(live.colors,0,rendered.colors,0,PIXELS);
+        capMemory();register(id);
         System.out.println("[PletzelMapArt] SAVED id="+id.id()+" pixels=16384");
     }
     public static byte[] read(MapId id) {
@@ -174,8 +179,12 @@ public final class MapArtStore26 {
         byte[] colors=read(id);if(colors==null)return null;
         // This object only adapts ORIGINAL previously seen server pixels to
         // Minecraft's vanilla renderer. No pixel values are invented.
-        MapItemSavedData snapshot=MapItemSavedData.createForClient((byte)0,false,mc.level.dimension());
+        String k=key(id,"pixel");
+        MapItemSavedData snapshot=RENDER_DATA.get(k);
+        if(snapshot!=null)return snapshot;
+        snapshot=MapItemSavedData.createForClient((byte)0,false,mc.level.dimension());
         System.arraycopy(colors,0,snapshot.colors,0,PIXELS);
+        RENDER_DATA.put(k,snapshot);capMemory();
         return snapshot;
     }
     public static void clearSaved() {
@@ -185,6 +194,7 @@ public final class MapArtStore26 {
             EagRuntime.setStorage("pletzel.mapart26.pixel."+scope+"."+id,null);
         }
         MEMORY.keySet().removeIf(k->k.contains("."+scope+"."));
+        RENDER_DATA.keySet().removeIf(k->k.contains("."+scope+"."));
         String index=registry();
         // Keep labels (user's deliberate Map Art/Exclude classifications),
         // but release the real-image storage. They can be learned again.
