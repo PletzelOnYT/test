@@ -99,9 +99,8 @@ try:
    click(478,394)
    click(875,579)
   def close_schematic():
-   # Ninth row of the packed native 26.2 Schematica screen.
-   click(875,652)
-   click(640,672)
+   click(640,672) # Spaced Schematica Done
+   click(640,672) # Options Done
    page.mouse.move(640,252);page.wait_for_timeout(400)
    click(640,252,1700)
   page.goto("http://127.0.0.1:%d/%s?perfdebug"%(server.server_address[1],game.name),
@@ -134,7 +133,9 @@ try:
   click(410,183,8500)
   if not any("[PletzelSchematicImport] LOADED "+fixture.name in e["text"] for e in events):
    raise AssertionError("Real connected-wall schematic never loaded")
-  click(868,394,1200)
+  click(410,440,900) # Position/Transform panel
+  click(875,280,900) # Move to Player
+  click(875,525,900) # Back to main
   close_schematic()
   snap("07-connected-hologram-inworld")
   # Place REAL incorrect Dirt blocks on four OUTER wall faces.
