@@ -26,8 +26,16 @@ build_json="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN_ID")"
 echo "$build_json" | jq -e --arg sha "$BUILD_SOURCE_SHA" --arg branch "$BRANCH" \
   '.status=="completed" and .conclusion=="success" and .head_sha==$sha and .head_branch==$branch and .name=="Pletzel V4 Easy Pick optimized map tooltips chunk Litematica no-voice build"' >/dev/null
 accept_json="$(gh api "repos/$REPO/actions/runs/$ACCEPTANCE_RUN_ID")"
-echo "$accept_json" | jq -e --arg branch "$BRANCH" \
-  '.status=="completed" and .conclusion=="success" and .head_branch==$branch and .name=="Pletzel V4 Easy Pick and optimized game real Chrome acceptance"' >/dev/null
+# When called from the accepted browser workflow itself, its publishing job
+# is still running, so the PARENT run cannot already be "completed".
+# All six Chrome jobs must nevertheless be completed and successful below.
+if [[ "${ACCEPTANCE_RUNNING_PARENT:-false}" == "true" ]]; then
+  echo "$accept_json" | jq -e --arg branch "$BRANCH" \
+    '(.status=="in_progress" or .status=="completed") and (.conclusion==null or .conclusion=="success") and .head_branch==$branch and .name=="Pletzel V4 Easy Pick and optimized game real Chrome acceptance"' >/dev/null
+else
+  echo "$accept_json" | jq -e --arg branch "$BRANCH" \
+    '.status=="completed" and .conclusion=="success" and .head_branch==$branch and .name=="Pletzel V4 Easy Pick and optimized game real Chrome acceptance"' >/dev/null
+fi
 accept_sha="$(echo "$accept_json" | jq -r .head_sha)"
 git merge-base --is-ancestor "$accept_sha" HEAD
 
@@ -81,11 +89,20 @@ assert len(payload)>80000000,"Unexpectedly small file (possibly a redirect or po
 print("STANDALONE_HTML_VERIFIED", source.name, len(payload))
 PY
 
-cp "$src" "$FILE"
+# Idempotence: unchanged accepted game bytes must never be recommitted.
+already_published=false
+if [[ -f "$FILE" ]] && [[ "$(stat -c %s "$FILE")" == "$bytes" ]] && \
+   [[ "$(sha256sum "$FILE" | cut -d' ' -f1)" == "$sha" ]]; then
+  already_published=true
+  echo "Identical game already tracked in Git; preserving existing README and commit."
+else
+  cp "$src" "$FILE"
+fi
 test "$(sha256sum "$FILE" | cut -d' ' -f1)" = "$sha"
 build_date="$(echo "$build_json" | jq -r .updated_at | cut -c1-10)"
 repo_file="https://github.com/$REPO/blob/$BRANCH/$FILE"
 release_file="https://github.com/$REPO/releases/download/$RELEASE_TAG/$FILE"
+if [[ "$already_published" != "true" ]] || [[ ! -s README.md ]]; then
 cat > README.md <<EOF
 # Pletzel V4 Minecraft 26.2 — Latest No-Voice Release
 
@@ -121,6 +138,7 @@ The $ACCEPTANCE_RUN_ID Chrome acceptance run passed six suites: Easy Pick, map-h
 
 \`.github/workflows/pletzel-v4-publish-no-voice.yml\` publishes only after validating an actual successful game-compilation run and all six successful Chromium acceptance jobs pinned to that compiled artifact. Repeated publication of identical binary/metadata does not create another Git commit. The acceptance workflow invokes this publisher automatically after its entire browser matrix passes.
 EOF
+fi
 
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
