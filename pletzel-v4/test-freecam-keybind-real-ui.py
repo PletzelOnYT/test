@@ -34,7 +34,7 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(3000);shot("02-paused")
   click(478,394,"03-options-from-pause")
   click(825,363,"04-controls-candidate")
-  click(825,100,"05-keybinds-candidate")
+  click(850,140,"05-keybinds-candidate")
   for i in range(8):
    page.mouse.move(650,380);page.mouse.wheel(0,420)
    page.wait_for_timeout(1200)
