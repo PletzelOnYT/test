@@ -1,7 +1,7 @@
-name: Pletzel V4 Easy Pick optimized map tooltips chunk Litematica no-voice build
+name: Pletzel V4 Easy Place Map Art red highlight no-voice full compilation
 on:
   push:
-    branches: [pletzel-v4-easypick-chunk-map-20261112]
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
     paths:
       - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
       - 'pletzel-v4/patch-multiformat-freecam.py'
@@ -14,6 +14,14 @@ on:
       - 'pletzel-v4/EasyPick26.java'
       - 'pletzel-v4/patch-easy-pick.py'
       - 'pletzel-v4/test-easy-pick-source-contract.py'
+      - 'pletzel-v4/patch-easyplace-mapart.py'
+      - 'pletzel-v4/test-easyplace-mapart-source.py'
+      - 'pletzel-v4/EasyPlace26.java'
+      - 'pletzel-v4/PletzelBuildingSettings26.java'
+      - 'pletzel-v4/PletzelMapArtSettings26.java'
+      - 'pletzel-v4/MapArtStore26.java'
+      - 'pletzel-v4/MapTooltipClientPersistent26.java'
+      - 'pletzel-v4/MapTooltipData26.java'
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,7 +33,7 @@ jobs:
     env:
       EAGLER_BUILD_CAP_MIB: '13312'
       EAGLER_LINK_HEAP_MIB: '12288'
-      CANDIDATE: Pletzel-V4-Optimized-Litematica-MapTooltips-Freecam-EasyPick-NoVoice.html
+      CANDIDATE: Pletzel-V4-Optimized-Litematica-EasyPlace-EasyPick-MapArt-NoVoice.html
     steps:
       - name: Checkout isolated integration kit
         uses: actions/checkout@v4
@@ -446,6 +454,14 @@ jobs:
           grep -Fq 'NATIVE_PLETZEL_EASY_PICK_PATCH_APPLIED' logs/easy-pick-native-patch.log
           python3 pletzel-v4/test-easy-pick-source-contract.py engine
           git -C engine diff --check
+      - name: Integrate legitimate Easy Place persistent map artwork and all-red incorrect faces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/patch-easyplace-mapart.py engine 2>&1 | tee logs/easyplace-mapart-native-patch.log
+          grep -Fq PLETZEL_NEXT_NATIVE_SOURCE_PATCH_COMPLETE logs/easyplace-mapart-native-patch.log
+          python3 pletzel-v4/test-easyplace-mapart-source.py engine
+          git -C engine diff --check
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
@@ -465,12 +481,13 @@ jobs:
           jarfile=$(find engine/game/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
           test -n "$jarfile"
           jar tf "$jarfile" > logs/compiled-jar-entries.txt
-          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen EasyPick26; do
+          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen EasyPick26 EasyPlace26 PletzelBuildingSettings26 PletzelMapArtSettings26; do
             grep -Fx "net/pletzel/schematica/${cls}.class" logs/compiled-jar-entries.txt
           done
           echo "All native Schematica classes compiled into game JAR"
           grep -Fx 'net/minecraft/client/gui/screens/PletzelSingleplayerWarningScreen.class' logs/compiled-jar-entries.txt
           echo 'Verified REAL compiled Minecraft warning Screen class in game jar'
+          grep -Fx 'net/pletzel/maptooltip/MapArtStore26.class' logs/compiled-jar-entries.txt
           grep -Fx 'net/pletzel/maptooltip/MapTooltipData.class' logs/compiled-jar-entries.txt
           grep -Fx 'net/pletzel/maptooltip/MapTooltipClientComponent.class' logs/compiled-jar-entries.txt
           echo 'Verified NATIVE Map Tooltip classes and native warning in compiled Minecraft JAR'
@@ -608,7 +625,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html
+          name: pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
           path: |
             engine/${{ env.CANDIDATE }}
             engine/Pletzel-v4-compiled.wasm
