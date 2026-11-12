@@ -21,8 +21,8 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class EasyPlace26 {
     private static boolean autoPending;
+    private static boolean activeHoverAttempt;
     private static long lastAutoSignature=Long.MIN_VALUE;
-    private static long lastAutoWorldVersion=Long.MIN_VALUE;
     private static long lastDiagnostic;
     private EasyPlace26() {}
 
@@ -59,6 +59,7 @@ public final class EasyPlace26 {
 
     public static boolean beforeVanillaUse(Minecraft mc) {
         boolean hover=autoPending; autoPending=false;
+        activeHoverAttempt=hover;
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get())return true;
         if(!SchematicaSession.loaded()||Freecam26.active())return false;
         if(mc.player==null||mc.player.isUsingItem()||mc.player.isHandsBusy())return false;
@@ -90,6 +91,7 @@ public final class EasyPlace26 {
     }
 
     public static boolean autoPending() { return autoPending; }
+    public static boolean inHoverAttempt() { return activeHoverAttempt; }
 
     /**
      * Called from Minecraft.handleKeybinds AFTER physical input was handled.
@@ -101,7 +103,7 @@ public final class EasyPlace26 {
         autoPending=false;
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get()||
            !mc.options.pletzelEasyPlaceHover.get()||Freecam26.active()||
-           mc.rightClickDelay > 0)return false;
+           mc.player==null)return false;
         if(mc.options.keyUse.isDown())return false; // normal physical input owns this tick
         BlockPos target=candidate(mc);
         if(target==null){lastAutoSignature=Long.MIN_VALUE;return false;}
@@ -116,6 +118,6 @@ public final class EasyPlace26 {
     }
 
     public static void reset() {
-        autoPending=false;lastAutoSignature=Long.MIN_VALUE;
+        autoPending=false;activeHoverAttempt=false;lastAutoSignature=Long.MIN_VALUE;
     }
 }
