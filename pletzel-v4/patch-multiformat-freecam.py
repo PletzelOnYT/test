@@ -85,12 +85,12 @@ def screen(s):
     # Freecam speed slider introduces a ninth row; recompute pitch for nine rows
     # rather than placing the Done button outside short browser viewports.
     s=rep(s,'private final Screen parent;',
-          'private final Screen parent;\\n    private int buttonHeight=18;')
+          'private final Screen parent;\n    private int buttonHeight=18;')
     s=rep(s,
        'int rowPitch=Math.max(20, Math.min(24, (this.height-y-25)/7));',
-       'int rowPitch=Math.max(14, Math.min(20, (this.height-y-20)/8));\\n        this.buttonHeight=Math.max(12,rowPitch-2);')
-    s=rep(s,'y+=24;\\n        add(right,y,"Done",this::onClose);',
-          'y+=rowPitch;\\n        add(right,y,"Done",this::onClose);')
+       'int rowPitch=Math.max(14, Math.min(20, (this.height-y-20)/8));\n        this.buttonHeight=Math.max(12,rowPitch-2);')
+    s=rep(s,'y+=24;\n        add(right,y,"Done",this::onClose);',
+          'y+=rowPitch;\n        add(right,y,"Done",this::onClose);')
     if s.count('new AbstractSliderButton(right,y,150,20,')!=2:
         raise RuntimeError("Expected Opacity and Freecam sliders in the real GUI")
     s=s.replace('new AbstractSliderButton(right,y,150,20,',
