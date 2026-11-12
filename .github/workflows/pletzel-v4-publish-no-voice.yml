@@ -41,6 +41,10 @@ on:
         type: string
         required: false
         default: ''
+      called_from_chrome_matrix:
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: write
   actions: read
@@ -57,6 +61,7 @@ jobs:
       BUILD_SOURCE_SHA: ${{ inputs.source_sha || 'c6e7c330414700db3a075940b376f8f4888480ea' }}
       ACCEPTANCE_RUN_ID: ${{ inputs.acceptance_run_id || '43262166530' }}
       EXPECTED_HTML_SHA256: ${{ inputs.expected_html_sha256 || '' }}
+      ACCEPTANCE_RUNNING_PARENT: ${{ inputs.called_from_chrome_matrix || 'false' }}
     steps:
       - name: Checkout the exact working development branch with write credentials
         uses: actions/checkout@v4
