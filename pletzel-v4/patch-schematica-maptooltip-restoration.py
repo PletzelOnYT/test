@@ -33,6 +33,35 @@ assert "List<IntConsumer> rows" in source
 assert "SchematicaSession.loadAny(" in source
 screen.write_text(source)
 
+# Critical WasmGC cache identity fix: dedicated-server worlds never put an
+# IntegratedServer in Minecraft.singleplayerServer on the browser client.
+# Bind the exact saved-world ID to the client-side controller that launches the
+# worker, so two distinct local worlds cannot share map IDs accidentally.
+controller=game/"net/lax1dude/eaglercraft/v1_8/sp/SingleplayerServerController26.java"
+one(controller,
+'''\tprivate static volatile int state = STATE_NONE;''',
+'''\tprivate static volatile int state = STATE_NONE;
+    private static volatile String pletzelActiveWorldId;''')
+one(controller,
+'''\tpublic static int getState() {''',
+'''    public static String getPletzelActiveWorldId() {
+        return pletzelActiveWorldId;
+    }
+
+\tpublic static int getState() {''')
+one(controller,
+'''\tprivate static void beginLocalServerLaunch(String worldName) {''',
+'''\tprivate static void beginLocalServerLaunch(String worldName) {
+        // Keep the authoritative LevelStorageAccess.getLevelId(), not a
+        // world display name or guessed Minecraft server address.
+        pletzelActiveWorldId=worldName;''')
+one(controller,
+'''\t\tstate = STATE_NONE;
+\t\tworkerBooted = false;''',
+'''\t\tstate = STATE_NONE;
+        pletzelActiveWorldId=null;
+\t\tworkerBooted = false;''')
+
 # Native browser IndexedDB, returning a synchronous cache value only after
 # its asynchronous disk get succeeds. Never block WebGL frames or game ticks.
 bridge=teavm/"net/lax1dude/eaglercraft/v1_8/internal/PletzelMapArtIndexedDB26.java"
