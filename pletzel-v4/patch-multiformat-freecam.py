@@ -84,8 +84,9 @@ def screen(s):
     # 720p browser uses three physical pixels per GUI unit. The original 24-unit
     # row spacing made the new ninth row extend below the viewport. Preserve
     # every existing button and the new slider with compact 18-unit rows.
-    if s.count('y+=24;')<6:raise RuntimeError('Schematica layout unexpectedly changed')
-    s=s.replace('y+=24;', 'y+=20;')
+    rowsteps=re.findall(r'y\s*\+=\s*\d+\s*;',s)
+    if len(rowsteps)<6:raise RuntimeError('Schematica row anchors missing: '+repr(rowsteps))
+    s=re.sub(r'y\s*\+=\s*\d+\s*;', 'y+=20;', s)
     if 'bounds(x,y,150,20)' not in s:raise RuntimeError('Native button size not found')
     s=s.replace('bounds(x,y,150,20)','bounds(x,y,150,18)')
     s=s.replace('new AbstractSliderButton(right,y,150,20,', 'new AbstractSliderButton(right,y,150,18,')
