@@ -1,7 +1,7 @@
-name: Pletzel V4 optimized map tooltips and chunk-based Litematica no-voice release
+name: Pletzel V4 Easy Pick optimized map tooltips chunk Litematica no-voice build
 on:
   push:
-    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    branches: [pletzel-v4-easypick-chunk-map-20261112]
     paths:
       - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
       - 'pletzel-v4/patch-multiformat-freecam.py'
@@ -11,6 +11,9 @@ on:
       - 'pletzel-v4/MapTooltipClientStable26.java'
       - 'pletzel-v4/patch-map-tooltip-stability.py'
       - 'pletzel-v4/test-optimized-source-contract.py'
+      - 'pletzel-v4/EasyPick26.java'
+      - 'pletzel-v4/patch-easy-pick.py'
+      - 'pletzel-v4/test-easy-pick-source-contract.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,7 +25,7 @@ jobs:
     env:
       EAGLER_BUILD_CAP_MIB: '13312'
       EAGLER_LINK_HEAP_MIB: '12288'
-      CANDIDATE: Pletzel-V4-Optimized-Litematica-MapTooltips-Freecam-NoVoice.html
+      CANDIDATE: Pletzel-V4-Optimized-Litematica-MapTooltips-Freecam-EasyPick-NoVoice.html
     steps:
       - name: Checkout isolated integration kit
         uses: actions/checkout@v4
@@ -435,6 +438,14 @@ jobs:
           grep -Fq 'return 66;' engine/game/src/main/java/net/pletzel/maptooltip/MapTooltipClientComponent.java
           grep -Fq 'COLOR_AUDIT_INTERVAL_NANOS' engine/game/src/main/java/net/minecraft/client/resources/MapTextureManager.java
           python3 pletzel-v4/test-optimized-source-contract.py engine
+      - name: Integrate optional persistent Easy Pick with vanilla placement and native nine-slot selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/patch-easy-pick.py engine 2>&1 | tee logs/easy-pick-native-patch.log
+          grep -Fq 'NATIVE_PLETZEL_EASY_PICK_PATCH_APPLIED' logs/easy-pick-native-patch.log
+          python3 pletzel-v4/test-easy-pick-source-contract.py engine
+          git -C engine diff --check
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
@@ -454,7 +465,7 @@ jobs:
           jarfile=$(find engine/game/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
           test -n "$jarfile"
           jar tf "$jarfile" > logs/compiled-jar-entries.txt
-          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen; do
+          for cls in SchematicaSession SchematicaWorldRenderer SchematicaScreen EasyPick26; do
             grep -Fx "net/pletzel/schematica/${cls}.class" logs/compiled-jar-entries.txt
           done
           echo "All native Schematica classes compiled into game JAR"
@@ -597,7 +608,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html
+          name: pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html
           path: |
             engine/${{ env.CANDIDATE }}
             engine/Pletzel-v4-compiled.wasm
