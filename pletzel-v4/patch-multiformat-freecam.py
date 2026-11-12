@@ -62,7 +62,7 @@ def session(s):
 def screen(s):
     s=s.replace("Choose a classic .schematic file","Choose .litematic / .schematic / .schem / .nbt")
     s,n=re.subn(r'EagRuntime\.displayFileChooser\([^;]*\);',
-       'EagRuntime.displayFileChooser("application/octet-stream", ".litematic,.schematic,.schem,.nbt");',s,count=1)
+       'EagRuntime.displayFileChooser(".litematic,.schematic,.schem,.nbt", null);',s,count=1)
     if n!=1:raise RuntimeError("No native chooser invocation to extend")
     s=s.replace("Choose .schematic in the browser file picker","Choose a supported schematic in the browser file picker")
     s=rep(s,
@@ -70,28 +70,9 @@ def screen(s):
        'if (result.fileName==null || !result.fileName.toLowerCase(java.util.Locale.ROOT).matches(".*\\\\.(litematic|schematic|schem|nbt)$")) {\n                status="Supported: .litematic, .schematic, .schem, .nbt"; return;\n            }')
     s=rep(s,"SchematicaSession.loadClassic(result.fileName, result.fileData);",
          "SchematicaSession.loadAny(result.fileData, result.fileName);")
-    # Keep this slider inside the existing Schematica screen.
-    s=rep(s,'add(right,y,"Done",this::onClose);',
-       '''this.addRenderableWidget(new AbstractSliderButton(right,y,150,20,
-            Component.literal("Freecam Speed"),Math.max(0.0,Math.min(1.0,(Freecam26.speed()-0.05)/3.95))) {
-            @Override protected void updateMessage() {
-                setMessage(Component.literal("Freecam Speed: "+String.format(java.util.Locale.ROOT,"%.2f",Freecam26.speed())));
-            }
-            @Override protected void applyValue() { Freecam26.speed(0.05+this.value*3.95); }
-        });
-        y+=24;
-        add(right,y,"Done",this::onClose);''')
-    # 720p browser uses three physical pixels per GUI unit. The original 24-unit
-    # row spacing made the new ninth row extend below the viewport. Preserve
-    # every existing button and the new slider with compact 18-unit rows.
-    rowsteps=re.findall(r'y\s*\+=\s*\d+\s*;',s)
-    if len(rowsteps)<6:
-        print('ACTUAL_POST_HOTFIX_SCHEMATICA_SCREEN_START\\n'+s+'\\nACTUAL_POST_HOTFIX_SCHEMATICA_SCREEN_END')
-        raise RuntimeError('Schematica row anchors missing: '+repr(rowsteps))
-    s=re.sub(r'y\s*\+=\s*\d+\s*;', 'y+=20;', s)
-    if 'bounds(x,y,150,20)' not in s:raise RuntimeError('Native button size not found')
-    s=s.replace('bounds(x,y,150,20)','bounds(x,y,150,18)')
-    s=s.replace('new AbstractSliderButton(right,y,150,20,', 'new AbstractSliderButton(right,y,150,18,')
+    # Freecam is unrelated to the Schematica/Litematica settings UI.
+    # Preserve the already working menu layout, including Done and native file picker.
+    if 'Freecam Speed' in s: raise RuntimeError("Freecam settings leaked into Schematica screen")
     return s
 
 def renderer(s):
