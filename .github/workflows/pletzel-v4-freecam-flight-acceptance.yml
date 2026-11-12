@@ -27,7 +27,16 @@ jobs:
           run=43148244757
           expected_sha=fda42ecd4cf6906de6ab7ddc04a57ed87bcf9f51
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+          deadline=$(( $(date +%s) + 6900 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$status" = completed ]; then
+              test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || { echo "BLOCKED: native build still linking"; exit 3; }
+            sleep 25
+          done
           mkdir -p candidate
           gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-corrected-shulker-gui-complete-html -D candidate
           test "$(find candidate -iname '*.html' | wc -l)" -eq 1
