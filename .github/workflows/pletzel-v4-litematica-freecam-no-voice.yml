@@ -1,12 +1,15 @@
-name: Pletzel V4 no-voice multi-format Schematica and Freecam native build
+name: Pletzel V4 optimized map tooltips and chunk-based Litematica no-voice release
 on:
   push:
-    branches: [pletzel-v4-litematica-freecam-no-voice-20261111, pletzel-v4-freecam-direction-settings-isolated-20261111]
+    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
     paths:
       - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
       - 'pletzel-v4/patch-multiformat-freecam.py'
       - 'pletzel-v4/SchematicFormats26.java'
       - 'pletzel-v4/Freecam26.java'
+      - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
+      - 'pletzel-v4/MapTooltipClientStable26.java'
+      - 'pletzel-v4/patch-map-tooltip-stability.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +21,7 @@ jobs:
     env:
       EAGLER_BUILD_CAP_MIB: '13312'
       EAGLER_LINK_HEAP_MIB: '12288'
-      CANDIDATE: Pletzel-V4-3-Mods-Freecam-No-Voice.html
+      CANDIDATE: Pletzel-V4-Optimized-Litematica-MapTooltips-Freecam-NoVoice.html
     steps:
       - name: Checkout isolated integration kit
         uses: actions/checkout@v4
@@ -419,6 +422,18 @@ jobs:
           grep -Fq 'SchematicFormats26.read' engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java
           ! grep -q 'MAX_BLOCKS = 4096' engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java
           ! grep -q 'EaglerXVoiceClient26' engine/game/src/main/java/net/minecraft/client/Minecraft.java
+      - name: Install native chunk-based hologram and reliable real-map preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp pletzel-v4/SchematicaWorldRendererOptimized26.java engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          cp pletzel-v4/MapTooltipClientStable26.java engine/game/src/main/java/net/pletzel/maptooltip/MapTooltipClientComponent.java
+          python3 pletzel-v4/patch-map-tooltip-stability.py engine 2>&1 | tee logs/map-tooltip-stability.log
+          grep -Fq 'camera.cullFrustum.isVisible' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          grep -Fq 'getChunkNow(sx,sz)' engine/game/src/main/java/net/pletzel/schematica/SchematicaWorldRenderer.java
+          grep -Fq 'return 66;' engine/game/src/main/java/net/pletzel/maptooltip/MapTooltipClientComponent.java
+          grep -Fq 'COLOR_AUDIT_INTERVAL_NANOS' engine/game/src/main/java/net/minecraft/client/resources/MapTextureManager.java
+          python3 pletzel-v4/test-optimized-source-contract.py engine
       - name: Install npm lockfile dependencies
         shell: bash
         working-directory: engine
@@ -581,7 +596,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pletzel-v4-corrected-shulker-gui-complete-html
+          name: pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html
           path: |
             engine/${{ env.CANDIDATE }}
             engine/Pletzel-v4-compiled.wasm
