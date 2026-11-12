@@ -235,7 +235,12 @@ try:
                     if "[PletzelEasyPick] SELECT slot=0 " in e["text"]]
   if not placement_events:
    raise AssertionError("Normal gameplay did not select Stone before placement")
-  send("/execute if block ~ ~ ~2 minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
+  # Extract the ACTUAL ghost target logged by Minecraft, not a relative
+  # player coordinate that drifts when the player falls during screenshots.
+  target_match=re.search(r"target=BlockPos\\{x=(-?\\d+), y=(-?\\d+), z=(-?\\d+)\\}",placement_events[0])
+  if not target_match: raise AssertionError("Native Easy Pick did not expose target BlockPos")
+  tx,ty,tz=map(int,target_match.groups())
+  send(f"/execute if block {tx} {ty} {tz} minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
   if not any("PLETZEL_EASY_PICK_REAL_PLACEMENT_OK" in x["text"] and "CHAT" in x["text"] for x in events):
    raise AssertionError("Real server did not confirm vanilla stone placement at the schematic target")
   print("EASYPLACE_EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
@@ -255,8 +260,13 @@ try:
   # Reopen a previously proven vanilla-legal target, but now DO NOT
   # press right-click. The only new placement must come from Easy Place
   # passing through the ordinary Minecraft startUseItem() method.
-  send("/setblock ~ ~ ~2 minecraft:air")
+  # IMPORTANT: the earlier test's "~ ~ ~2" targeted the WRONG world Y
+  # after gravity moved the player, so it never reset the stone block.
+  # Reset the exact server-verified block, then teleport to the same safe
+  # vanilla-hit angle used for successful manual placement.
   hover_start=len(events)
+  send(f"/setblock {tx} {ty} {tz} minecraft:air")
+  send(f"/tp @p {tx+0.5:.1f} {ty} {tz-1.5:.1f} 0 38")
   page.wait_for_timeout(12000)
   hover_attempts=[e["text"] for e in events[hover_start:] if
      "[PletzelEasyPlace] VANILLA_ATTEMPT" in e["text"] and "mode=hover" in e["text"]]
@@ -264,7 +274,7 @@ try:
   snap("12-hover-auto-mode-no-click")
   if not hover_attempts:
    raise AssertionError("Hover auto-place failed to attempt a real vanilla-supported ghost block")
-  send("/execute if block ~ ~ ~2 minecraft:stone run say PLETZEL_HOVER_AUTO_SERVER_CONFIRMED")
+  send(f"/execute if block {tx} {ty} {tz} minecraft:stone run say PLETZEL_HOVER_AUTO_SERVER_CONFIRMED")
   if not any("PLETZEL_HOVER_AUTO_SERVER_CONFIRMED" in x["text"] and "CHAT" in x["text"] for x in events):
    raise AssertionError("Native server never confirmed hover-mode vanilla block placement")
 
