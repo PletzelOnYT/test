@@ -153,11 +153,26 @@ try:
    send(command,1800)
    page.wait_for_timeout(4500)
    snap("09-all-red-exterior-angle-"+str(idx))
-  # All incorrect positions returned to correct original Stone states,
-  # including the interior face which was not merged away.
+  # Return from west vantage to ORIGINAL loaded schematic origin.
+  send("/tp @p ~3 ~-1 ~ 0 0")
+  # Restore each wrong block at its real original world coordinate.
   for pos in ("~2 ~1 ~0","~2 ~1 ~4","~0 ~1 ~2","~4 ~1 ~2"):
    send("/setblock "+pos+" minecraft:stone")
+  send("/tp @p ~2 ~1 ~-5 0 0")
+  page.wait_for_timeout(4300)
   snap("10-after-mismatch-correction")
+  from PIL import Image
+  def red_tint_count(path):
+   image=Image.open(path).convert("RGB").crop((120,40,1160,550))
+   return sum(1 for red,green,blue in image.getdata()
+      if red>105 and red>green*1.5 and red>blue*1.4 and green<145)
+  angle_counts=[red_tint_count(out/("09-all-red-exterior-angle-"+str(i)+".png")) for i in range(4)]
+  after_count=red_tint_count(out/"10-after-mismatch-correction.png")
+  print("RED_OVERLAY_REAL_PIXELS",json.dumps({"angles":angle_counts,"corrected":after_count}),flush=True)
+  if sum(x>25 for x in angle_counts)<2:
+   raise AssertionError("Insufficient red pixels in at least two real-world exterior views")
+  if angle_counts[0]<=after_count+20:
+   raise AssertionError("Correcting wrong real blocks did not remove red overlay in north view")
   page.keyboard.press("Escape")
   browser.close()
 
