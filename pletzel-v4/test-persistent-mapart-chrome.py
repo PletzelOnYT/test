@@ -42,11 +42,16 @@ try:
    # Observe the real IndexedDB object store, NOT an emulated map or
    # stale localStorage entry. Both packed data and keys must persist.
    entries=page.evaluate("""async () => {
+     // Never create an empty v1 database in the test itself. A missing
+     // database is proof that the NATIVE Java client has not learned pixels.
+     const databases=await indexedDB.databases();
+     if(!databases.some(row=>row.name==='pletzel-map-art-v1'))return [];
      const db=await new Promise((resolve,reject)=>{
        const req=indexedDB.open('pletzel-map-art-v1',1);
        req.onsuccess=()=>resolve(req.result);
        req.onerror=()=>reject(req.error);
      });
+     if(!db.objectStoreNames.contains('pixels')){db.close();return [];}
      return await new Promise((resolve,reject)=>{
        const tx=db.transaction('pixels','readonly');
        const store=tx.objectStore('pixels');
@@ -146,6 +151,13 @@ try:
   page.wait_for_timeout(18000);snap("13-second-real-map-in-hand")
   # Normal map #2 also auto-persists its authentic server pixels.
   saved_before=cached_pixels()
+  # IndexedDB transactions finish asynchronously, separate from Java's
+  # render tick. Wait for both real packet-derived entries; never substitute
+  # screenshots, guessed colors or a fake data store for a missing record.
+  for _ in range(16):
+   if len(saved_before)>=2:break
+   page.wait_for_timeout(1500)
+   saved_before=cached_pixels()
   print("REAL_MAP_ART_PERSISTED_BEFORE_RESTART",len(saved_before),flush=True)
   if len(saved_before)<2:
    raise AssertionError("Normal filled-map pixel bytes missing from real browser IndexedDB")
