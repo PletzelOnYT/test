@@ -110,9 +110,15 @@ try:
   collect("unloaded-world",18)
   for name in ("dense-4000.schem","dense-500000.schem","dense-1000000.schem","sparse-1000000.schem"):
    page.keyboard.press("Escape");page.wait_for_timeout(1500)
-   click(478,394,2);click(875,579,2)
+   shot("pause-before-"+name)
+   click(478,394,2)
+   shot("options-before-"+name)
+   click(875,579,2)
+   shot("schematica-before-"+name)
    current["name"]=name
    click(410,183,12 if "1000000" in name else 5)
+   shot("imported-"+name)
+   print("FILE_CHOOSER_EVENTS",selected,flush=True)
    decoded=[e["text"] for e in events if "[PletzelSchematicImport] LOADED "+name in e["text"]]
    if not decoded:raise AssertionError("Real decoder never loaded "+name)
    click(868,394,2) # move schematic to player
