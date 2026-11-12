@@ -1,0 +1,38 @@
+name: Pletzel V4 actual 26.2 video render distance GUI calibration
+on:
+  push:
+    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-render-distance-scout.yml'
+      - 'pletzel-v4/test-render-distance-options-scout.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  scout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned successful Freecam baseline HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/43154700718 --jq .head_sha)" = fc2f1fc267e5c56bdd4b12073a05686faee4e165
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/43154700718 --jq .conclusion)" = success
+          mkdir -p candidate
+          gh run download 43154700718 -R "$GITHUB_REPOSITORY" -n pletzel-v4-corrected-shulker-gui-complete-html -D candidate
+          test "$(find candidate -iname '*.html' | wc -l)" -eq 1
+      - name: Real Chrome Minecraft video settings scroll screenshots
+        run: |
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-render-distance-options-scout.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-video-distance-real-chrome-scrollback
+          path: video-options-scout/
+          retention-days: 14
