@@ -65,7 +65,8 @@ try:
   click(410,183,13000)
   if not any("[PletzelSchematicImport] LOADED dense-1000000.schem" in e["text"] for e in events):
    raise AssertionError("Real 1M schematic import did not finish")
-  click(868,394);resume();shot("02-million-blocks-inworld")
+  click(410,440);click(875,280);click(875,525) # New Position/Transform navigation
+  resume();shot("02-million-blocks-inworld")
   # RenderDistance is a real integer-slider with range [2,16].
   # Exact x/y calibrated from actual 1280x720 Options->Video screenshots.
   slider={2:677,4:735,8:851,16:1081}
