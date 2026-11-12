@@ -1,4 +1,4 @@
-name: Pletzel V4 Easy Place Map Art real Chrome six-suite acceptance
+name: Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance
 on:
   push:
     branches: [pletzel-v4-easyplace-mapart-red-20261112]
@@ -6,6 +6,7 @@ on:
       - '.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'
       - 'pletzel-v4/test-easyplace-real-chrome.py'
       - 'pletzel-v4/test-persistent-mapart-chrome.py'
+      - 'pletzel-v4/test-red-highlight-real-chrome.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [easyplace, mapart, fourformat, freecam, hologram, world-save]
+        suite: [easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save]
     steps:
       - uses: actions/checkout@v4
       - name: Download only the exact new game-compilation artifact
@@ -26,8 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43311856482
-          sha=ad23a02ef0800567a7112ae4b15a61f189c0d94f
+          run=43312823341
+          sha=030de9839a11eda529b294dc8cab2e67f7b8c715
           artifact=pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
           deadline=$(( $(date +%s) + 6900 ))
@@ -52,6 +53,7 @@ jobs:
           case "${{ matrix.suite }}" in
             easyplace) script=pletzel-v4/test-easyplace-real-chrome.py;;
             mapart) script=pletzel-v4/test-persistent-mapart-chrome.py;;
+            red-highlight) script=pletzel-v4/test-red-highlight-real-chrome.py;;
             fourformat) script=pletzel-v4/test-fourformat-browser-smoke.py;;
             freecam) script=pletzel-v4/test-freecam-real-flight.py;;
             hologram) script=pletzel-v4/test-native-schematic-inworld.py;;
@@ -67,6 +69,7 @@ jobs:
           path: |
             source-html-sha256.txt
             easyplace-${{ matrix.suite }}.log
+            red-highlight-real-chrome-evidence/
             easy-pick-real-chrome-evidence/
             map-shulker-real-inventory-evidence/
             inworld-schematic-evidence/
