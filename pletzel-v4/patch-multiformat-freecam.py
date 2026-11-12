@@ -74,7 +74,7 @@ def screen(s):
                 " "+SchematicaSession.width()+"x"+SchematicaSession.height()+"x"+SchematicaSession.length()+
                 " cells="+SchematicaSession.cells().size());""")
     s=rep(s,'status="Schematic loading failed: " + exception.getMessage();',
-         'status="Schematic loading failed: " + exception.getMessage();\\n            System.err.println("[PletzelSchematicImport] FAILED "+exception.getMessage());')
+         'status="Schematic loading failed: " + exception.getMessage();\n            System.err.println("[PletzelSchematicImport] FAILED "+exception.getMessage());')
     # Freecam is unrelated to the Schematica/Litematica settings UI.
     # Preserve the already working menu layout, including Done and native file picker.
     if 'Freecam Speed' in s: raise RuntimeError("Freecam settings leaked into Schematica screen")
