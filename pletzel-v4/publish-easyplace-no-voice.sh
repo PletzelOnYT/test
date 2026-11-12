@@ -38,6 +38,26 @@ else
 fi
 accept_sha="$(echo "$accept_json" | jq -r .head_sha)"
 git merge-base --is-ancestor "$accept_sha" HEAD
+# An earlier all-green acceptance run may have tested a DIFFERENT version of
+# the browser harness, map-art restart policy or native source. Prevent it
+# from publishing after these changed. Publisher docs/scripts may change
+# harmlessly, but any source, acceptance workflow or browser-test change
+# requires a fresh accepted run.
+if ! git diff --quiet "$accept_sha" HEAD -- \
+  .github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml \
+  .github/workflows/pletzel-v4-litematica-freecam-no-voice.yml \
+  pletzel-v4/EasyPlace26.java \
+  pletzel-v4/EasyPick26.java \
+  pletzel-v4/MapArtStore26.java \
+  pletzel-v4/MapTooltipClientPersistent26.java \
+  pletzel-v4/SchematicaWorldRendererOptimized26.java \
+  pletzel-v4/patch-easyplace-mapart.py \
+  pletzel-v4/test-easyplace-real-chrome.py \
+  pletzel-v4/test-persistent-mapart-chrome.py \
+  pletzel-v4/test-red-highlight-real-chrome.py; then
+  echo "ABORT: newer game source or stricter Chrome tests exist after this accepted run."
+  exit 7
+fi
 
 # Verify the seven independently completed Chromium suites, not just a
 # top-level acceptance status or one successful matrix job.
