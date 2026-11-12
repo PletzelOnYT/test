@@ -1,0 +1,72 @@
+name: Publish accepted Pletzel Easy Place Map Art No-Voice HTML
+on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      source_sha:
+        type: string
+        required: true
+      acceptance_run_id:
+        type: string
+        required: true
+      expected_html_sha256:
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+        default: '43312823341'
+      source_sha:
+        type: string
+        required: true
+        default: '030de9839a11eda529b294dc8cab2e67f7b8c715'
+      acceptance_run_id:
+        type: string
+        required: true
+        description: ID of seven-suite accepted Chrome workflow
+      expected_html_sha256:
+        type: string
+        required: false
+        default: ''
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: pletzel-v4-easyplace-mapart-verified-git-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      BUILD_SOURCE_SHA: ${{ inputs.source_sha }}
+      ACCEPTANCE_RUN_ID: ${{ inputs.acceptance_run_id }}
+      EXPECTED_HTML_SHA256: ${{ inputs.expected_html_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: pletzel-v4-easyplace-mapart-red-20261112
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify source/accepted run/compiled hash, Git commit, Release asset, re-download byte comparison
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n pletzel-v4/publish-easyplace-no-voice.sh
+          bash pletzel-v4/publish-easyplace-no-voice.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-easyplace-published-repository-and-release-verification
+          path: |
+            publication-verification.txt
+            README.md
+          retention-days: 90
+          if-no-files-found: warn
