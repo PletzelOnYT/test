@@ -80,3 +80,17 @@ jobs:
             world-save-reload-evidence/
           retention-days: 30
           if-no-files-found: warn
+  publish-after-six-passing-suites:
+    name: Publish verified game to GitHub Code and Release
+    needs: chrome
+    if: ${{ needs.chrome.result == 'success' }}
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/pletzel-v4-publish-no-voice.yml
+    with:
+      build_run_id: '43258316571'
+      source_sha: 'c6e7c330414700db3a075940b376f8f4888480ea'
+      acceptance_run_id: ${{ github.run_id }}
+      expected_html_sha256: '97716eeaf71045ecefaaa8e6463f8aeb7856142b32b1dab14aa0df78260df37a'
+      called_from_chrome_matrix: true
