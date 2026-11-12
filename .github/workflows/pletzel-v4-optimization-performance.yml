@@ -1,0 +1,71 @@
+name: Pletzel V4 real Chrome before-after schematic FPS benchmarks
+on:
+  push:
+    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-optimization-performance.yml'
+      - 'pletzel-v4/test-optimized-hologram-performance.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser-performance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [baseline, optimized]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Get exact before/after real compiled HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.flavor }}" = baseline ]; then
+            run=43154700718
+            sha=fc2f1fc267e5c56bdd4b12073a05686faee4e165
+            artifact=pletzel-v4-corrected-shulker-gui-complete-html
+          else
+            run=43250623732
+            sha=21178734d6e3cd0f0e3d3dafbba40359070473ed
+            artifact=pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html
+          fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
+          deadline=$(( $(date +%s) + 6800 ))
+          while true; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$state" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Build failed: $conclusion"; exit 2; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 3
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          test "$(find candidate -iname '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -iname '*.html' | head -1)" | tee exact-html-sha256.txt
+      - name: Measure Chrome WebGL2 FPS and frame time for 4K, 500K, dense and sparse 1M
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-optimized-hologram-performance.py --flavor ${{ matrix.flavor }} 2>&1 | tee hologram-real-performance.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-hologram-${{ matrix.flavor }}-chrome-performance
+          path: |
+            exact-html-sha256.txt
+            hologram-real-performance.log
+            hologram-perf-evidence/
+          retention-days: 30
+          if-no-files-found: warn
