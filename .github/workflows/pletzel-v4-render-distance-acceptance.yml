@@ -21,8 +21,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43317648850
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 63e850a6a420b0a718abfbbe0c3e4e5ef359f19a
+          run=43327048717
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 4d2f91e589249a3c4d199adcbd4ce5e6eb4331a6
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
