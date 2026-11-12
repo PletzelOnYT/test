@@ -51,10 +51,12 @@ try:
     page.add_init_script("window.__eaglerAutoTest='sp';")
     page.on("console",lambda m: events.append({"t":elapsed(),"kind":m.type,"text":m.text[:1600]}))
     page.on("pageerror",lambda e: events.append({"t":elapsed(),"kind":"pageerror","text":str(e)[:1600]}))
-    page.goto("http://127.0.0.1:%d/%s"%(srv.server_address[1],game.name),wait_until="domcontentloaded",timeout=140000)
+    page.goto("http://127.0.0.1:%d/%s?perfdebug"%(srv.server_address[1],game.name),wait_until="domcontentloaded",timeout=140000)
     page.wait_for_timeout(135000)
     initial=shot(page,"01-inworld-before-binding")
     if not is_world(initial):raise AssertionError("Actual Minecraft world did not load before keybind test")
+    heartbeats=[e for e in events if "[EagPerfHeartbeat]" in e["text"]]
+    if not heartbeats:raise AssertionError("No actual game heartbeat: cannot verify Freecam movement on a possibly frozen title/menu")
     page.keyboard.press("Escape");page.wait_for_timeout(1600)
     shot(page,"02-pause")
     page.mouse.click(478,394);page.wait_for_timeout(1200)
