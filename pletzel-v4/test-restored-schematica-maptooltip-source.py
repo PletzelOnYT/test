@@ -25,6 +25,11 @@ assert 'OptionInstance.createBoolean("pletzelEasyPick", false)' in opts
 assert 'OptionInstance.createBoolean("pletzelEasyPlace", false)' in opts
 store=read("net/pletzel/maptooltip/MapArtStore26.java")
 assert "policy(id)!=EXCLUDED" in store
+assert "getPletzelActiveWorldId()" in store
+assert "mc.isLocalServer()" in store
+worker=read("net/lax1dude/eaglercraft/v1_8/sp/SingleplayerServerController26.java")
+assert "pletzelActiveWorldId=worldName" in worker
+assert "getPletzelActiveWorldId()" in worker
 assert "policy(id)==ART" not in store
 assert "MapTooltipData.isExplorer(stack)" in store
 assert "hasObservedColors" in store
