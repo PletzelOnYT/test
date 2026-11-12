@@ -1,7 +1,7 @@
 name: Pletzel V4 no-voice multi-format Schematica and Freecam native build
 on:
   push:
-    branches: [pletzel-v4-litematica-freecam-no-voice-20261111]
+    branches: [pletzel-v4-litematica-freecam-no-voice-20261111, pletzel-v4-freecam-direction-settings-isolated-20261111]
     paths:
       - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
       - 'pletzel-v4/patch-multiformat-freecam.py'
