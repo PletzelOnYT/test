@@ -10,6 +10,7 @@ on:
       - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
       - 'pletzel-v4/MapTooltipClientStable26.java'
       - 'pletzel-v4/patch-map-tooltip-stability.py'
+      - 'pletzel-v4/test-optimized-source-contract.py'
   workflow_dispatch:
 permissions:
   contents: read
