@@ -69,7 +69,12 @@ def screen(s):
        'if (!result.fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".schematic")) {\n                status="Only classic .schematic supported"; return;\n            }',
        'if (result.fileName==null || !result.fileName.toLowerCase(java.util.Locale.ROOT).matches(".*\\\\.(litematic|schematic|schem|nbt)$")) {\n                status="Supported: .litematic, .schematic, .schem, .nbt"; return;\n            }')
     s=rep(s,"SchematicaSession.loadClassic(result.fileName, result.fileData);",
-         "SchematicaSession.loadAny(result.fileData, result.fileName);")
+         """SchematicaSession.loadAny(result.fileData, result.fileName);
+            System.out.println("[PletzelSchematicImport] LOADED "+result.fileName+
+                " "+SchematicaSession.width()+"x"+SchematicaSession.height()+"x"+SchematicaSession.length()+
+                " cells="+SchematicaSession.cells().size());""")
+    s=rep(s,'status="Schematic loading failed: " + exception.getMessage();',
+         'status="Schematic loading failed: " + exception.getMessage();\\n            System.err.println("[PletzelSchematicImport] FAILED "+exception.getMessage());')
     # Freecam is unrelated to the Schematica/Litematica settings UI.
     # Preserve the already working menu layout, including Done and native file picker.
     if 'Freecam Speed' in s: raise RuntimeError("Freecam settings leaked into Schematica screen")
