@@ -1,7 +1,7 @@
-name: Pletzel V4 actual render distance 2 4 8 16 schematic visibility acceptance
+name: Pletzel V4 Easy Place actual render distance 2 4 8 16 chunk acceptance
 on:
   push:
-    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
     paths:
       - '.github/workflows/pletzel-v4-render-distance-acceptance.yml'
       - 'pletzel-v4/test-render-distance-inworld.py'
@@ -21,8 +21,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43250623732
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 21178734d6e3cd0f0e3d3dafbba40359070473ed
+          run=43312823341
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 030de9839a11eda529b294dc8cab2e67f7b8c715
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
@@ -34,7 +34,7 @@ jobs:
             sleep 25
           done
           mkdir candidate
-          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html -D candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html -D candidate
           test "$(find candidate -iname '*.html' | wc -l)" -eq 1
           sha256sum "$(find candidate -iname '*.html' | head -1)" | tee exact-html-sha256.txt
       - name: Change native Minecraft video settings 2 4 8 16 and compare live hologram sections
