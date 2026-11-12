@@ -285,7 +285,10 @@ public final class SchematicaWorldRenderer {
         indexSome();
         final int renderDistance=Math.max(2,mc.options.getEffectiveRenderDistance());
         List<VisibleSection> visible=visibleSections(camera,level,renderDistance);
-        buildVisible(visible,models);
+        // OFF deliberately pauses new mesh builds (diagnostic mode) but
+        // keeps already-renderable cached sections and live mismatch states.
+        // ON is the performant progressive default.
+        if(mc.options.pletzelIncrementalMesh.get()) buildVisible(visible,models);
         final Vec3 cameraPos=camera.pos;
         final int alpha=Math.round(SchematicaSession.opacity()*255.0f);
         final int alertAlpha=Math.max(150,Math.min(235,alpha+70));
