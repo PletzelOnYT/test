@@ -52,6 +52,11 @@ def session(s):
         SchematicaWorldRenderer.clearModelCache();
     }'''
     s=method(s,"public static void loadClassic(final byte[] bytes) throws IOException",new)
+    # The GUI hotfix retains a second legacy loader with the obsolete 4096/128 check.
+    # Keep its historical name API, but remove the hard-coded size ceiling.
+    s=s.replace("w>128 || h>128 || l>128 || volume>MAX_BLOCKS","volume>Integer.MAX_VALUE")
+    s=s.replace("Preview renderer supports structures up to 4,096 blocks (128 per axis)","Schematic volume exceeds Java indexed-array capacity")
+    if "MAX_BLOCKS" in s:raise RuntimeError("Legacy schematic size limit survived patch")
     return s
 
 def screen(s):
