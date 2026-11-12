@@ -82,6 +82,13 @@ try:
     page.mouse.click(640,671);page.wait_for_timeout(1300)
     shot(page,"09-back-to-pause")
     page.mouse.click(640,250);page.wait_for_timeout(2000)
+    # The first return-to-game click can pitch the player straight up,
+    # leaving nothing but uniform blue sky. Physically move the mouse down
+    # before testing translation; camera motion against an empty sky cannot
+    # establish whether Freecam works.
+    page.mouse.move(640,360)
+    page.mouse.move(640,620,steps=18)
+    page.wait_for_timeout(1700)
     base=shot(page,"10-world-after-binding")
     # A real Key Binds screen has multiple gray keybinding buttons in the
     # right-hand list; reject lingering menus even if world is visible behind.
@@ -91,6 +98,21 @@ try:
     if gray>=2:
         raise AssertionError("Still inside native Key Binds menu; real camera was never available")
     if not is_world(base):raise AssertionError("Could not return to Minecraft world from standard Key Binds UI")
+    terrain_stddev=ImageStat.Stat(im.crop((150,130,1090,530))).stddev
+    terrain_signal=sum(terrain_stddev)/3.0
+    metrics["scene_contrast_preflight"]=round(terrain_signal,2)
+    if terrain_signal < 24:
+        # One more physical mouse sweep in case the first event did not
+        # recapture the pointer. Never count empty blue sky as a flight test.
+        page.mouse.move(640,160,steps=10)
+        page.mouse.move(640,680,steps=18)
+        page.wait_for_timeout(2000)
+        base=shot(page,"10b-second-attempt-to-aim-terrain")
+        im=Image.open(base).convert("RGB")
+        terrain_signal=sum(ImageStat.Stat(im.crop((150,130,1090,530))).stddev)/3.0
+        metrics["scene_contrast_second_attempt"]=round(terrain_signal,2)
+    if terrain_signal < 24:
+        raise AssertionError("Camera still pointed at empty sky; cannot assess visible movement")
     page.keyboard.press("j");page.wait_for_timeout(850)
     shot(page,"11-freecam-on")
     press(page,"w",3200)
