@@ -69,14 +69,29 @@ try:
     unbound=shot(page,"06-freecam-not-bound")
     page.mouse.click(864,582);page.wait_for_timeout(550)
     shot(page,"07-select-freecam-key")
-    page.keyboard.press("g");page.wait_for_timeout(1000)
-    bound=shot(page,"08-freecam-bound-G")
-    for k in range(4):
-        page.keyboard.press("Escape");page.wait_for_timeout(1200)
-        shot(page,"09-escape-%d"%k)
+    # G is already mapped to Quick Actions / chunk boundaries. Bind J, a
+    # collision-free test key, using the native selected-key control.
+    page.keyboard.press("j");page.wait_for_timeout(1000)
+    bound=shot(page,"08-freecam-bound-J")
+    # Escape did not close the Key Binds screen on the prior build. Use each
+    # native Done button explicitly; never mistake a translucent menu for world.
+    page.mouse.click(878,671);page.wait_for_timeout(1300)
+    shot(page,"09-back-to-controls")
+    page.mouse.click(640,671);page.wait_for_timeout(1300)
+    shot(page,"09-back-to-options")
+    page.mouse.click(640,671);page.wait_for_timeout(1300)
+    shot(page,"09-back-to-pause")
+    page.mouse.click(640,250);page.wait_for_timeout(2000)
     base=shot(page,"10-world-after-binding")
+    # A real Key Binds screen has multiple gray keybinding buttons in the
+    # right-hand list; reject lingering menus even if world is visible behind.
+    im=Image.open(base).convert("RGB")
+    menu_buttons=[im.getpixel((x,y)) for x,y in ((850,220),(850,280),(850,335),(850,400))]
+    gray=sum(1 for c in menu_buttons if max(c)-min(c)<8 and 70<c[0]<200)
+    if gray>=2:
+        raise AssertionError("Still inside native Key Binds menu; real camera was never available")
     if not is_world(base):raise AssertionError("Could not return to Minecraft world from standard Key Binds UI")
-    page.keyboard.press("g");page.wait_for_timeout(850)
+    page.keyboard.press("j");page.wait_for_timeout(850)
     shot(page,"11-freecam-on")
     press(page,"w",3200)
     fwd=shot(page,"12-freecam-forward")
@@ -87,7 +102,7 @@ try:
     press(page,"a",950);shot(page,"15-freecam-left")
     press(page,"d",950);shot(page,"16-freecam-right")
     press(page,"s",1500);shot(page,"17-freecam-backward")
-    page.keyboard.press("g");page.wait_for_timeout(1100)
+    page.keyboard.press("j");page.wait_for_timeout(1100)
     back=shot(page,"18-freecam-disabled-restored")
     metrics["camera_forward_visual_change"]=mean_diff(base,fwd)
     metrics["restored_player_view_difference"]=mean_diff(base,back)
