@@ -1,0 +1,82 @@
+name: Publish verified Pletzel V4 No-Voice HTML to Code tab and GitHub Release
+on:
+  push:
+    branches: [pletzel-v4-easypick-chunk-map-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-publish-no-voice.yml'
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful source compilation run ID
+        required: true
+        default: '43258316571'
+        type: string
+      source_sha:
+        description: Exact source commit for the compiled artifact
+        required: true
+        default: 'c6e7c330414700db3a075940b376f8f4888480ea'
+        type: string
+      acceptance_run_id:
+        description: All-six-suites passing browser acceptance run
+        required: true
+        default: '43262166530'
+        type: string
+      expected_html_sha256:
+        description: Optional expected full standalone HTML SHA-256
+        required: false
+        default: '97716eeaf71045ecefaaa8e6463f8aeb7856142b32b1dab14aa0df78260df37a'
+        type: string
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      source_sha:
+        type: string
+        required: true
+      acceptance_run_id:
+        type: string
+        required: true
+      expected_html_sha256:
+        type: string
+        required: false
+        default: ''
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: pletzel-v4-latest-no-voice-repository-and-release
+  cancel-in-progress: false
+jobs:
+  publish-compiled-standalone-html:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id || '43258316571' }}
+      BUILD_SOURCE_SHA: ${{ inputs.source_sha || 'c6e7c330414700db3a075940b376f8f4888480ea' }}
+      ACCEPTANCE_RUN_ID: ${{ inputs.acceptance_run_id || '43262166530' }}
+      EXPECTED_HTML_SHA256: ${{ inputs.expected_html_sha256 || '' }}
+    steps:
+      - name: Checkout the exact working development branch with write credentials
+        uses: actions/checkout@v4
+        with:
+          ref: pletzel-v4-easypick-chunk-map-20261112
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify exact compilation and browser acceptance; publish and re-download binary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n pletzel-v4/publish-latest-no-voice.sh
+          bash pletzel-v4/publish-latest-no-voice.sh
+      - name: Save publication provenance even if Git permissions or Release upload fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-no-voice-github-repository-release-publication-evidence
+          path: |
+            publication-verification.txt
+            README.md
+          retention-days: 90
+          if-no-files-found: warn
