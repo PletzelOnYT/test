@@ -24,8 +24,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          run=43143377675
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = 6fa545d622bfb890d514c77d657fb05e83ecfda1
+          run=43148244757
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = fda42ecd4cf6906de6ab7ddc04a57ed87bcf9f51
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
             state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
