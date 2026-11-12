@@ -27,8 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43317648850
-          sha=63e850a6a420b0a718abfbbe0c3e4e5ef359f19a
+          run=43327048717
+          sha=4d2f91e589249a3c4d199adcbd4ce5e6eb4331a6
           artifact=pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
           deadline=$(( $(date +%s) + 6900 ))
@@ -87,6 +87,6 @@ jobs:
       contents: write
       actions: read
     with:
-      build_run_id: '43317648850'
-      source_sha: '63e850a6a420b0a718abfbbe0c3e4e5ef359f19a'
+      build_run_id: '43327048717'
+      source_sha: '4d2f91e589249a3c4d199adcbd4ce5e6eb4331a6'
       acceptance_run_id: ${{ github.run_id }}
