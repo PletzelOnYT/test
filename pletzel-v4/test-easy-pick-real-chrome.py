@@ -113,6 +113,9 @@ try:
   send(f"/item replace entity @p inventory.0 with {materials[9]} 64")
   send("/tp @p ~ ~ ~ 0 90")
   snap("05-nine-hotbar-items-ready")
+  page.keyboard.press("e");page.wait_for_timeout(2500)
+  snap("05a-inventory-before-selection")
+  page.keyboard.press("Escape");page.wait_for_timeout(1000)
 
   open_schematic()
   snap("06-easy-pick-default-off")
@@ -158,6 +161,10 @@ try:
     # Move the player, never move the schematic: aim straight at the
     # bedrock floor below the next indexed schematic position.
     send("/tp @p ~1 ~ ~ 0 90",900)
+  # Compare real hotbar/main-inventory screenshots, not fabricated item data.
+  page.keyboard.press("e");page.wait_for_timeout(2200)
+  snap("11a-inventory-after-selection")
+  page.keyboard.press("Escape");page.wait_for_timeout(850)
   # Confirm setting remains enabled on reopening the native options screen.
   open_schematic();snap("12-native-setting-retained")
   close_schematic()
