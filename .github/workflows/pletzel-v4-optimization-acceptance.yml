@@ -1,10 +1,12 @@
-name: Pletzel V4 optimized standalone real Chrome regression acceptance
+name: Pletzel V4 Easy Pick and optimized game real Chrome acceptance
 on:
   push:
-    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    branches: [pletzel-v4-easypick-chunk-map-20261112]
     paths:
       - '.github/workflows/pletzel-v4-optimization-acceptance.yml'
       - 'pletzel-v4/test-optimized-map-hover-browser.py'
+      - 'pletzel-v4/test-easy-pick-real-chrome.py'
+      - 'pletzel-v4/make-easypick-fixture.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [map-hover, fourformat, freecam, hologram, world-save]
+        suite: [easy-pick, map-hover, fourformat, freecam, hologram, world-save]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,8 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43250623732
-          expected_sha=21178734d6e3cd0f0e3d3dafbba40359070473ed
+          run=43258316571
+          expected_sha=c6e7c330414700db3a075940b376f8f4888480ea
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
@@ -43,7 +45,7 @@ jobs:
             sleep 25
           done
           mkdir -p candidate
-          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html -D candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html -D candidate
           test "$(find candidate -iname '*.html' | wc -l)" -eq 1
           sha256sum "$(find candidate -iname '*.html' | head -1)" | tee exact-html-sha256.txt
       - name: Actual Chromium WebGL and native Minecraft gameplay
@@ -52,6 +54,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --no-input 'playwright==1.56.0' Pillow
           case "${{ matrix.suite }}" in
+            easy-pick) testscript=pletzel-v4/test-easy-pick-real-chrome.py;;
             map-hover) testscript=pletzel-v4/test-optimized-map-hover-browser.py;;
             fourformat) testscript=pletzel-v4/test-fourformat-browser-smoke.py;;
             freecam) testscript=pletzel-v4/test-freecam-real-flight.py;;
@@ -69,6 +72,7 @@ jobs:
           path: |
             exact-html-sha256.txt
             optimized-${{ matrix.suite }}-chrome.log
+            easy-pick-real-chrome-evidence/
             map-shulker-real-inventory-evidence/
             fourformat-browser-evidence/
             freecam-real-flight-evidence/
