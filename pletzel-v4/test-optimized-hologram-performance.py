@@ -122,8 +122,10 @@ try:
    print("FILE_CHOOSER_EVENTS",selected,flush=True)
    decoded=[e["text"] for e in events if "[PletzelSchematicImport] LOADED "+name in e["text"]]
    if not decoded:raise AssertionError("Real decoder never loaded "+name)
-   click(868,394,2) # move schematic to player
-   click(876,672,2) # Done schematic
+   click(410,440,1) # Position/Transform panel
+   click(875,280,1) # Move to Player
+   click(875,525,1) # Return to schematic
+   click(640,672,2) # Done schematic
    click(650,675,2) # Done options
    page.mouse.move(625,255);page.wait_for_timeout(400)
    click(625,255,2) # Resume
