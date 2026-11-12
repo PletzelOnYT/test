@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run=43148646942
-          expected_sha=443bd9ade1e07308b131431b1a010da058291090
+          run=43148974322
+          expected_sha=4d435c3887fc67815a362989e2ccc2236dd0ed33
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
           deadline=$(( $(date +%s) + 6900 ))
           while true; do
