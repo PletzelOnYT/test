@@ -16,11 +16,11 @@ The crosshair must have a **real vanilla block hit** with line of sight. A holog
 
 ## Permanent Map Art
 
-1. With a real filled map in your main hand, open **Building / Easy Place → Map Art Settings**.
-2. Choose **Mark Held Map as Art** once to opt in to artwork previews for that particular map ID. Ambiguous terrain maps are *not* automatically assumed to be artwork.
-3. Once real nonblank map pixels are received, the client stores **exactly 16,384 original packed Minecraft color bytes** in its namespaced browser storage (the same-origin storage used for other game options). It does not synthesize art from map metadata.
+1. Every ordinary filled map is eligible for a native 128×128 tooltip automatically. No map-art marking or manual classification is required.
+2. Map art, terrain maps, and ordinary explored maps are all displayed. Buried treasure and explorer/navigation maps are excluded by item names and genuine map decorations.
+3. Once real map pixels are received, the client stores **exactly 16,384 original packed Minecraft color bytes** in IndexedDB (the same-origin storage used for other game options). It does not synthesize art from map metadata.
 4. Later, with the same HTML storage origin and world/server identity, the tooltip can show the saved preview **without opening the map again**. A newly created empty client map buffer does not overwrite the last verified saved pixels.
-5. **Exclude Held Map** hides any selected non-art map. Explorer/treasure/structure maps with recognizable item names or explorer decoration types are excluded when **Exclude Explorer** is ON (default).
+5. **Exclude Held Map** optionally hides an individual map when you specifically request it. Explorer/treasure/structure maps with recognizable item names or explorer decoration types are excluded when **Exclude Explorer** is ON (default).
 6. **Clear Saved Art** removes stored pixel images for the current world/server scope without deleting Minecraft worlds or the user's explicit art classifications.
 
 Settings defaults: Remember Map Art ON, Show Art Previews ON, Exclude Explorer ON. Pixel storage is scoped by local save path (or multiplayer address), dimension, and map ID. Browser storage is separate for different origins or profiles and can be deleted by browser cleanup. A server that resets its world while retaining the same address and map IDs may require clearing old art data manually. A fully transparent 128×128 map cannot be distinguished reliably from uninitialized pixels and is not learned until nonblank pixel data is actually received.
@@ -46,3 +46,7 @@ The previous published no-voice binary passed separate real-Chrome suites for Ea
 - `.github/workflows/pletzel-v4-render-distance-acceptance.yml` — actual GUI 2/4/8/16 chunk checks
 - `.github/workflows/pletzel-v4-easyplace-fps-comparison.yml` — before/after software-WebGL measurements
 - `.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml` — Git commit, Release asset and independent SHA-256 re-download, only if acceptance passes
+
+## Schematica GUI restoration
+
+The primary Litematica menu now displays separate **Easy Pick: ON/OFF** and **Easy Place: ON/OFF** controls, with independent persistence. The former “Building / Easy Place” button no longer hides Easy Pick. Position and layer tools are organized into separate panels, with at least eight logical GUI pixels of vertical row spacing, responsive button widths, and paginated controls on smaller GUI scales. The original four schematic import formats remain available.
