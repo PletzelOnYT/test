@@ -81,6 +81,8 @@ public final class EasyPick26 {
             // Exact vanilla physical-number-key selection action, performed
             // before the unmodified startUseItem/MultiplayerGameMode path.
             mc.player.getInventory().setSelectedSlot(chosen);
+            System.out.println("[PletzelEasyPick] SELECT slot="+chosen+
+                " target="+target+" expected="+required.getBlock());
             return true;
         }
         // Prevent a different hotbar block from being placed at a known
@@ -89,6 +91,8 @@ public final class EasyPick26 {
         long now=System.nanoTime();
         if (now-lastWarnNanos>WARNING_COOLDOWN_NANOS) {
             lastWarnNanos=now;
+            System.out.println("[PletzelEasyPick] MISSING target="+target+
+                " expected="+required.getBlock()+" selected="+selected);
             mc.player.displayClientMessage(
                 Component.literal("Easy Pick: required block/state not available in hotbar or aim"),
                 true);
