@@ -61,7 +61,7 @@ public final class EasyPlace26 {
         boolean hover=autoPending; autoPending=false;
         activeHoverAttempt=hover;
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get())return true;
-        if(!SchematicaSession.loaded()||Freecam26.active())return false;
+        if(!SchematicaSession.loaded()||Freecam26.active()||mc.options.toggleUse().get())return false;
         if(mc.player==null||mc.player.isUsingItem()||mc.player.isHandsBusy())return false;
         if(!hover && (!mc.options.keyUse.isDown() || mc.options.toggleUse().get()))return false;
         BlockPos target=candidate(mc);
