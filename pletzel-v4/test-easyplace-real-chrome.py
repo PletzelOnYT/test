@@ -220,14 +220,21 @@ try:
    raise AssertionError("Easy Place setting missing")
   click(875,470,1200)
   close_schematic()
-  # Without a click, hover mode may legitimately attempt only if a real
-  # adjacent support face is visible within vanilla reach.
+  # Reopen a previously proven vanilla-legal target, but now DO NOT
+  # press right-click. The only new placement must come from Easy Place
+  # passing through the ordinary Minecraft startUseItem() method.
+  send("/setblock ~ ~ ~2 minecraft:air")
   hover_start=len(events)
-  page.wait_for_timeout(10000)
+  page.wait_for_timeout(12000)
   hover_attempts=[e["text"] for e in events[hover_start:] if
      "[PletzelEasyPlace] VANILLA_ATTEMPT" in e["text"] and "mode=hover" in e["text"]]
   print("EASYPLACE_HOVER_AUTO_ATTEMPTS",len(hover_attempts),flush=True)
   snap("12-hover-auto-mode-no-click")
+  if not hover_attempts:
+   raise AssertionError("Hover auto-place failed to attempt a real vanilla-supported ghost block")
+  send("/execute if block ~ ~ ~2 minecraft:stone run say PLETZEL_HOVER_AUTO_SERVER_CONFIRMED")
+  if not any("PLETZEL_HOVER_AUTO_SERVER_CONFIRMED" in x["text"] and "CHAT" in x["text"] for x in events):
+   raise AssertionError("Native server never confirmed hover-mode vanilla block placement")
 
   # Same browser origin, fresh game boot: persisted profile must survive a
   # genuine page reload (not merely toggling a JS variable).
