@@ -154,6 +154,16 @@ def minecraft(s):
        "private void continueAttack(final boolean down) {\n      if (net.pletzel.schematica.Freecam26.active()) return;")
     return s
 
+def level_extractor(s):
+    # Native detached camera must show the player's body only after it is
+    # outside the player's head; otherwise enabling Freecam shows the inside
+    # of the player's face across the entire screen.
+    return rep(s,
+       '&& (!(entity instanceof LocalPlayer) || camera.entity() == entity)) {',
+       '''&& (!(entity instanceof LocalPlayer) || camera.entity() == entity)
+            && (entity != camera.entity() || !net.pletzel.schematica.Freecam26.active()
+                || camera.position().distanceToSqr(entity.getEyePosition()) > 2.25D)) {''')
+
 def game_renderer(s):
     # A detached spectator-style camera must not render the player's first-person hand.
     # The player's body is rendered by LevelExtractor when Camera.detached=true.
@@ -189,6 +199,7 @@ edit("net/pletzel/schematica/SchematicaScreen.java",screen)
 edit("net/pletzel/schematica/SchematicaWorldRenderer.java",renderer)
 edit("net/minecraft/client/Options.java",options)
 edit("net/minecraft/client/Camera.java",camera)
+edit("net/minecraft/client/renderer/extract/LevelExtractor.java",level_extractor)
 edit("net/minecraft/client/renderer/GameRenderer.java",game_renderer)
 edit("net/minecraft/client/Minecraft.java",minecraft)
 edit("net/minecraft/client/player/KeyboardInput.java",keyboard)
