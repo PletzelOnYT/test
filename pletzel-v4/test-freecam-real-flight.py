@@ -2,8 +2,8 @@
 """Actual Chromium Minecraft Freecam keybinding/flight test against exact built HTML.
 
 Clicks the native Options > Controls > Key Binds menu, verifies by screenshot
-that Freecam starts Not Bound, then binds G using real keyboard events.
-Escapes back to the same world, toggles Freecam on, flies with W/A/S/D,
+that Freecam starts Not Bound, then binds F8 using real keyboard events.
+Navigates through Done buttons back to the same world, toggles Freecam on, flies with W/A/S/D,
 Space and Shift, toggles off, and measures that the exact player-facing view
 returns. This is not a source-only or mocked test.
 """
@@ -32,6 +32,15 @@ def mean_diff(a,b):
     first=Image.open(a).convert("RGB").crop((150,140,1130,480))
     second=Image.open(b).convert("RGB").crop((150,140,1130,480))
     return round(sum(ImageStat.Stat(ImageChops.difference(first,second)).mean)/3,3)
+def self_model_skin_coverage(image):
+    # This is a diagnostic heuristic for the big peach-colored polygon
+    # that the player head draws when Freecam starts *inside* its own model.
+    # Use it only together with the captured before/after in-world screenshots.
+    pixels=Image.open(image).convert("RGB")
+    samples=[pixels.getpixel((x,y)) for x in range(250,1050,12) for y in range(90,525,12)]
+    return round(sum(1 for r,g,b in samples
+        if 80<r<230 and 40<g<180 and 30<b<165 and r>g*1.1 and g>b*.95)/len(samples),4)
+
 def press(page,key,ms=1200):
     print("FREECAM_KEY_HOLD",key,ms,"at",elapsed(),flush=True)
     page.keyboard.down(key)
@@ -95,7 +104,7 @@ try:
         raise AssertionError("No visible transition from Game Menu to live gameplay")
     if not is_world(base):raise AssertionError("Could not return to Minecraft world from standard Key Binds UI")
     page.keyboard.press("F8");page.wait_for_timeout(850)
-    shot(page,"11-freecam-on")
+    camera_initial=shot(page,"11-freecam-on")
     press(page,"w",3200)
     fwd=shot(page,"12-freecam-forward")
     press(page,"Space",1300)
@@ -107,6 +116,7 @@ try:
     press(page,"s",1500);shot(page,"17-freecam-backward")
     page.keyboard.press("F8");page.wait_for_timeout(1100)
     back=shot(page,"18-freecam-disabled-restored")
+    metrics["initial_self_model_skin_coverage"]=self_model_skin_coverage(camera_initial)
     metrics["camera_forward_visual_change"]=mean_diff(base,fwd)
     metrics["restored_player_view_difference"]=mean_diff(base,back)
     metrics["world_start_chroma_ok"]=is_world(initial)
@@ -116,6 +126,8 @@ try:
     # Conservative visual assertions: camera must move, then recover player view.
     if metrics["camera_forward_visual_change"] < 8:
         raise AssertionError("Camera movement not visibly established: "+json.dumps(metrics))
+    if metrics["initial_self_model_skin_coverage"] > 0.40:
+        raise AssertionError("Freecam activation still shows player head interior: "+json.dumps(metrics))
     if metrics["restored_player_view_difference"] > 16:
         raise AssertionError("Player view not restored after Freecam: "+json.dumps(metrics))
     if any(e["kind"]=="pageerror" for e in events):
