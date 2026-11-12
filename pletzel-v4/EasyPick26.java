@@ -2,7 +2,6 @@ package net.pletzel.schematica;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -93,9 +92,8 @@ public final class EasyPick26 {
             lastWarnNanos=now;
             System.out.println("[PletzelEasyPick] MISSING target="+target+
                 " expected="+required.getBlock()+" selected="+selected);
-            mc.player.displayClientMessage(
-                Component.literal("Easy Pick: required block/state not available in hotbar or aim"),
-                true);
+            // Log once per cooldown. This 26.2 LocalPlayer API does not
+            // expose the old displayClientMessage(...) actionbar method.
         }
         return false;
     }
