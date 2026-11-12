@@ -41,7 +41,7 @@ try:
   def snap(name):
    page.screenshot(path=str(out/(name+".png")),timeout=60000)
    shots.append(name);print("EASYPLACE_SHOT",name,elapsed(),flush=True)
-  def stored_easy_pick():
+  def stored_option(name):
    # The 26.2 EagRuntime profile is saved as GZIP/Base64 under the
    # client namespace + ".g". Read the real browser storage, not a mock.
    entries=page.evaluate("""() => Array.from({length:localStorage.length},(_,i)=>{
@@ -54,7 +54,7 @@ try:
     except Exception:
      continue
     for line in contents.splitlines():
-     if line.startswith("pletzelEasyPick:"):return line.strip()
+     if line.startswith(name+":"):return line.strip()
    return None
   def click(x,y,wait=1200):
    page.mouse.click(x,y)
@@ -97,10 +97,13 @@ try:
    page.keyboard.press("Escape");page.wait_for_timeout(1200)
    click(478,394)
    click(875,579)
+  def move_to_player():
+   click(410,440,950) # Position/Transform panel
+   click(875,280,950) # Move to Player
+   click(875,525,950) # Back to main
   def close_schematic():
-   # Ninth row of the packed native 26.2 Schematica screen.
-   click(875,652)
-   click(640,672)
+   click(640,672) # Schematica Done
+   click(640,672) # Options Done
    page.mouse.move(640,252);page.wait_for_timeout(400)
    click(640,252,1700)
   page.goto("http://127.0.0.1:%d/%s?perfdebug"%(server.server_address[1],game.name),
@@ -137,7 +140,7 @@ try:
   click(410,183,8500)
   if not any("[PletzelSchematicImport] LOADED "+fixture.name in s for s in console_text()):
    raise AssertionError("Mixed ten-block native schematic import did not finish")
-  click(868,394)
+  move_to_player()
   snap("07-schematic-loaded-default-off")
   close_schematic()
   page.keyboard.press("9");page.wait_for_timeout(700)
@@ -151,21 +154,44 @@ try:
   send("/tp @p ~ ~ ~ 0 90")
 
   open_schematic()
-  snap("09-easy-pick-before-toggle")
-  click(410,652,1400) # Main Litematica -> Building / Easy Place
-  snap("10-building-settings-open")
-  click(410,180,1500) # Easy Place ON, default Hold
-  snap("10-easy-place-on")
-  click(410,255,1500) # Easy Pick ON
-  snap("10-easy-pick-on")
-  if not any("[PletzelBuildSettings] Easy Place=true" in s for s in console_text()):
-   raise AssertionError("Native Easy Place OFF/ON switch was not activated")
-  if not any("[PletzelBuildSettings] Easy Pick=true" in s for s in console_text()):
-   raise AssertionError("Native Easy Pick OFF/ON switch was not activated")
-  click(875,470,1500) # Building settings -> Litematica
-  saved=stored_easy_pick()
-  print("EASYPLACE_EASYPICK_REAL_OPTIONS_STORAGE",saved,flush=True)
-  assert saved=="pletzelEasyPick:true",("Easy Pick ON was not persisted in native Minecraft options",saved)
+  snap("09-two-separate-easy-settings-off")
+  click(410,360,1400) # Pick ON, Place stays OFF
+  snap("10-pick-on-place-off")
+  assert any("[PletzelEasyPick] SETTING enabled=true" in x for x in console_text())
+  assert stored_option("pletzelEasyPick")=="pletzelEasyPick:true"
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:false"
+  close_schematic()
+  page.keyboard.press("9");page.wait_for_timeout(700)
+  before_pick=len(events)
+  hold_use(2500)
+  if not any("[PletzelEasyPick] SELECT " in ev["text"] for ev in events[before_pick:]):
+   raise AssertionError("Easy Pick ON with Easy Place OFF did not choose a hotbar item")
+  print("EASY_PICK_ONLY_REAL_HOTBAR_SELECTION_PASS",flush=True)
+  send("/fill ~-2 ~ ~-2 ~13 ~2 ~2 minecraft:air")
+  send("/tp @p ~ ~ ~ 0 90")
+  open_schematic()
+  click(410,360,1300) # Pick OFF
+  click(875,360,1300) # Place ON
+  snap("10-pick-off-place-on")
+  assert stored_option("pletzelEasyPick")=="pletzelEasyPick:false"
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
+  close_schematic()
+  page.keyboard.press("1");page.wait_for_timeout(700)
+  before_place=len(events)
+  hold_use(2700)
+  placed=[ev["text"] for ev in events[before_place:]]
+  if any("[PletzelEasyPick] SELECT " in x for x in placed):
+   raise AssertionError("Easy Place without Easy Pick illegally changed hotbar")
+  if not any("[PletzelEasyPlace] VANILLA_ATTEMPT" in x for x in placed):
+   raise AssertionError("Easy Place alone never reached vanilla right-click")
+  print("EASY_PLACE_ONLY_VANILLA_USE_PASS",flush=True)
+  send("/fill ~-2 ~ ~-2 ~13 ~2 ~2 minecraft:air")
+  send("/tp @p ~ ~ ~ 0 90")
+  open_schematic()
+  click(410,360,1400) # Both ON independently
+  snap("10-pick-on-place-on")
+  assert stored_option("pletzelEasyPick")=="pletzelEasyPick:true"
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
   close_schematic()
   page.keyboard.press("9");page.wait_for_timeout(700)
   for slot in range(10):
@@ -211,14 +237,12 @@ try:
   snap("11a-inventory-after-selection")
   page.keyboard.press("Escape");page.wait_for_timeout(850)
   # Confirm setting remains enabled on reopening the native options screen.
-  open_schematic();snap("12-native-setting-retained")
-  click(410,652,1500)
-  snap("12-build-settings-retained")
-  click(875,180,1500) # Mode -> Hover Auto-Place
+  open_schematic();snap("12-independent-buttons-retained")
+  click(410,525,1400) # Advanced Settings, separate from both toggles
+  snap("12-advanced-settings-layout")
+  click(410,183,1500) # Mode Hold -> Hover
   snap("12-hover-mode-activated")
-  if not any("[PletzelBuildSettings] Easy Place=true" in s for s in console_text()):
-   raise AssertionError("Easy Place setting missing")
-  click(875,470,1200)
+  click(875,440,1400) # Back to main
   close_schematic()
   # Reopen a previously proven vanilla-legal target, but now DO NOT
   # press right-click. The only new placement must come from Easy Place
@@ -240,9 +264,10 @@ try:
   # genuine page reload (not merely toggling a JS variable).
   page.reload(wait_until="domcontentloaded",timeout=150000)
   page.wait_for_timeout(5000)
-  reloaded=stored_easy_pick()
+  reloaded=stored_option("pletzelEasyPick")
   print("EASYPICK_RELOADED_OPTIONS_STORAGE",reloaded,flush=True)
-  assert reloaded=="pletzelEasyPick:true",("Saved option lost on actual browser reload",reloaded)
+  assert reloaded=="pletzelEasyPick:true",("Easy Pick ON not saved after reload",reloaded)
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true", "Easy Place ON not saved after reload"
   browser.close()
 except Exception:
  fault=traceback.format_exc()
