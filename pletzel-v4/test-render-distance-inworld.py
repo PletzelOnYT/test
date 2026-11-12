@@ -73,8 +73,13 @@ try:
    pause()
    click(397,362,1600)  # Options > Video Settings
    page.mouse.move(640,400)
-   page.mouse.wheel(0,1150)
-   page.wait_for_timeout(1200)
+   # 26.2's scroll list clips a single large wheel delta. Actual Chrome
+   # screenshots from the previous failed test showed the slider was
+   # still off-screen. Six independent wheel events reach its real row.
+   for _ in range(6):
+    page.mouse.wheel(0,200)
+    page.wait_for_timeout(650)
+   page.wait_for_timeout(450)
    shot(f"{number}-video-before-rd-{rd}")
    click(slider[rd],506,1200)
    shot(f"{number}-video-rd-{rd}")
