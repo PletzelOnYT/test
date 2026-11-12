@@ -145,21 +145,27 @@ try:
   if not any("PLETZEL_WRONG_FACE_CONFIRMED" in e["text"] and "CHAT" in e["text"] for e in events):
    raise AssertionError("Actual integrated server did not confirm wrong Dirt state")
   snap("08-real-dirt-four-wall-faces")
-  for idx,command in enumerate((
-     "/tp @p ~2 ~1 ~-5 0 0",
-     "/tp @p ~ ~ ~10 180 0",
-     "/tp @p ~5 ~ ~-5 90 0",
-     "/tp @p ~-10 ~ ~ -90 0",
-  )):
-   send(command,1800)
-   page.wait_for_timeout(4500)
+  # Previous red-overlay screenshots proved the first angle was red, but
+  # the next three teleports placed the player INSIDE terrain. Use real
+  # spectator flight solely to inspect four genuinely unobstructed camera
+  # angles; do not alter the hologram or server world data for screenshots.
+  send("/gamemode spectator")
+  vantages=(
+    ("~2 ~7 ~-6 0 50","~-2 ~-7 ~6 0 0"),
+    ("~2 ~7 ~10 180 50","~-2 ~-7 ~-10 0 0"),
+    ("~10 ~7 ~2 90 50","~-10 ~-7 ~-2 0 0"),
+    ("~-6 ~7 ~2 -90 50","~6 ~-7 ~-2 0 0"),
+  )
+  for idx,(there,back) in enumerate(vantages):
+   send("/tp @p "+there,1600)
+   page.wait_for_timeout(5500)
    snap("09-all-red-exterior-angle-"+str(idx))
-  # Return from west vantage to ORIGINAL loaded schematic origin.
-  send("/tp @p ~3 ~-1 ~ 0 0")
-  # Restore each wrong block at its real original world coordinate.
+   send("/tp @p "+back,1200)
+  # Spectator coordinates never fall through the bedrock setup. The
+  # following relative changes now reference the ORIGINAL test origin.
   for pos in ("~2 ~1 ~0","~2 ~1 ~4","~0 ~1 ~2","~4 ~1 ~2"):
    send("/setblock "+pos+" minecraft:stone")
-  send("/tp @p ~2 ~1 ~-5 0 0")
+  send("/tp @p ~2 ~7 ~-6 0 50")
   page.wait_for_timeout(4300)
   snap("10-after-mismatch-correction")
   from PIL import Image
