@@ -136,7 +136,15 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(1000)
 
   open_schematic()
-  snap("06-easy-pick-default-off")
+  snap("06-easy-pick-and-easy-place-separate-off")
+  # Inspect the REAL native Minecraft screen at three actual viewport sizes.
+  # Full-size is restored before calibrated gameplay button clicks.
+  page.set_viewport_size({"width":1024,"height":768})
+  page.wait_for_timeout(1600);snap("06-gui-1024x768-no-overlap")
+  page.set_viewport_size({"width":800,"height":600})
+  page.wait_for_timeout(1600);snap("06-gui-800x600-page-navigation")
+  page.set_viewport_size({"width":1280,"height":720})
+  page.wait_for_timeout(1600);snap("06-gui-1280x720-restored")
   click(410,183,8500)
   if not any("[PletzelSchematicImport] LOADED "+fixture.name in s for s in console_text()):
    raise AssertionError("Mixed ten-block native schematic import did not finish")
