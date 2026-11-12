@@ -194,7 +194,7 @@ try:
   if not placement_events:
    raise AssertionError("Normal gameplay did not select Stone before placement")
   send("/execute if block ~ ~ ~2 minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
-  if not any("PLETZEL_EASY_PICK_REAL_PLACEMENT_OK" in x["text"] for x in events):
+  if not any("PLETZEL_EASY_PICK_REAL_PLACEMENT_OK" in x["text"] and "CHAT" in x["text"] for x in events):
    raise AssertionError("Real server did not confirm vanilla stone placement at the schematic target")
   print("EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
 
