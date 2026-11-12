@@ -51,8 +51,9 @@ echo "$jobs_json" | jq -e '[.jobs[] | select(.name | startswith("chrome ("))] | 
 # The accepted source must explicitly pin THIS source compilation.
 accepted_workflow="$(git show "$accept_sha:.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml")"
 grep -Fqx "          run=$BUILD_RUN_ID" <<< "$accepted_workflow"
-grep -Fqx "          expected_sha=$BUILD_SOURCE_SHA" <<< "$accepted_workflow"
-grep -Fqx "          gh run download \"\$run\" -R \"\$GITHUB_REPOSITORY\" -n $EXPECTED_ARTIFACT -D candidate" <<< "$accepted_workflow"
+grep -Fqx "          sha=$BUILD_SOURCE_SHA" <<< "$accepted_workflow"
+grep -Fqx "          artifact=$EXPECTED_ARTIFACT" <<< "$accepted_workflow"
+grep -Fqx '          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate' <<< "$accepted_workflow"
 
 mkdir -p publish-from-action
 gh run download "$BUILD_RUN_ID" -R "$REPO" -n "$EXPECTED_ARTIFACT" -D publish-from-action
