@@ -28,8 +28,8 @@ echo "$build_json" | jq -e --arg sha "$BUILD_SOURCE_SHA" --arg branch "$BRANCH" 
 accept_json="$(gh api "repos/$REPO/actions/runs/$ACCEPTANCE_RUN_ID")"
 # When called from the accepted browser workflow itself, its publishing job
 # is still running, so the PARENT run cannot already be "completed".
-# All six Chrome jobs must nevertheless be completed and successful below.
-if [[ "${ACCEPTANCE_RUNNING_PARENT:-false}" == "true" ]]; then
+# All seven Chrome jobs must nevertheless be completed and successful below.
+if [[ "${ACCEPTANCE_RUNNING_PARENT:-false}" == "true" || "${GITHUB_RUN_ID:-}" == "$ACCEPTANCE_RUN_ID" ]]; then
   echo "$accept_json" | jq -e --arg branch "$BRANCH" \
     '(.status=="in_progress" or .status=="completed") and (.conclusion==null or .conclusion=="success") and .head_branch==$branch and .name=="Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance"' >/dev/null
 else
