@@ -1,0 +1,78 @@
+name: Pletzel V4 Easy Pick before-after real Chrome FPS regression
+on:
+  push:
+    branches: [pletzel-v4-easypick-chunk-map-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-easypick-fps-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  fps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact successful optimized and new Easy Pick binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p baseline optimized
+          for pair in "43250623732:21178734d6e3cd0f0e3d3dafbba40359070473ed:pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html:baseline" "43258316571:c6e7c330414700db3a075940b376f8f4888480ea:pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html:optimized"; do
+            IFS=: read -r run sha artifact folder <<< "$pair"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
+            deadline=$(( $(date +%s) + 6900 ))
+            while true; do
+              state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+              if [ "$state" = completed ]; then
+                test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+                break
+              fi
+              test "$(date +%s)" -lt "$deadline" || exit 3
+              sleep 25
+            done
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D "$folder"
+            test "$(find "$folder" -iname '*.html' | wc -l)" -eq 1
+          done
+          sha256sum $(find baseline optimized -iname '*.html') | tee provenance-sha256.txt
+      - name: Before-after real WebGL on the SAME CI runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow
+          mkdir candidate
+          cp "$(find baseline -iname '*.html' | head -1)" candidate/
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-optimized-hologram-performance.py --flavor baseline 2>&1 | tee before-fps.log
+          rm -f candidate/*.html
+          cp "$(find optimized -iname '*.html' | head -1)" candidate/
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-optimized-hologram-performance.py --flavor optimized 2>&1 | tee after-fps.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path("hologram-perf-evidence/baseline/result.json").read_text())
+          b=json.loads(Path("hologram-perf-evidence/optimized/result.json").read_text())
+          out=[]
+          for before,after in zip(a["stages"],b["stages"]):
+           assert before["stage"]==after["stage"]
+           out.append({"stage":before["stage"],"beforeAvgFps":before["averageFps"],
+            "afterAvgFps":after["averageFps"],"before1pctLow":before["onePercentLowFps"],
+            "after1pctLow":after["onePercentLowFps"]})
+          print(json.dumps(out,indent=2))
+          Path("before-after-fps.json").write_text(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-easypick-same-runner-before-after-webgl-fps
+          path: |
+            provenance-sha256.txt
+            before-fps.log
+            after-fps.log
+            before-after-fps.json
+            hologram-perf-evidence/
+          retention-days: 30
+          if-no-files-found: warn
