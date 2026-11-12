@@ -146,6 +146,13 @@ def minecraft(s):
        "private void continueAttack(final boolean down) {\n      if (net.pletzel.schematica.Freecam26.active()) return;")
     return s
 
+def game_renderer(s):
+    # A detached spectator-style camera must not render the player's first-person hand.
+    # The player's body is rendered by LevelExtractor when Camera.detached=true.
+    return rep(s,
+       "if (this.gameRenderState.optionsRenderState.cameraType.isFirstPerson()",
+       "if (this.gameRenderState.optionsRenderState.cameraType.isFirstPerson()\n            && !net.pletzel.schematica.Freecam26.active()")
+
 def keyboard(s):
     return rep(s,"public void tick() {",
        """public void tick() {
@@ -174,6 +181,7 @@ edit("net/pletzel/schematica/SchematicaScreen.java",screen)
 edit("net/pletzel/schematica/SchematicaWorldRenderer.java",renderer)
 edit("net/minecraft/client/Options.java",options)
 edit("net/minecraft/client/Camera.java",camera)
+edit("net/minecraft/client/renderer/GameRenderer.java",game_renderer)
 edit("net/minecraft/client/Minecraft.java",minecraft)
 edit("net/minecraft/client/player/KeyboardInput.java",keyboard)
 edit("net/minecraft/client/MouseHandler.java",mouse)
