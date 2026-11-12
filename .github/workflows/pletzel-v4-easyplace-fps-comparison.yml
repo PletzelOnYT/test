@@ -1,0 +1,96 @@
+name: Pletzel V4 new Easy Place vs previous no-voice real WebGL FPS comparison
+on:
+  push:
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-easyplace-fps-comparison.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  frame-time-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and fingerprint both exact real standalone HTML binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p previous new candidate
+          for spec in \
+            "43258316571:c6e7c330414700db3a075940b376f8f4888480ea:pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html:previous" \
+            "43312823341:030de9839a11eda529b294dc8cab2e67f7b8c715:pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html:new"; do
+            IFS=: read -r run sha artifact folder <<<"$spec"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
+            deadline=$(( $(date +%s) + 6900 ))
+            while true; do
+              state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+              if [ "$state" = completed ]; then
+                test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
+                break
+              fi
+              test "$(date +%s)" -lt "$deadline" || exit 3
+              sleep 25
+            done
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D "$folder"
+            test "$(find "$folder" -name '*.html' | wc -l)" -eq 1
+          done
+          sha256sum $(find previous new -name '*.html') | tee provenance.txt
+          test "$(sha256sum $(find previous -name '*.html') | awk '{print $1}')" = 97716eeaf71045ecefaaa8e6463f8aeb7856142b32b1dab14aa0df78260df37a
+      - name: Actual Chrome WebGL frame-time sampling against both binaries on same runner
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow || exit 5
+          cp "$(find previous -name '*.html' | head -1)" candidate/
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-optimized-hologram-performance.py --flavor baseline 2>&1 | tee before-fps.log
+          before_status=${PIPESTATUS[0]}
+          rm -f candidate/*.html
+          cp "$(find new -name '*.html' | head -1)" candidate/
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u pletzel-v4/test-optimized-hologram-performance.py --flavor optimized 2>&1 | tee after-fps.log
+          after_status=${PIPESTATUS[0]}
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path('hologram-perf-evidence/baseline/result.json')
+          b=Path('hologram-perf-evidence/optimized/result.json')
+          before=json.loads(a.read_text()) if a.exists() else {}
+          after=json.loads(b.read_text()) if b.exists() else {}
+          d={x['stage']:x for x in before.get('stages',[])}
+          result=[]
+          for x in after.get('stages',[]):
+            o=d.get(x['stage'])
+            if not o:continue
+            prior=o.get('averageFps');now=x.get('averageFps')
+            pct=round((now-prior)/prior*100,1) if prior and now else None
+            result.append({'stage':x['stage'],'beforeAvgFps':prior,
+                           'afterAvgFps':now,'changePercent':pct,
+                           'before1pctLowFps':o.get('onePercentLowFps'),
+                           'after1pctLowFps':x.get('onePercentLowFps'),
+                           'beforeP99FrameMs':o.get('p99Ms'),
+                           'afterP99FrameMs':x.get('p99Ms')})
+          report={'scenarios':result,'beforeFault':before.get('fatal'),'afterFault':after.get('fatal'),
+                  'limitations':['Ubuntu software WebGL is not a Mac physical GPU',
+                    'World seed cannot be proven identical across automatic worlds',
+                    'Samples are sequential on the same runner and subject to load drift',
+                    'GPU draw calls and VRAM bytes are not exposed by this instrument']}
+          Path('comparison.json').write_text(json.dumps(report,indent=2))
+          print('ACTUAL_CHROME_BEFORE_AFTER_SAMPLES',json.dumps(report,indent=2))
+          PY
+          test "$before_status" = 0 && test "$after_status" = 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-easyplace-before-after-real-webgl-fps-with-limits
+          path: |
+            provenance.txt
+            before-fps.log
+            after-fps.log
+            comparison.json
+            hologram-perf-evidence/
+          retention-days: 30
+          if-no-files-found: warn
