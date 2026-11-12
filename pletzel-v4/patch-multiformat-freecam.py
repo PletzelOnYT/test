@@ -85,7 +85,9 @@ def screen(s):
     # row spacing made the new ninth row extend below the viewport. Preserve
     # every existing button and the new slider with compact 18-unit rows.
     rowsteps=re.findall(r'y\s*\+=\s*\d+\s*;',s)
-    if len(rowsteps)<6:raise RuntimeError('Schematica row anchors missing: '+repr(rowsteps))
+    if len(rowsteps)<6:
+        print('ACTUAL_POST_HOTFIX_SCHEMATICA_SCREEN_START\\n'+s+'\\nACTUAL_POST_HOTFIX_SCHEMATICA_SCREEN_END')
+        raise RuntimeError('Schematica row anchors missing: '+repr(rowsteps))
     s=re.sub(r'y\s*\+=\s*\d+\s*;', 'y+=20;', s)
     if 'bounds(x,y,150,20)' not in s:raise RuntimeError('Native button size not found')
     s=s.replace('bounds(x,y,150,20)','bounds(x,y,150,18)')
