@@ -1,0 +1,78 @@
+name: Pletzel V4 optimized standalone real Chrome regression acceptance
+on:
+  push:
+    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-optimization-acceptance.yml'
+      - 'pletzel-v4/test-optimized-map-hover-browser.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  chrome:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [map-hover, fourformat, freecam, hologram, world-save]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch exact optimized no-voice standalone HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=43250623732
+          expected_sha=21178734d6e3cd0f0e3d3dafbba40359070473ed
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$expected_sha"
+          deadline=$(( $(date +%s) + 6900 ))
+          while true; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
+            if [ "$state" = completed ]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)"
+              test "$conclusion" = success || { echo "Optimized native binary failed: $conclusion"; exit 2; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 3
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n pletzel-v4-optimized-map-litematica-freecam-no-voice-complete-html -D candidate
+          test "$(find candidate -iname '*.html' | wc -l)" -eq 1
+          sha256sum "$(find candidate -iname '*.html' | head -1)" | tee exact-html-sha256.txt
+      - name: Actual Chromium WebGL and native Minecraft gameplay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow
+          case "${{ matrix.suite }}" in
+            map-hover) testscript=pletzel-v4/test-optimized-map-hover-browser.py;;
+            fourformat) testscript=pletzel-v4/test-fourformat-browser-smoke.py;;
+            freecam) testscript=pletzel-v4/test-freecam-real-flight.py;;
+            hologram) testscript=pletzel-v4/test-native-schematic-inworld.py;;
+            world-save) testscript=pletzel-v4/test-no-voice-world-save.py;;
+            *) exit 2;;
+          esac
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u "$testscript" 2>&1 | tee "optimized-${{ matrix.suite }}-chrome.log"
+      - name: Persist screenshots, decoder logs and browser errors even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-optimized-${{ matrix.suite }}-chrome-evidence
+          path: |
+            exact-html-sha256.txt
+            optimized-${{ matrix.suite }}-chrome.log
+            map-shulker-real-inventory-evidence/
+            fourformat-browser-evidence/
+            freecam-real-flight-evidence/
+            inworld-schematic-evidence/
+            world-save-reload-evidence/
+          retention-days: 30
+          if-no-files-found: warn
