@@ -55,6 +55,7 @@ try:
         if(/^[0-9]$/.test(c))return ['Digit'+c,c.charCodeAt(0),false];
         const d={' ':['Space',32,false],'/':['Slash',191,false],
         '~':['Backquote',192,true],'-':['Minus',189,false],
+        '@':['Digit2',50,true],
         ':':['Semicolon',186,true],'.':['Period',190,false]};
         return d[c]||['Unidentified',0,false];
       }
