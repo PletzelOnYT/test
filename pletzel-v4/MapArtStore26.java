@@ -172,7 +172,6 @@ public final class MapArtStore26 {
     public static MapItemSavedData cachedData(MapId id) {
         Minecraft mc=Minecraft.getInstance();if(mc==null||mc.level==null)return null;
         byte[] colors=read(id);if(colors==null)return null;
-        MapItemSavedData fake=null;
         // This object only adapts ORIGINAL previously seen server pixels to
         // Minecraft's vanilla renderer. No pixel values are invented.
         MapItemSavedData snapshot=MapItemSavedData.createForClient((byte)0,false,mc.level.dimension());
@@ -185,7 +184,7 @@ public final class MapArtStore26 {
             if(id.isEmpty())continue;
             EagRuntime.setStorage("pletzel.mapart26.pixel."+scope+"."+id,null);
         }
-        for(String k:MEMORY.keySet())if(k.contains("."+scope+"."))MEMORY.remove(k);
+        MEMORY.keySet().removeIf(k->k.contains("."+scope+"."));
         String index=registry();
         // Keep labels (user's deliberate Map Art/Exclude classifications),
         // but release the real-image storage. They can be learned again.
