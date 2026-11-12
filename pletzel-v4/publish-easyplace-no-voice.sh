@@ -152,7 +152,8 @@ cat > README.md <<EOF
 - Lazy, section-based schematic holograms with render-distance culling and bounded render caches.
 - **Easy Place (OFF default)**: vanilla support-face right-click in Hold or opt-in Hover mode, with real reach and server validation.
 - **Easy Pick (OFF default)**: selects only existing hotbar slots 1–9 through normal inventory selection.
-- **Map Art memory (ON default)**: preserves original 128x128 map pixels by world/server+dimension+map ID in browser storage, with explicit art classification, explorer exclusion and clear controls.
+- **Independent visible settings**: Easy Pick and Easy Place have separate saved ON/OFF controls in the spaced Minecraft-style Schematica menu.
+- **Map Tooltip for ALL ordinary filled maps**: vanilla 128x128 terrain, explored, and pixel-art maps preview automatically. Explorer/treasure maps remain excluded. Real received pixel bytes persist by world/server+dimension+MapId in IndexedDB; no manual art marking is required.
 - **Wrong-block overlays**: red on all expected-model faces, independent of connected ghost culling.
 - Freecam, original Shulker Box Tooltip UI, real Map Tooltip artwork, and singleplayer engine improvements.
 - **No experimental voice chat** in this build.
