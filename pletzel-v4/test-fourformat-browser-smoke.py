@@ -61,8 +61,10 @@ try:
   if missing or not badRejected:
    raise AssertionError("Schematic importer failed native decode acceptance: missing="+repr(missing)+
      ", corrupt file rejected="+repr(badRejected)+", logs="+repr(decoded[-15:]))
-  click(868,394,"move-schematic-to-player")
-  click(876,672,"exit-schematica")
+  click(410,440,"open-position-controls")
+  click(875,280,"move-schematic-to-player")
+  click(875,525,"return-to-main-schematic")
+  click(640,672,"exit-schematica")
   click(650,675,"exit-options")
   click(625,255,"resume-world",8)
   snap("final-inworld-after-all-imports")
@@ -78,7 +80,7 @@ try:
   click(475,394,"12-reopen-options")
   click(880,578,"13-reopen-schematica")
   click(885,183,"14-unload",3)
-  click(874,672,"15-unload-return-options")
+  click(640,672,"15-unload-return-options")
   click(638,672,"16-unload-return-menu")
   click(638,255,"17-unloaded-world")
   browser.close()
