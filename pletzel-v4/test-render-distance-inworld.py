@@ -7,7 +7,7 @@ No mocked Minecraft world and no fabricated render-distance counters.
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import http.server,threading,json,re,time,sys,traceback,runpy
+import http.server,threading,json,re,time,sys,traceback,runpy,statistics,math
 
 games=list(Path("candidate").rglob("*.html"));assert len(games)==1,games
 game=games[0].resolve();out=Path("render-distance-inworld-evidence");out.mkdir(exist_ok=True)
@@ -36,6 +36,18 @@ try:
    print("RD_REAL_SNAPSHOT",label,flush=True)
   def click(x,y,t=1200):
    page.mouse.click(x,y);page.wait_for_timeout(t)
+  def install_frame_sampler():
+   page.evaluate("""() => {
+     if(window.__pletzelRenderDistanceFrames) return;
+     window.__pletzelRenderDistanceFrames={enabled:false,previous:null,frames:[]};
+     const tick=t=>{
+       let s=window.__pletzelRenderDistanceFrames;
+       if(s.enabled && s.previous!==null && t>s.previous) s.frames.push(t-s.previous);
+       s.previous=t;
+       requestAnimationFrame(tick);
+     };
+     requestAnimationFrame(tick);
+   }""")
   def pause():
    page.keyboard.press("Escape");page.wait_for_timeout(1200)
    click(478,394)
@@ -48,6 +60,7 @@ try:
   page.wait_for_timeout(135000);shot("01-real-world")
   if not any("[EagPerfHeartbeat]" in e["text"] for e in events):
    raise AssertionError("Real integrated-server world heartbeat missing")
+  install_frame_sampler()
   pause();click(875,579)
   click(410,183,13000)
   if not any("[PletzelSchematicImport] LOADED dense-1000000.schem" in e["text"] for e in events):
@@ -68,7 +81,15 @@ try:
    # Video Done -> Options Done -> Pause Back To Game.
    resume()
    begin=len(events)
+   page.evaluate("let s=window.__pletzelRenderDistanceFrames; s.enabled=true; s.previous=null; s.frames=[]")
    page.wait_for_timeout(15500)
+   frames=page.evaluate("let s=window.__pletzelRenderDistanceFrames; s.enabled=false; s.frames") or []
+   frames=sorted(float(f) for f in frames if f>0)
+   mean_ms=statistics.mean(frames) if frames else None
+   p99_ms=frames[max(0,min(len(frames)-1,math.ceil(.99*len(frames))-1))] if frames else None
+   fps={"samples":len(frames),"averageFps":round(1000/mean_ms,2) if mean_ms else None,
+        "onePercentLowFps":round(1000/p99_ms,2) if p99_ms else None,
+        "p99FrameMs":round(p99_ms,2) if p99_ms else None}
    perf=[e["text"] for e in events[begin:] if "[PletzelSchematicPerf]" in e["text"]]
    exact=[s for s in perf if re.search(r"renderDistance="+str(rd)+r"(?:\D|$)",s)]
    if not exact:raise AssertionError(f"Render-distance slider did not apply rd={rd}; logs={perf[-6:]}")
@@ -76,7 +97,7 @@ try:
    fields=dict((k,int(v)) for k,v in re.findall(r"(\w+)=(\d+)",line))
    if fields.get("cachedSections",0)>64 or fields.get("cachedCells",0)>65536:
     raise AssertionError("Unbounded schematic cache at rd="+str(rd)+": "+line)
-   stages.append({"requested":rd,"observed":fields,"console":line,
+   stages.append({"requested":rd,"observed":fields,"console":line,"realChromeFrameMetrics":fps,
       "heartbeatCount":sum("[EagPerfHeartbeat]" in e["text"] for e in events[begin:]),
       "jsHeap":page.evaluate("performance.memory?.usedJSHeapSize ?? null")})
    shot(f"{number}-inworld-rd-{rd}")
