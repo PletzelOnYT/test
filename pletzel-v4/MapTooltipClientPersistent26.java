@@ -31,10 +31,13 @@ public final class MapTooltipClientComponent implements ClientTooltipComponent {
         if(!permitted())return null;
         Minecraft mc=Minecraft.getInstance();
         MapItemSavedData live=mc.level.getMapData(id);
-        if(live!=null&&live.colors!=null&&live.colors.length==128*128) {
+        if(MapArtStore26.hasObservedColors(live)) {
             MapArtStore26.observe(id,live);
             return live;
         }
+        // When reconnecting, Minecraft may have a map-data object before
+        // its colors arrive; prefer proven cached pixels instead of showing
+        // a blank preview or destroying the durable art.
         return MapArtStore26.cachedData(id);
     }
     @Override public int getHeight(Font font) {
