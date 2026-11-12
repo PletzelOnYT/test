@@ -56,20 +56,18 @@ def session(s):
 
 def screen(s):
     s=s.replace("Choose a classic .schematic file","Choose .litematic / .schematic / .schem / .nbt")
-    s=s.replace('".schematic");','".litematic,.schematic,.schem,.nbt");')
+    s=rep(s,
+       'EagRuntime.displayFileChooser("application/octet-stream", ".schematic");',
+       'EagRuntime.displayFileChooser("application/octet-stream", ".litematic,.schematic,.schem,.nbt");')
     s=s.replace("Choose .schematic in the browser file picker","Choose a supported schematic in the browser file picker")
-    # Replace the strict single extension gate regardless of its original message.
-    regex=r'if \(!result\.fileName\.toLowerCase\(java\.util\.Locale\.ROOT\)\.endsWith\("\.schematic"\)\) \{.*?\}\s*SchematicaSession\.loadClassic\(result\.fileData\);'
-    sub='''if (result.fileName==null || !result.fileName.toLowerCase(java.util.Locale.ROOT)
-                    .matches(".*\\\\.(litematic|schematic|schem|nbt)$")) {
-                status="Supported: .litematic, .schematic, .schem, .nbt"; return;
-            }
-            SchematicaSession.loadAny(result.fileData, result.fileName);'''
-    s,n=re.subn(regex,lambda m:sub,s,count=1,flags=re.S)
-    if n!=1:raise RuntimeError("Cannot find Schematica file acceptance gate")
-    # Provide speed adjustment in the existing Schematica screen.
-    old='add(right,y,"Done",this::onClose);'
-    new='''this.addRenderableWidget(new AbstractSliderButton(right,y,150,20,
+    s=rep(s,
+       'if (!result.fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".schematic")) {\n                status="Only classic .schematic supported"; return;\n            }',
+       'if (result.fileName==null || !result.fileName.toLowerCase(java.util.Locale.ROOT).matches(".*\\\\.(litematic|schematic|schem|nbt)$")) {\n                status="Supported: .litematic, .schematic, .schem, .nbt"; return;\n            }')
+    s=rep(s,"SchematicaSession.loadClassic(result.fileName, result.fileData);",
+         "SchematicaSession.loadAny(result.fileData, result.fileName);")
+    # Keep this slider inside the existing Schematica screen.
+    s=rep(s,'add(right,y,"Done",this::onClose);',
+       '''this.addRenderableWidget(new AbstractSliderButton(right,y,150,20,
             Component.literal("Freecam Speed"),Math.max(0.0,Math.min(1.0,(Freecam26.speed()-0.05)/3.95))) {
             @Override protected void updateMessage() {
                 setMessage(Component.literal("Freecam Speed: "+String.format(java.util.Locale.ROOT,"%.2f",Freecam26.speed())));
@@ -77,8 +75,7 @@ def screen(s):
             @Override protected void applyValue() { Freecam26.speed(0.05+this.value*3.95); }
         });
         y+=24;
-        add(right,y,"Done",this::onClose);'''
-    s=rep(s,old,new)
+        add(right,y,"Done",this::onClose);''')
     return s
 
 def renderer(s):
