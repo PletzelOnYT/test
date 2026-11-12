@@ -14,10 +14,14 @@ import net.minecraft.world.level.saveddata.maps.MapId;
  */
 public record MapTooltipData(MapId mapId, boolean explorer) implements TooltipComponent {
     public static boolean isExplorer(ItemStack stack) {
+        // Custom-titled map artwork is not a navigation map merely because
+        // its title contains "treasure" or "village". Prefer known vanilla
+        // explorer-item names and genuine map decoration components.
         String name=stack.getHoverName().getString().toLowerCase(Locale.ROOT);
-        if(name.contains("explorer")||name.contains("treasure")||
-           name.contains("woodland")||name.contains("monument")||
-           name.contains("village")||name.contains("structure")) return true;
+        if(!stack.has(DataComponents.CUSTOM_NAME) &&
+           (name.contains("explorer map")||name.contains("treasure map")||
+            name.contains("buried treasure")||name.contains("structure locator map")))
+            return true;
         MapDecorations data=stack.getOrDefault(DataComponents.MAP_DECORATIONS,MapDecorations.EMPTY);
         for(MapDecorations.Entry entry:data.decorations().values()) {
             if(entry.type().is(MapDecorationTypes.WOODLAND_MANSION)||

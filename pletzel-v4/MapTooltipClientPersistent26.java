@@ -10,9 +10,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
-/** Original vanilla map pixels with optional scoped durable art fallback.
- * Not every terrain map is art. Unmarked maps and explorer maps have no
- * special artwork preview; mark a map as art using Map Art Settings.
+/** Vanilla 128x128 pixels for ALL ordinary filled maps, including terrain.
+ * Explorer/navigation maps are excluded by metadata. Original previously
+ * observed colors reload from IndexedDB for the same world/server and MapId.
  */
 public final class MapTooltipClientComponent implements ClientTooltipComponent {
     private static final Identifier BACKGROUND=Identifier.withDefaultNamespace("textures/map/map_background.png");
@@ -52,7 +52,7 @@ public final class MapTooltipClientComponent implements ClientTooltipComponent {
         MapItemSavedData data=current();
         if(data==null) {
             graphics.text(font,"Map #"+id.id(),x+6,y+16,0xffeeeeee);
-            graphics.text(font,"Awaiting map art",x+2,y+30,0xffffd49b);
+            graphics.text(font,"Waiting for map pixels",x+2,y+30,0xffffd49b);
             return;
         }
         graphics.pose().pushMatrix();

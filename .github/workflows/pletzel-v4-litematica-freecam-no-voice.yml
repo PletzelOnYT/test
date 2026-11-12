@@ -22,6 +22,10 @@ on:
       - 'pletzel-v4/MapArtStore26.java'
       - 'pletzel-v4/MapTooltipClientPersistent26.java'
       - 'pletzel-v4/MapTooltipData26.java'
+      - 'pletzel-v4/SchematicaScreenRestored26.java'
+      - 'pletzel-v4/PletzelMapArtIndexedDB26.java'
+      - 'pletzel-v4/patch-schematica-maptooltip-restoration.py'
+      - 'pletzel-v4/test-restored-schematica-maptooltip-source.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -461,6 +465,14 @@ jobs:
           python3 pletzel-v4/patch-easyplace-mapart.py engine 2>&1 | tee logs/easyplace-mapart-native-patch.log
           grep -Fq PLETZEL_NEXT_NATIVE_SOURCE_PATCH_COMPLETE logs/easyplace-mapart-native-patch.log
           python3 pletzel-v4/test-easyplace-mapart-source.py engine
+          git -C engine diff --check
+      - name: Restore separate Easy Pick / Easy Place GUI and persist all normal map pixels in IndexedDB
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 pletzel-v4/patch-schematica-maptooltip-restoration.py engine | tee logs/restored-schematica-indexeddb.log
+          grep -Fq PLETZEL_GUI_INDEPENDENT_EASYPICK_EASYPLACE_AND_INDEXEDDB_READY logs/restored-schematica-indexeddb.log
+          python3 pletzel-v4/test-restored-schematica-maptooltip-source.py engine
           git -C engine diff --check
       - name: Install npm lockfile dependencies
         shell: bash

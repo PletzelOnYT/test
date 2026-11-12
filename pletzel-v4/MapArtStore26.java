@@ -18,13 +18,13 @@ import net.minecraft.world.item.component.MapDecorations;
 
 /**
  * Durable original 128x128 Minecraft packed-color bytes, NOT generated art.
- * EagRuntime storage uses namespaced browser localStorage, including across
- * game restarts at the same origin. Maps are scoped by local world save path
- * or multiplayer server address, dimension and exact numeric MapId.
+ * Original packed-color pixel bytes are stored in IndexedDB by the native
+ * TeaVM browser backend, with nonblocking cache reads while storage hydrates.
+ * The key includes browser origin, world/server, dimension and numeric MapId.
  *
- * Ambiguous ordinary maps are never automatically called "map art": user
- * marking is required. Recognizable explorer/structure icons are excluded.
- * The cache is deliberately bounded to avoid browser storage exhaustion.
+ * ALL ordinary filled maps are eligible, including terrain maps, without
+ * manual marking. Explorer/navigation metadata and user exclusions apply.
+ * No map colors are ever synthesized from metadata.
  */
 public final class MapArtStore26 {
     public static final int UNMARKED=0, ART=1, EXCLUDED=2;
@@ -113,17 +113,8 @@ public final class MapArtStore26 {
     }
 
     public static boolean isExplorer(ItemStack stack) {
-        String name=stack.getHoverName().getString().toLowerCase(java.util.Locale.ROOT);
-        if(name.contains("explorer")||name.contains("treasure")||name.contains("buried")||
-           name.contains("woodland")||name.contains("monument")||
-           name.contains("structure")||name.contains("village"))return true;
-        MapDecorations decorations=stack.getOrDefault(DataComponents.MAP_DECORATIONS, MapDecorations.EMPTY);
-        for(MapDecorations.Entry e:decorations.decorations().values()) {
-            if(e.type().is(MapDecorationTypes.WOODLAND_MANSION)||
-               e.type().is(MapDecorationTypes.OCEAN_MONUMENT)||
-               e.type().is(MapDecorationTypes.RED_X))return true;
-        }
-        return false;
+        // One common-side item classifier for all inventory GUI paths.
+        return MapTooltipData.isExplorer(stack);
     }
     public static boolean isExplorer(MapItemSavedData data) {
         if(data==null)return false;
@@ -137,7 +128,7 @@ public final class MapArtStore26 {
     public static boolean canPreview(MapId id,boolean itemExplorer,MapItemSavedData live) {
         Minecraft mc=Minecraft.getInstance();
         return mc!=null && mc.options.pletzelShowMapArt.get() &&
-          policy(id)==ART &&
+          policy(id)!=EXCLUDED &&
           (!mc.options.pletzelExcludeExplorer.get() || (!itemExplorer&&!isExplorer(live)));
     }
 

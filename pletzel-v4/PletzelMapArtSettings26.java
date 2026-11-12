@@ -9,7 +9,7 @@ import net.minecraft.network.chat.Component;
 /** Explicit, persistent map art classification; explorer maps stay excluded. */
 public final class PletzelMapArtSettings26 extends Screen {
     private final Screen parent;
-    private String note="Hold a filled map, then choose Mark or Exclude.";
+    private String note="All ordinary maps preview automatically. Navigation maps stay excluded.";
     public PletzelMapArtSettings26(Screen parent) {
         super(Component.literal("Map Art Settings"));this.parent=parent;
     }
@@ -29,16 +29,16 @@ public final class PletzelMapArtSettings26 extends Screen {
         int y=Math.max(48,Math.min(60,this.height-160));
         option(left,y,"Remember Map Art",this.minecraft.options.pletzelRememberMapArt);
         option(right,y,"Show Art Previews",this.minecraft.options.pletzelShowMapArt);
-        y+=25;
+        y+=28;
         option(left,y,"Exclude Explorer",this.minecraft.options.pletzelExcludeExplorer);
-        button(right,y,"Mark Held Map as Art",()->{
+        button(right,y,"Allow Held Map",()->{
             MapArtStore26.markHeld(true);note="Marked held map as art, if eligible";});
-        y+=25;
+        y+=28;
         button(left,y,"Exclude Held Map",()->{
             MapArtStore26.markHeld(false);note="Excluded held map from art previews";});
         button(right,y,"Clear Saved Art",()->{
             MapArtStore26.clearSaved();note="Cleared stored map pixel images for this world/server";});
-        y+=25;
+        y+=28;
         button(left,y,"Back",this::onClose);
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float delta){
