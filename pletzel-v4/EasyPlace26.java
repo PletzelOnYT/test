@@ -61,13 +61,18 @@ public final class EasyPlace26 {
         boolean hover=autoPending; autoPending=false;
         activeHoverAttempt=hover;
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get())return true;
-        if(!SchematicaSession.loaded()||Freecam26.active()||mc.options.toggleUse().get())return false;
-        if(mc.player==null||mc.player.isUsingItem()||mc.player.isHandsBusy())return false;
-        if(!hover && (!mc.options.keyUse.isDown() || mc.options.toggleUse().get()))return false;
+        if(Freecam26.active())return false;
+        // Optional schematic assistance must NEVER break normal use-item,
+        // chest/door interactions or manual placement outside a valid ghost.
+        // Hover mode is the only case where an unrelated vanilla action
+        // must be suppressed because the user did not actually click.
+        if(!SchematicaSession.loaded()||mc.options.toggleUse().get())return !hover;
+        if(mc.player==null||mc.player.isUsingItem()||mc.player.isHandsBusy())return !hover;
+        if(!hover && !mc.options.keyUse.isDown())return true;
         BlockPos target=candidate(mc);
-        if(target==null)return false;
+        if(target==null)return !hover;
         BlockState required=SchematicaWorldRenderer.expectedAt(target);
-        if(required==null)return false;
+        if(required==null)return !hover;
         if(!(mc.hitResult instanceof BlockHitResult hit))return false;
         // When Easy Pick is enabled it selects the legitimate hotbar item
         // before vanilla startUseItem. Otherwise require the already-held
