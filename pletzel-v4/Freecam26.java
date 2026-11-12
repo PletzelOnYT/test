@@ -56,8 +56,9 @@ public final class Freecam26 {
         if(norm==0.0)return;
         double v=speed*(m.options.keySprint.isDown()?3.0:1.0)/norm;
         double a=Math.toRadians(yaw),b=Math.toRadians(pitch);
-        x+=v*(-Math.sin(a)*Math.cos(b)*f+Math.cos(a)*r);
+        // At yaw 0 the camera faces south (+Z), so screen-right is west (-X).
+        x+=v*(-Math.sin(a)*Math.cos(b)*f-Math.cos(a)*r);
         y+=v*(-Math.sin(b)*f+u);
-        z+=v*(Math.cos(a)*Math.cos(b)*f+Math.sin(a)*r);
+        z+=v*(Math.cos(a)*Math.cos(b)*f-Math.sin(a)*r);
     }
 }
