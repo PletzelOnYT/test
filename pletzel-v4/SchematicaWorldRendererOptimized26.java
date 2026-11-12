@@ -24,6 +24,7 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.util.ARGB;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
@@ -56,6 +57,7 @@ public final class SchematicaWorldRenderer {
     private static final Map<BlockState,List<BakedQuad>> MODEL_CACHE=new HashMap<>();
     private static BlockStateModelSet modelCacheOwner;
     private static final Map<Long,SourceSection> INDEX=new HashMap<>();
+    private static final Map<Long,List<Long>> SECTION_COLUMNS=new HashMap<>();
     private static final LinkedHashMap<Long,MeshSection> MESH_CACHE=new LinkedHashMap<>(80,0.75f,true);
     private static long indexVersion=Long.MIN_VALUE;
     private static int indexCursor;
@@ -73,7 +75,8 @@ public final class SchematicaWorldRenderer {
         final it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<BlockState> expectedBlocks=
             new it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<>();
     }
-    private record DrawCell(BlockPos pos, BlockState expected, List<BakedQuad> quads) {}
+    private record DrawCell(BlockPos pos, BlockState expected,
+                            List<BakedQuad> ghostQuads,List<BakedQuad> wrongQuads) {}
     private static final class MeshSection {
         final List<DrawCell> cells=new ArrayList<>();
         int nextCell;
@@ -84,7 +87,7 @@ public final class SchematicaWorldRenderer {
     public static void clearModelCache() {
         MODEL_CACHE.clear();
         modelCacheOwner=null;
-        INDEX.clear();
+        INDEX.clear();SECTION_COLUMNS.clear();
         MESH_CACHE.clear();
         cachedCellCount=0;
         indexCursor=0;
@@ -103,7 +106,7 @@ public final class SchematicaWorldRenderer {
     public static BlockState expectedAt(final BlockPos worldPos) {
         if (!SchematicaSession.loaded()) return null;
         if (indexVersion!=SchematicaSession.version()) {
-            INDEX.clear();
+            INDEX.clear();SECTION_COLUMNS.clear();
             MESH_CACHE.clear();
             cachedCellCount=0;
             indexCursor=0;
@@ -127,7 +130,11 @@ public final class SchematicaWorldRenderer {
             BlockPos world=SchematicaSession.positionOf(raw);
             BlockState expected=SchematicaSession.orientedState(raw);
             long key=SectionPos.asLong(world);
-            SourceSection section=INDEX.computeIfAbsent(key,k->new SourceSection());
+            SourceSection section=INDEX.get(key);
+            if(section==null){
+                section=new SourceSection();INDEX.put(key,section);
+                SECTION_COLUMNS.computeIfAbsent(ChunkPos.pack(world),unused->new ArrayList<>()).add(key);
+            }
             section.cells.add(new SourceCell(world,expected));
             section.expectedBlocks.put(localIndex(world),expected);
             if (expected.isSolidRender()) section.solidBlocks.set(localIndex(world));
@@ -195,10 +202,11 @@ public final class SchematicaWorldRenderer {
                 if (built>0 && System.nanoTime()-start>MESH_NANOS_PER_FRAME) break;
                 SourceCell c=cells.get(mesh.nextCell++);
                 built++;
-                List<BakedQuad> quads=culledQuads(ref.source(),c,models);
-                if(quads.isEmpty()) continue;
-                mesh.cells.add(new DrawCell(c.pos(),c.expected(),quads));
-                mesh.quadCount+=quads.size();
+                List<BakedQuad> ghost=culledQuads(ref.source(),c,models);
+                List<BakedQuad> wrong=MODEL_CACHE.computeIfAbsent(c.expected(),state->resolveQuads(models,state));
+                if(ghost.isEmpty()&&wrong.isEmpty()) continue;
+                mesh.cells.add(new DrawCell(c.pos(),c.expected(),ghost,wrong));
+                mesh.quadCount+=Math.max(ghost.size(),wrong.size());
                 cachedCellCount++;
             }
         }
@@ -219,17 +227,34 @@ public final class SchematicaWorldRenderer {
         Vec3 pos=camera.pos;
         final int cx=(int)Math.floor(pos.x/16.0);
         final int cz=(int)Math.floor(pos.z/16.0);
-        for(Map.Entry<Long,SourceSection> entry:INDEX.entrySet()) {
-            long key=entry.getKey();
-            int sx=SectionPos.x(key),sy=SectionPos.y(key),sz=SectionPos.z(key);
-            // Vanilla-style horizontal chunk view distance, relative to the
-            // detached Freecam if enabled. Never change server chunk tickets.
-            if(Math.abs((long)sx-cx)>renderDistance || Math.abs((long)sz-cz)>renderDistance) continue;
-            if(level.getChunkSource().getChunkNow(sx,sz)==null) continue;
-            double x=(double)sx*16.0,y=(double)sy*16.0,z=(double)sz*16.0;
-            if(!camera.cullFrustum.isVisible(new AABB(x,y,z,x+16.0,y+16.0,z+16.0))) continue;
-            double dx=x+8.0-pos.x,dy=y+8.0-pos.y,dz=z+8.0-pos.z;
-            visible.add(new VisibleSection(key,entry.getValue(),dx*dx+dy*dy+dz*dz));
+        // The ordinary path visits only camera-nearby columns, irrespective of
+        // a giant schematic's total number of distant indexed sections.
+        if(Minecraft.getInstance().options.pletzelChunkRendering.get()) {
+            for(int sx=cx-renderDistance;sx<=cx+renderDistance;sx++)
+                for(int sz=cz-renderDistance;sz<=cz+renderDistance;sz++) {
+                    List<Long> keys=SECTION_COLUMNS.get(ChunkPos.pack(sx,sz));
+                    if(keys==null||level.getChunkSource().getChunkNow(sx,sz)==null)continue;
+                    for(long key:keys) {
+                        int sy=SectionPos.y(key);
+                        double x=(double)sx*16,y=(double)sy*16,z=(double)sz*16;
+                        if(!camera.cullFrustum.isVisible(new AABB(x,y,z,x+16,y+16,z+16)))continue;
+                        double dx=x+8-pos.x,dy=y+8-pos.y,dz=z+8-pos.z;
+                        visible.add(new VisibleSection(key,INDEX.get(key),dx*dx+dy*dy+dz*dz));
+                    }
+                }
+        } else {
+            // Optional compatibility mode; never bypass render-distance,
+            // frustum, or loaded client-world chunk safety.
+            for(Map.Entry<Long,SourceSection> entry:INDEX.entrySet()) {
+                long key=entry.getKey();
+                int sx=SectionPos.x(key),sy=SectionPos.y(key),sz=SectionPos.z(key);
+                if(Math.abs((long)sx-cx)>renderDistance||Math.abs((long)sz-cz)>renderDistance)continue;
+                if(level.getChunkSource().getChunkNow(sx,sz)==null)continue;
+                double x=(double)sx*16,y=(double)sy*16,z=(double)sz*16;
+                if(!camera.cullFrustum.isVisible(new AABB(x,y,z,x+16,y+16,z+16)))continue;
+                double dx=x+8-pos.x,dy=y+8-pos.y,dz=z+8-pos.z;
+                visible.add(new VisibleSection(key,entry.getValue(),dx*dx+dy*dy+dz*dz));
+            }
         }
         visible.sort(Comparator.comparingDouble(VisibleSection::distanceSq));
         return visible;
@@ -250,7 +275,7 @@ public final class SchematicaWorldRenderer {
             modelCacheOwner=models;
         }
         if(indexVersion!=SchematicaSession.version()) {
-            INDEX.clear();
+            INDEX.clear();SECTION_COLUMNS.clear();
             MESH_CACHE.clear();
             cachedCellCount=0;
             indexCursor=0;
@@ -268,6 +293,7 @@ public final class SchematicaWorldRenderer {
         final int colorWrong=ARGB.color(alertAlpha,255,60,60);
         final int colorRotation=ARGB.color(alertAlpha,255,165,45);
         int quadsSubmitted=0,sectionsDrawn=0,cellsConsidered=0;
+        final boolean highlightWrong=mc.options.pletzelWrongHighlight.get();
         for(VisibleSection ref:visible) {
             MeshSection mesh=MESH_CACHE.get(ref.key());
             if(mesh==null || mesh.cells.isEmpty()) continue;
@@ -290,8 +316,10 @@ public final class SchematicaWorldRenderer {
                         BlockState actual=level.getBlockState(cell.pos());
                         if(actual.equals(cell.expected())) continue;
                         boolean missing=actual.isAir();
-                        instance.setColor(missing?colorMissing:
-                            actual.getBlock()==cell.expected().getBlock()?colorRotation:colorWrong);
+                        if(!missing&&!highlightWrong)continue;
+                        // Never remove red mismatch faces due to adjacent
+                        // connected ghost blocks: retain complete block model.
+                        instance.setColor(missing?colorMissing:colorWrong);
                         blockPose.pushPose();
                         blockPose.translate(cell.pos().getX()-cameraPos.x,
                                             cell.pos().getY()-cameraPos.y,
@@ -301,7 +329,8 @@ public final class SchematicaWorldRenderer {
                             blockPose.scale(1.006f,1.006f,1.006f);
                             blockPose.translate(-.5,-.5,-.5);
                         }
-                        for(BakedQuad quad:cell.quads()) buffer.putBakedQuad(blockPose.last(),quad,instance);
+                        for(BakedQuad quad:(missing?cell.ghostQuads():cell.wrongQuads()))
+                            buffer.putBakedQuad(blockPose.last(),quad,instance);
                         blockPose.popPose();
                     }
                 });
@@ -312,6 +341,7 @@ public final class SchematicaWorldRenderer {
             System.out.println("[PletzelSchematicPerf] cellsIndexed="+indexCursor+
                 " cellsTotal="+SchematicaSession.cells().size()+
                 " sourceSections="+INDEX.size()+
+                " indexedColumns="+SECTION_COLUMNS.size()+
                 " visibleSections="+visible.size()+
                 " drawnSections="+sectionsDrawn+
                 " cachedSections="+MESH_CACHE.size()+
