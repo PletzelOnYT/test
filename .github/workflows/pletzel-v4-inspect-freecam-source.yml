@@ -1,0 +1,34 @@
+name: Pletzel V4 Litematica and Freecam source audit
+on:
+  push:
+    branches: [pletzel-v4-litematica-freecam-20261111]
+    paths: ['.github/workflows/pletzel-v4-inspect-freecam-source.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode source patch archive and show integration surfaces
+        shell: bash
+        run: |
+          node <<'JS'
+          const fs=require('fs'),zlib=require('zlib');
+          fs.writeFileSync('/tmp/pletzel-native.tar',zlib.brotliDecompressSync(Buffer.from(fs.readFileSync('pletzel-v4/native-patches.tar.br.b64','utf8').trim(),'base64')));
+          JS
+          mkdir -p /tmp/pletzel-native
+          tar xf /tmp/pletzel-native.tar -C /tmp/pletzel-native
+          echo '=== ARCHIVE FILES ==='
+          find /tmp/pletzel-native -type f | sort
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('/tmp/pletzel-native')
+          for p in root.rglob('*.java'):
+              if p.name in ('SchematicaSession.java','SchematicaScreen.java','SchematicaWorldRenderer.java','SchematicaLoader.java'):
+                  s=p.read_text()
+                  print('\n=== START '+p.name+' length '+str(len(s))+' ===')
+                  print(s[:30000])
+                  print('=== END '+p.name+' ===')
+          PY
