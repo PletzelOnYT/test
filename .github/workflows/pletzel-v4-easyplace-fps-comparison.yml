@@ -23,7 +23,7 @@ jobs:
           mkdir -p previous new candidate
           for spec in \
             "43258316571:c6e7c330414700db3a075940b376f8f4888480ea:pletzel-v4-easypick-optimized-map-litematica-freecam-no-voice-complete-html:previous" \
-            "43339031129:66657fe03e942acd423b360a9fa5aeeee7e9bc48:pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html:new"; do
+            "43339444288:3a284e409f1c98defc08a5aa751df86eac414888:pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html:new"; do
             IFS=: read -r run sha artifact folder <<<"$spec"
             test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
             deadline=$(( $(date +%s) + 6900 ))
