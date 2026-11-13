@@ -28,7 +28,11 @@ jobs:
             pletzel-v4/test-red-highlight-real-chrome.py \
             pletzel-v4/test-optimized-hologram-performance.py
           bash -n pletzel-v4/publish-easyplace-no-voice.sh
-          grep -Fq 'ghost.clip(eye,impact)' pletzel-v4/EasyPlace26.java
+          grep -Fq 'private static BlockPos aimedGhost(Minecraft mc)' pletzel-v4/EasyPlace26.java
+          grep -Fq 'ClipContext.Block.COLLIDER' pletzel-v4/EasyPlace26.java
+          grep -Fq 'CLIENT_WORLD_MATCHED' pletzel-v4/EasyPlace26.java
+          ! grep -Fq '"Map Tooltip Settings"' pletzel-v4/SchematicaScreenRestored26.java
+          grep -Fq 'new PletzelMapArtSettings26(this)' pletzel-v4/PletzelModsScreen26.java
           grep -Fq 'EagRuntime.setStorage(k,output)' pletzel-v4/MapArtStore26.java
           grep -Fq 'cell.wrongQuads()' pletzel-v4/SchematicaWorldRendererOptimized26.java
           test "$(grep -c 'suite: \[easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save\]' .github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml)" -eq 1
