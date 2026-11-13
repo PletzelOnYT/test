@@ -142,6 +142,14 @@ public final class EasyPlace26 {
         BlockState expected=SchematicaWorldRenderer.expectedAt(target);
         if(expected==null||expected.isAir())
             return true; // Unrelated ordinary Minecraft right-click.
+        // Emergency multiplayer containment. Server rules differ and
+        // dedicated remote acceptance has NOT yet passed. Never test
+        // automatic/assisted placement on public accounts or servers.
+        if(mc.isMultiplayerServer()) {
+            log("MULTIPLAYER_DISABLED_UNTIL_TESTED",mc,target,expected,
+                "use ordinary vanilla placement with Easy Place OFF");
+            return false;
+        }
         if(!mc.options.keyUse.isDown()||mc.options.toggleUse().get()||
            pending!=null||attemptedThisHold||!suspended.isEmpty())return false;
         if(!mc.level.hasChunkAt(target)||
