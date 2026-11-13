@@ -20,11 +20,11 @@ on:
       build_run_id:
         type: string
         required: true
-        default: '43330230377'
+        default: '43338533234'
       source_sha:
         type: string
         required: true
-        default: '41f169b6cf64f0d88e8ce92e36f7b32fce3e6cab'
+        default: 'b3113f9bcd442b9b9d05ccf1071888b4b00294db'
       acceptance_run_id:
         type: string
         required: true
