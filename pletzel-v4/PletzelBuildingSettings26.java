@@ -23,14 +23,6 @@ public final class PletzelBuildingSettings26 extends Screen {
         this.addRenderableWidget(Button.builder(
             Component.literal(label+": "+(value.get()?"ON":"OFF")),
             b->{
-                if ("Easy Place".equals(label)) {
-                    value.set(false);
-                    this.minecraft.options.pletzelEasyPlaceHover.set(false);
-                    this.minecraft.options.save();
-                    note="Easy Place SAFETY DISABLED: placement not server-verified";
-                    b.setMessage(Component.literal("Easy Place: OFF"));
-                    return;
-                }
                 boolean changed=!value.get();value.set(changed);
                 this.minecraft.options.save();
                 b.setMessage(Component.literal(label+": "+(changed?"ON":"OFF")));
@@ -49,7 +41,7 @@ public final class PletzelBuildingSettings26 extends Screen {
                 this.minecraft.options.pletzelEasyPlace.set(false);
                 this.minecraft.options.save();
                 b.setMessage(Component.literal("Mode: Hold to Place"));
-                note="SAFETY LOCKOUT: Easy Place and hover automation unavailable until server-tested";
+                note="Hover auto-place DISABLED; hold real Right Click on a support face";
             }).bounds(right,y,150,20).build());
         y+=24;
         option(left,y,"Easy Pick",this.minecraft.options.pletzelEasyPick);
@@ -71,7 +63,7 @@ public final class PletzelBuildingSettings26 extends Screen {
         g.centeredText(this.font,Component.literal(
             this.font.plainSubstrByWidth(note,Math.max(80,this.width-14))),this.width/2,26,0xffdddddd);
         g.centeredText(this.font,Component.literal(
-            "Hover placement never bypasses vanilla reach or support faces."),
+            "Hover Auto-Place DISABLED. Hold real Right Click to place."),
             this.width/2,Math.max(174,this.height-22),0xffaaffff);
     }
     @Override public void onClose() {this.minecraft.gui.setScreen(parent);}
