@@ -18,6 +18,24 @@ assert "Position / Transform" in screen
 assert "EagRuntime.displayFileChooser(\"\",null)" in screen
 assert "SchematicaSession.loadAny(" in screen
 assert "PletzelSchematicImport] LOADED" in screen
+assert '"Map Tooltip Settings"' not in screen
+assert '"Map Art Settings"' not in screen
+assert '"Easy Place Mode: Hover"' in screen
+mods=read("net/pletzel/schematica/PletzelModsScreen26.java")
+assert 'new SchematicaScreen(this)' in mods
+assert 'new PletzelMapArtSettings26(this)' in mods
+optionsscreen=read("net/minecraft/client/gui/screens/options/OptionsScreen.java")
+assert 'Component.literal("Mods")' in optionsscreen
+assert 'new net.pletzel.schematica.PletzelModsScreen26(this)' in optionsscreen
+settings=read("net/pletzel/schematica/PletzelMapArtSettings26.java")
+assert "Enable Map Tooltips" in settings and "Remember Maps" in settings
+assert "Persistent Map Cache" in settings and "Clear Saved Maps" in settings
+assert "Preview Size:" in settings
+assert "MapTooltipPreviewSize26.cycle()" in settings
+assert "MapTooltipPreviewSize26.get()" in read("net/pletzel/maptooltip/MapTooltipClientComponent.java")
+assert 'OptionInstance.createBoolean("pletzelMapPersistentCache", true)' in read("net/minecraft/client/Options.java")
+assert 'EasyPlace26.afterVanillaKeybinds(this)' in read("net/minecraft/client/Minecraft.java")
+assert 'Map Tooltips' not in screen
 opts=read("net/minecraft/client/Options.java")
 assert 'access.process("pletzelEasyPick", this.pletzelEasyPick)' in opts
 assert 'access.process("pletzelEasyPlace", this.pletzelEasyPlace)' in opts
