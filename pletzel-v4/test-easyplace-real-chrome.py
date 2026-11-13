@@ -313,7 +313,7 @@ try:
    stream=[e["text"] for e in events[before_reopen:]]
    started=any("Worker received StartServer for world" in x for x in stream)
    heartbeats=[x for x in stream if "[EagPerfHeartbeat]" in x]
-   if started and any((m:=re.search(r"lastTick=(\\d+)",t)) and int(m.group(1))>320 for t in heartbeats[-30:]):
+   if started and any((m:=re.search(r"lastTick=(\d+)",t)) and int(m.group(1))>320 for t in heartbeats[-30:]):
     reopened=True
     break
    page.wait_for_timeout(4000)
