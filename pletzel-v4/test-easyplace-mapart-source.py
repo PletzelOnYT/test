@@ -33,7 +33,7 @@ assert "hit.getDirection()!=exposed" in easy
 assert "mc.player.blockInteractionRange()" in easy
 assert "mc.level.hasChunkAt(support)" in easy
 assert "EasyPlace26.afterVanillaKeybinds" not in easy
-assert "SERVER_CONFIRMED target=" in easy
+assert "CLIENT_WORLD_MATCHED target=" in easy  # never claim a local client state is server confirmation
 assert "NOT_CONFIRMED target=" in easy
 assert "context.getClickedPos().equals(target)" in easy
 assert "getStateForPlacement(context)" in easy
