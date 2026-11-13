@@ -22,9 +22,19 @@ for field,val in [
 assert mc.index("EasyPlace26.beforeVanillaUse(this)")<mc.index("EasyPick26.beforeVanillaUse(this)")
 assert 'this.rightClickDelay == 0' in mc and 'EasyPlace26.shouldHoverPlace(this)' in mc
 assert "net.pletzel.schematica.Freecam26.active()" in mc
-assert "mc.hitResult instanceof BlockHitResult" in easy
-assert "ghost.clip(eye,impact)" in easy
-assert "mc.level.hasChunkAt(target)" in easy
+# Ghost-first targeting is necessary: real Minecraft hitResult is a MISS
+# when a hologram occupies empty air. The *support* must still be a real
+# collider raycast with vanilla reach and orientation checks.
+assert "private static BlockPos aimedGhost(Minecraft mc)" in easy
+assert "BlockPos.containing(cursor)" in easy
+assert "ClipContext.Block.COLLIDER" in easy
+assert "hit.getBlockPos().equals(support)" in easy
+assert "hit.getDirection()!=exposed" in easy
+assert "mc.player.blockInteractionRange()" in easy
+assert "mc.level.hasChunkAt(support)" in easy
+assert "EasyPlace26.afterVanillaKeybinds" not in easy
+assert "SERVER_CONFIRMED target=" in easy
+assert "NOT_CONFIRMED target=" in easy
 assert "context.getClickedPos().equals(target)" in easy
 assert "getStateForPlacement(context)" in easy
 assert "EasyPlace26.inHoverAttempt()" in picker
@@ -45,6 +55,8 @@ assert "MapItemSavedData.createForClient" in store
 assert "EagRuntime.setStorage(k,output)" in store
 assert "MAX_DISK_MAPS=128" in store
 assert "LevelResource.ROOT" in store
+# Before the LAST UI patch, Easy Place still has the legacy screen.
+# The restored independent Mods hub is checked by the subsequent preflight.
 assert "PletzelBuildingSettings26(this)" in read("net/pletzel/schematica/SchematicaScreen.java")
 for name in ("PletzelBuildingSettings26","PletzelMapArtSettings26"):
  assert (root/("net/pletzel/schematica/"+name+".java")).exists()
