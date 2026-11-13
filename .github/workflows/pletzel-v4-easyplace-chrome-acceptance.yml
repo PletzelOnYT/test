@@ -1,4 +1,4 @@
-name: Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance
+name: Pletzel V4 Easy Place Map Art real Chrome eight-suite acceptance
 on:
   push:
     branches: [pletzel-v4-easyplace-mapart-red-20261112]
@@ -7,6 +7,7 @@ on:
       - 'pletzel-v4/test-easyplace-real-chrome.py'
       - 'pletzel-v4/test-persistent-mapart-chrome.py'
       - 'pletzel-v4/test-red-highlight-real-chrome.py'
+      - 'pletzel-v4/test-mods-separation-real-chrome.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save]
+        suite: [easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save, mods]
     steps:
       - uses: actions/checkout@v4
       - name: Download only the exact new game-compilation artifact
@@ -52,6 +53,7 @@ jobs:
           python3 -m pip install --no-input 'playwright==1.56.0' Pillow
           case "${{ matrix.suite }}" in
             easyplace) script=pletzel-v4/test-easyplace-real-chrome.py;;
+            mods) script=pletzel-v4/test-mods-separation-real-chrome.py;;
             mapart) script=pletzel-v4/test-persistent-mapart-chrome.py;;
             red-highlight) script=pletzel-v4/test-red-highlight-real-chrome.py;;
             fourformat) script=pletzel-v4/test-fourformat-browser-smoke.py;;
@@ -72,6 +74,7 @@ jobs:
             red-highlight-real-chrome-evidence/
             easy-pick-real-chrome-evidence/
             map-shulker-real-inventory-evidence/
+            mods-menu-real-chrome-evidence/
             inworld-schematic-evidence/
             freecam-real-flight-evidence/
             fourformat-browser-evidence/
