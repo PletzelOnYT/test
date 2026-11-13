@@ -21,10 +21,10 @@ jobs:
           repo="$GITHUB_REPOSITORY"
           test "$repo" = "PletzelOnYT/test"
           branch="pletzel-v4-easyplace-mapart-red-20261112"
-          keep_build=43330230377
-          keep_acceptance=43330671657
-          keep_distance=43330358935
-          keep_fps=43330365101
+          keep_build=43339444288
+          keep_acceptance=43339786141
+          keep_distance=43339792579
+          keep_fps=43339798629
           # Only the project's own superseded workflows may be cancelled;
           # never touch unrelated repositories, branches, or workflows.
           gh api "repos/$repo/actions/runs?branch=$branch&per_page=100" --jq '.workflow_runs[] | [.id,.name,.status] | @tsv' |
@@ -32,7 +32,7 @@ jobs:
             case "$name" in
               "Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")
                 test "$id" = "$keep_build" && continue;;
-              "Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance")
+              "Pletzel V4 Easy Place Map Art real Chrome eight-suite acceptance")
                 test "$id" = "$keep_acceptance" && continue;;
               "Pletzel V4 Easy Place actual render distance 2 4 8 16 chunk acceptance")
                 test "$id" = "$keep_distance" && continue;;
@@ -46,4 +46,4 @@ jobs:
             echo "Cancel obsolete Pletzel-only run $id: $name ($status)"
             gh api -X POST "repos/$repo/actions/runs/$id/cancel" || true
           done
-          echo "Preserved latest source build $keep_build; seven-suite Chrome $keep_acceptance; distance $keep_distance; FPS $keep_fps"
+          echo "Preserved latest source build $keep_build; eight-suite Chrome $keep_acceptance; distance $keep_distance; FPS $keep_fps"
