@@ -41,14 +41,15 @@ public final class MapTooltipClientComponent implements ClientTooltipComponent {
         return MapArtStore26.cachedData(id);
     }
     @Override public int getHeight(Font font) {
-        return permitted()?66:0;
+        return permitted()?MapTooltipPreviewSize26.get():0;
     }
     @Override public int getWidth(Font font) {
-        return permitted()?66:0;
+        return permitted()?MapTooltipPreviewSize26.get():0;
     }
     @Override public void extractImage(Font font,int x,int y,int width,int height,GuiGraphicsExtractor graphics) {
         if(!permitted())return;
-        graphics.blit(RenderPipelines.GUI_TEXTURED,BACKGROUND,x,y-2,0.0F,0.0F,66,66,66,66);
+        int side=MapTooltipPreviewSize26.get();
+        graphics.blit(RenderPipelines.GUI_TEXTURED,BACKGROUND,x,y-2,0.0F,0.0F,side,side,66,66);
         MapItemSavedData data=current();
         if(data==null) {
             graphics.text(font,"Map #"+id.id(),x+6,y+16,0xffeeeeee);
@@ -57,8 +58,9 @@ public final class MapTooltipClientComponent implements ClientTooltipComponent {
         }
         graphics.pose().pushMatrix();
         try {
-            graphics.pose().translate(x+4.0F,y+2.0F);
-            graphics.pose().scale(.45F,.45F);
+            float ratio=side/66.0F;
+            graphics.pose().translate(x+4.0F*ratio,y+2.0F*ratio);
+            graphics.pose().scale(.45F*ratio,.45F*ratio);
             MapRenderState state=new MapRenderState();
             Minecraft.getInstance().getMapRenderer().extractRenderState(id,data,state);
             graphics.map(state);
