@@ -44,6 +44,11 @@ listener=read("net/minecraft/client/multiplayer/ClientPacketListener.java")
 assert listener.count("EasyPlace26.onServerBlockUpdate(")==2
 assert "EasyPlace26.onServerPredictionAck(" in listener
 assert "EasyPlace26.onServerChunk(" in listener
+game_mode=read("net/minecraft/client/multiplayer/MultiPlayerGameMode.java")
+assert "EasyPlace26.onVanillaSequence(" in game_mode
+assert "pendingSequence" in easy and "predictionAcked" in easy
+assert "SERVER_CONFIRMED_AND_RECONCILED" in easy
+assert "observedByServer" in easy
 for forbidden in ("ServerboundUseItemOnPacket", "ServerboundSetCarriedItemPacket",
                   ".connection.send(", ".send(", "setBlock(", "setItem(",
                   "setSelectedSlot(", "mc.hitResult=", "startUseItem("):
@@ -52,7 +57,10 @@ assert "ChunkPos.pack(sx,sz)" in schem
 assert "SECTION_COLUMNS" in schem
 assert "wrongQuads" in schem and "cell.wrongQuads()" in schem
 assert "missing?cell.ghostQuads():cell.wrongQuads()" in schem
-assert "if(!missing&&!highlightWrong)continue;" in schem
+assert "if(!missing&&!pending&&!highlightWrong)continue;" in schem
+assert "EasyPlace26.isPlacementPending(cell.pos())" in schem
+assert "colorPending" in schem
+assert "public static boolean isPlacementPending(BlockPos pos)" in easy
 assert "MapTooltipData.isExplorer(stack)" in read("net/minecraft/world/item/MapItem.java")
 assert "map.explorer()" in read("net/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipComponent.java")
 assert "MapArtStore26.observe" in read("net/minecraft/client/resources/MapTextureManager.java")
