@@ -4,6 +4,7 @@ on:
     branches: [pletzel-v4-easyplace-mapart-red-20261112]
     paths:
       - '.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'
+      - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
       - 'pletzel-v4/EasyPlace26.java'
       - 'pletzel-v4/EasyPick26.java'
       - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
