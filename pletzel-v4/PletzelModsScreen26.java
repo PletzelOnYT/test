@@ -13,6 +13,7 @@ public final class PletzelModsScreen26 extends Screen {
         this.parent=parent;
     }
     @Override protected void init() {
+        System.out.println("[PletzelModsMenu] OPEN");
         int w=Math.min(170,Math.max(80,this.width-30));
         int x=this.width/2-w/2;
         int top=Math.max(48,Math.min(66,this.height-160));
