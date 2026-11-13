@@ -47,10 +47,10 @@ try:
   time.sleep(115);snap("01-live-world")
   page.keyboard.press("Escape");time.sleep(3);snap("02-pause")
   click(478,394,"03-options")
-  click(875,579,"04-schematica-menu")
+  click(875,519,"04-schematica-menu")
   for idx,name in enumerate(fixture_names):
    current["index"]=idx
-   click(410,183,f"import-{idx}-{name}",5 if idx<8 else 12)
+   click(410,132,f"import-{idx}-{name}",5 if idx<8 else 12)
    snap(f"after-import-{idx}")
   # Native Java reports only after the full NBT decode and session publish.
   # A chooser opening is NOT enough: every valid file must really load.
@@ -61,9 +61,9 @@ try:
   if missing or not badRejected:
    raise AssertionError("Schematic importer failed native decode acceptance: missing="+repr(missing)+
      ", corrupt file rejected="+repr(badRejected)+", logs="+repr(decoded[-15:]))
-  click(410,440,"open-position-controls")
-  click(875,280,"move-schematic-to-player")
-  click(875,525,"return-to-main-schematic")
+  click(410,300,"open-position-controls")
+  click(875,188,"move-schematic-to-player")
+  click(875,356,"return-to-main-schematic")
   click(640,672,"exit-schematica")
   click(650,675,"exit-options")
   click(625,255,"resume-world",8)
@@ -78,8 +78,8 @@ try:
    raise AssertionError("Still in Schematica menu after Done; UI clipped or click navigation failed")
   page.keyboard.press("Escape");time.sleep(3)
   click(475,394,"12-reopen-options")
-  click(880,578,"13-reopen-schematica")
-  click(885,183,"14-unload",3)
+  click(880,519,"13-reopen-schematica")
+  click(885,132,"14-unload",3)
   click(640,672,"15-unload-return-options")
   click(638,672,"16-unload-return-menu")
   click(638,255,"17-unloaded-world")
