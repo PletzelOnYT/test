@@ -63,6 +63,7 @@ public final class SchematicaScreen extends Screen {
     }
 
     @Override protected void init() {
+        System.out.println("[PletzelSchematicaScreen] OPEN");
         buttonWidth=Math.min(150,Math.max(66,(this.width-28)/2));
         final int left=this.width/2-buttonWidth-GAP/2;
         final int right=this.width/2+GAP/2;
