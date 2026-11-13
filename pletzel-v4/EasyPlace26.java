@@ -123,10 +123,10 @@ public final class EasyPlace26 {
            mc.gui.screen()!=null||mc.player.isSpectator()||
            mc.player.isUsingItem()||mc.player.isHandsBusy()||
            mc.gameMode.isDestroying())return false;
-        if(!mc.options.keyUse.isDown()||mc.options.toggleUse().get()||
-           pending!=null||attemptedThisHold||!suspended.isEmpty())return false;
+        // Never break unrelated vanilla item-use in air (food, buckets,
+        // bows, etc.) or on ordinary non-schematic blocks.
         if(!(mc.hitResult instanceof BlockHitResult hit)||
-           hit.getType()!=HitResult.Type.BLOCK)return false;
+           hit.getType()!=HitResult.Type.BLOCK)return true;
 
         BlockPos support=hit.getBlockPos();
         if(!mc.level.hasChunkAt(support))return false;
@@ -136,6 +136,8 @@ public final class EasyPlace26 {
         BlockState expected=SchematicaWorldRenderer.expectedAt(target);
         if(expected==null||expected.isAir())
             return true; // Unrelated ordinary Minecraft right-click.
+        if(!mc.options.keyUse.isDown()||mc.options.toggleUse().get()||
+           pending!=null||attemptedThisHold||!suspended.isEmpty())return false;
         if(!mc.level.hasChunkAt(target)||
            !mc.level.getWorldBorder().isWithinBounds(support)||
            !mc.level.getWorldBorder().isWithinBounds(target)||
