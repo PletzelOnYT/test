@@ -84,6 +84,8 @@ public final class EasyPlace26 {
             }
             return position;
         }
+        if(mc.options!=null&&mc.options.pletzelEasyPlace.get())
+            diagnostic("NO_SCHEMATIC_GHOST_UNDER_CROSSHAIR",null,mc);
         return null;
     }
 
@@ -176,9 +178,11 @@ public final class EasyPlace26 {
         // block. Put it through the unmodified Minecraft.startUseItem path.
         originalHit=mc.hitResult;
         mc.hitResult=candidate.realSupportHit;
-        awaitingTarget=candidate.target;
-        awaitingState=candidate.required;
-        awaitingTicks=0;
+        if(awaitingTarget==null||!awaitingTarget.equals(candidate.target)) {
+            awaitingTarget=candidate.target;
+            awaitingState=candidate.required;
+            awaitingTicks=0;
+        }
         System.out.println("[PletzelEasyPlace] VANILLA_ATTEMPT mode="+
             (hover?"hover":"hold")+" target="+candidate.target+
             " support="+candidate.realSupportHit.getBlockPos()+
@@ -200,7 +204,8 @@ public final class EasyPlace26 {
         activeHoverAttempt=false;
         if(awaitingTarget!=null&&mc.level!=null) {
             if(mc.level.getBlockState(awaitingTarget).equals(awaitingState)) {
-                System.out.println("[PletzelEasyPlace] SERVER_CONFIRMED target="+awaitingTarget);
+                System.out.println("[PletzelEasyPlace] CLIENT_WORLD_MATCHED target="+awaitingTarget+
+                    " (server confirmation requires authoritative feedback)");
                 awaitingTarget=null;awaitingState=null;
             } else if(++awaitingTicks>50) {
                 System.out.println("[PletzelEasyPlace] NOT_CONFIRMED target="+awaitingTarget+
@@ -229,6 +234,9 @@ public final class EasyPlace26 {
             ((long)world.hashCode()<<37)^
             ((long)mc.player.getInventory().getSelectedSlot()<<45);
         if(signature==lastAutoSignature)return false;
+        if(awaitingTarget!=null&&awaitingTarget.equals(ghost) &&
+           !mc.level.getBlockState(ghost).equals(awaitingState))
+            return false; // pending server state: no packet spam
         Plan attempt=plan(mc,ghost);
         if(attempt==null)return false;
         lastAutoSignature=signature;
