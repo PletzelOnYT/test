@@ -192,6 +192,9 @@ try:
    raise AssertionError("Easy Place without Easy Pick illegally changed hotbar")
   if not any("[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in x for x in placed):
    raise AssertionError("Easy Place alone never reached vanilla right-click")
+  if not any("[PletzelEasyPlace] SERVER_REJECTED_OR_CORRECTED" in line for line in placed):
+   raise AssertionError("Occupied-target placement rejection must be reported from server")
+  print("EASY_PLACE_SERVER_REJECTED_OCCUPIED_TARGET_SAFELY",flush=True)
   print("EASY_PLACE_ONLY_VANILLA_USE_PASS",flush=True)
   send("/fill ~-2 ~ ~-2 ~13 ~2 ~2 minecraft:air")
   send("/tp @p ~ ~ ~ 0 90")
@@ -221,6 +224,18 @@ try:
     # Move the player, never move the schematic: aim straight at the
     # bedrock floor below the next indexed schematic position.
     send("/tp @p ~1 ~ ~ 0 90",900)
+  # The previous slot-selection checks intentionally aimed straight down
+  # while the player occupied the schematic target. The local server correctly
+  # rejected that illegal placement, and Easy Place SUSPENDED itself. Prove
+  # recovery requires a deliberate user OFF -> ON action before a legal test.
+  open_schematic()
+  click(875,360,1400) # Explicit Easy Place OFF, clears safety suspension
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:false"
+  click(875,360,1400) # Explicit Easy Place ON, legitimate new intent
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
+  snap("11-suspension-reset-after-authoritative-rejection")
+  close_schematic()
+
   # Independent actual placement proof. We move TWO blocks behind the
   # first hologram cell, look down at the bedrock support face, and send one
   # REAL right mouse hold. Only vanilla placement may create the stone.
@@ -258,6 +273,11 @@ try:
   assert stored_option("pletzelEasyPlaceHover")=="pletzelEasyPlaceHover:false", (
       "Hover Auto-Place must remain OFF",stored_option("pletzelEasyPlaceHover"))
   click(875,440,1400) # Back to main
+  # Pressing the disabled Hover control intentionally turns Hold OFF.
+  # Re-enable Hold explicitly for subsequent legitimate physical clicks.
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:false"
+  click(875,360,1400) # physical user reenables Hold
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
   close_schematic()
 
   # Controlled integrated server: real click, not fabricated placement.
