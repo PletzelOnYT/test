@@ -265,6 +265,12 @@ public final class EasyPlace26 {
     public static boolean shouldHoverPlace(Minecraft mc) {return false;}
     public static boolean inHoverAttempt() {return false;}
     public static void afterVanillaKeybinds(Minecraft mc) {tick(mc);}
+    /** Hologram renderer MUST NOT treat a locally predicted solid block as
+     * complete while its authoritative server response is outstanding. */
+    public static boolean isPlacementPending(BlockPos pos) {
+        return pos!=null && pending!=null && pending.equals(pos);
+    }
+
     public static String diagnosticStatus() {
         return "Easy Place "+(!suspended.isEmpty()?"SUSPENDED: "+suspended:
             pending!=null?"PENDING server confirmation":
