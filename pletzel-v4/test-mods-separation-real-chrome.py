@@ -36,9 +36,15 @@ try:
     wait_until="domcontentloaded",timeout=150000)
   start=time.monotonic()
   while time.monotonic()-start<360:
-   if seen("[EagPerfHeartbeat]"):break
+   ticks=[(m.group(1)) for e in events
+      if "[EagPerfHeartbeat]" in e["text"]
+      for m in [re.search(r"lastTick=(\d+)",e["text"])] if m]
+   if ticks and int(ticks[-1])>320:break
    page.wait_for_timeout(4500)
-  else:raise AssertionError("Real game did not reach a running singleplayer world")
+  else:raise AssertionError("Real game never completed 320 integrated server ticks")
+  # The worker can heartbeat while the UI still displays Loading terrain.
+  # Resume only after the same real-world gate as successful save/reload test.
+  page.mouse.click(640,360);page.wait_for_timeout(2500)
   snap("01-real-game")
   page.keyboard.press("Escape");page.wait_for_timeout(1400)
   click(478,394)
