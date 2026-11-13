@@ -166,6 +166,14 @@ public final class MapArtStore26 {
         LAST_CHECK.put(k,now);
         byte[] existing=read(id);
         if(existing!=null&&Arrays.equals(existing,live.colors))return;
+        if(!mc.options.pletzelMapPersistentCache.get()) {
+            // Cache real pixels temporarily in RAM without persisting them.
+            MEMORY.put(k,live.colors.clone());
+            MapItemSavedData render=RENDER_DATA.get(k);
+            if(render!=null)System.arraycopy(live.colors,0,render.colors,0,PIXELS);
+            capMemory();
+            return;
+        }
         byte[] output=new byte[HEADER.length+PIXELS];
         System.arraycopy(HEADER,0,output,0,HEADER.length);
         System.arraycopy(live.colors,0,output,HEADER.length,PIXELS);
@@ -179,6 +187,8 @@ public final class MapArtStore26 {
     public static byte[] read(MapId id) {
         String k=key(id,"pixel");if(k==null)return null;
         byte[] cached=MEMORY.get(k);if(cached!=null)return cached.clone();
+        Minecraft mc=Minecraft.getInstance();
+        if(mc!=null&&mc.options!=null&&!mc.options.pletzelMapPersistentCache.get())return null;
         byte[] stored=EagRuntime.getStorage(k);
         if(stored==null||stored.length!=HEADER.length+PIXELS)return null;
         for(int i=0;i<HEADER.length;i++)if(stored[i]!=HEADER[i])return null;
