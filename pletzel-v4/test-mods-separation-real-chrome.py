@@ -48,13 +48,13 @@ try:
   if not seen("[PletzelModsMenu] OPEN"):
    raise AssertionError("Mods button was not opened from real Minecraft Options")
   # Map Tooltip settings is a DIFFERENT native screen (and is never in Schematica).
-  click(640,212,2000)
+  click(640,288,2000)
   snap("04-independent-map-tooltips-settings")
   if not seen("[PletzelMapTooltipSettings] OPEN"):
    raise AssertionError("Map Tooltips did not open its own Mods-screen settings")
   # Back to hub, then independently enter Schematica.
-  click(640,636)
-  click(640,152)
+  click(640,670)
+  click(640,198)
   snap("05-independent-schematica-easy-pick-easy-place")
   if not seen("[PletzelSchematicaScreen] OPEN"):
    raise AssertionError("Schematica did not open independently from Mods hub")
