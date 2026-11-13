@@ -278,6 +278,32 @@ try:
   if not any("PLETZEL_HOVER_AUTO_SERVER_CONFIRMED" in x["text"] and "CHAT" in x["text"] for x in events):
    raise AssertionError("Native server never confirmed hover-mode vanilla block placement")
 
+  # Three-material mandatory hover acceptance in the REAL integrated
+  # server. The source fixture is ten adjacent blocks in X: Stone, Oak Planks,
+  # Glass. Use actual Minecraft command-verified coordinates, real hotbar
+  # items and real camera aim, never scripted packets or test-world edits to
+  # simulate a successful right-click.
+  for offset,block,slot in ((1,"minecraft:oak_planks",1),
+                            (2,"minecraft:glass",2)):
+   actual_x=tx+offset
+   send(f"/setblock {actual_x} {ty} {tz} minecraft:air")
+   send(f"/setblock {actual_x} {ty-1} {tz} minecraft:bedrock")
+   send(f"/tp @p {actual_x+0.5:.1f} {ty} {tz-1.5:.1f} 0 38")
+   page.keyboard.press("9")
+   scan_start=len(events)
+   page.wait_for_timeout(12500)
+   newevents=[ev["text"] for ev in events[scan_start:]]
+   if not any("[PletzelEasyPick] SELECT slot="+str(slot) in t for t in newevents):
+    raise AssertionError("Hover did not select real hotbar slot "+str(slot)+" for "+block)
+   if not any("[PletzelEasyPlace] VANILLA_ATTEMPT" in t and "mode=hover" in t for t in newevents):
+    raise AssertionError("Hover did not invoke legitimate vanilla placement for "+block)
+   marker="PLETZEL_HOVER_REAL_"+block.split(":")[-1].upper()
+   send(f"/execute if block {actual_x} {ty} {tz} {block} run say {marker}")
+   if not any(marker in t and "CHAT" in t for t in console_text()):
+    raise AssertionError("Integrated server did not confirm hover placement of "+block)
+   snap("13-server-confirmed-"+block.split(":")[-1])
+  print("HOVER_AUTO_PLACE_STONE_OAK_PLANKS_GLASS_REAL_SERVER_PASS",flush=True)
+
   # Same browser origin, fresh game boot: persisted profile must survive a
   # genuine page reload (not merely toggling a JS variable).
   page.reload(wait_until="domcontentloaded",timeout=150000)
