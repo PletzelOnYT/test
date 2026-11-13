@@ -35,6 +35,7 @@ public final class PletzelMapArtSettings26 extends Screen {
             }).bounds(x,y,w,20).build());
     }
     @Override protected void init() {
+        System.out.println("[PletzelMapTooltipSettings] OPEN");
         int w=widthOfButtons(),left=this.width/2-w-4,right=this.width/2+4;
         int top=Math.max(52,Math.min(60,this.height-154));
         option(left,top,w,"Enable Map Tooltips",this.minecraft.options.pletzelShowMapArt);
