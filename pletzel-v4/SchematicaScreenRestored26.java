@@ -100,8 +100,18 @@ public final class SchematicaScreen extends Screen {
             });
             rows.add(y->{
                 add(left,y,"Advanced Settings",()->selectPanel(3));
-                add(right,y,"Map Tooltip Settings",()->
-                    this.minecraft.gui.setScreen(new PletzelMapArtSettings26(this)));
+                this.addRenderableWidget(Button.builder(
+                    Component.literal(this.minecraft.options.pletzelEasyPlaceHover.get()
+                        ?"Easy Place Mode: Hover":"Easy Place Mode: Hold"),
+                    button->{
+                        boolean next=!this.minecraft.options.pletzelEasyPlaceHover.get();
+                        this.minecraft.options.pletzelEasyPlaceHover.set(next);
+                        this.minecraft.options.save();
+                        status=next?"Hover: aim at legal ghosts to use vanilla placement":
+                            "Hold: aim at ghosts and hold your normal Place Block key";
+                        System.out.println("[PletzelEasyPlace] MODE hover="+next);
+                        this.rebuildWidgets();
+                    }).bounds(right,y,buttonWidth,BUTTON_H).build());
             });
         } else if(panel==1) {
             rows.add(y->{
@@ -165,8 +175,8 @@ public final class SchematicaScreen extends Screen {
                     status="Wrong blocks use complete red model faces");
             });
             rows.add(y->{
-                add(left,y,"Map Tooltip Settings",()->
-                    this.minecraft.gui.setScreen(new PletzelMapArtSettings26(this)));
+                add(left,y,"Placement Diagnostics",()->
+                    status="Easy Place logs [PletzelEasyPlace] stages; no forged packets");
                 add(right,y,"Back to Schematic",()->selectPanel(0));
             });
         }
