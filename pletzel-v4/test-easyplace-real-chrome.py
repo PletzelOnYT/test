@@ -96,11 +96,11 @@ try:
   def open_schematic():
    page.keyboard.press("Escape");page.wait_for_timeout(1200)
    click(478,394)
-   click(875,579)
+   click(875,519)
   def move_to_player():
-   click(410,440,950) # Position/Transform panel
-   click(875,280,950) # Move to Player
-   click(875,525,950) # Back to main
+   click(410,300,950) # Position/Transform panel
+   click(875,188,950) # Move to Player
+   click(875,356,950) # Back to main
   def close_schematic():
    click(640,672) # Schematica Done
    click(640,672) # Options Done
@@ -145,7 +145,7 @@ try:
   page.wait_for_timeout(1600);snap("06-gui-800x600-page-navigation")
   page.set_viewport_size({"width":1280,"height":720})
   page.wait_for_timeout(1600);snap("06-gui-1280x720-restored")
-  click(410,183,8500)
+  click(410,132,8500)
   if not any("[PletzelSchematicImport] LOADED "+fixture.name in s for s in console_text()):
    raise AssertionError("Mixed ten-block native schematic import did not finish")
   move_to_player()
@@ -163,7 +163,7 @@ try:
 
   open_schematic()
   snap("09-two-separate-easy-settings-off")
-  click(410,360,1400) # Pick ON, Place stays OFF
+  click(410,244,1400) # Pick ON, Place stays OFF
   snap("10-pick-on-place-off")
   assert any("[PletzelEasyPick] SETTING enabled=true" in x for x in console_text())
   assert stored_option("pletzelEasyPick")=="pletzelEasyPick:true"
@@ -178,8 +178,8 @@ try:
   send("/fill ~-2 ~ ~-2 ~13 ~2 ~2 minecraft:air")
   send("/tp @p ~ ~ ~ 0 90")
   open_schematic()
-  click(410,360,1300) # Pick OFF
-  click(875,360,1300) # Place ON
+  click(410,244,1300) # Pick OFF
+  click(875,244,1300) # Place ON
   snap("10-pick-off-place-on")
   assert stored_option("pletzelEasyPick")=="pletzelEasyPick:false"
   assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
@@ -196,7 +196,7 @@ try:
   send("/fill ~-2 ~ ~-2 ~13 ~2 ~2 minecraft:air")
   send("/tp @p ~ ~ ~ 0 90")
   open_schematic()
-  click(410,360,1400) # Both ON independently
+  click(410,244,1400) # Both ON independently
   snap("10-pick-on-place-on")
   assert stored_option("pletzelEasyPick")=="pletzelEasyPick:true"
   assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
@@ -251,13 +251,13 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(850)
   # Confirm setting remains enabled on reopening the native options screen.
   open_schematic();snap("12-independent-buttons-retained")
-  click(410,525,1400) # Advanced Settings, separate from both toggles
+  click(410,356,1400) # Advanced Settings, separate from both toggles
   snap("12-advanced-settings-layout")
-  click(410,183,1500) # attempt to enable disallowed Hover mode
+  click(410,132,1500) # attempt to enable disallowed Hover mode
   snap("12-hover-refused")
   assert stored_option("pletzelEasyPlaceHover")=="pletzelEasyPlaceHover:false", (
       "Hover Auto-Place must remain OFF",stored_option("pletzelEasyPlaceHover"))
-  click(875,440,1400) # Back to main
+  click(875,300,1400) # Back to main
   close_schematic()
 
   # Controlled integrated server: real click, not fabricated placement.
