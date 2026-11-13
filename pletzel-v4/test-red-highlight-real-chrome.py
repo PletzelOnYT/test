@@ -130,12 +130,12 @@ try:
   snap("05-stone-and-dirt-hotbar")
   open_schematic()
   snap("06-load-red-overlay-fixture")
-  click(410,132,8500)
+  click(410,183,8500)
   if not any("[PletzelSchematicImport] LOADED "+fixture.name in e["text"] for e in events):
    raise AssertionError("Real connected-wall schematic never loaded")
-  click(410,300,900) # Position/Transform panel
-  click(875,188,900) # Move to Player
-  click(875,356,900) # Back to main
+  click(410,440,900) # Position/Transform panel
+  click(875,280,900) # Move to Player
+  click(875,525,900) # Back to main
   close_schematic()
   snap("07-connected-hologram-inworld")
   # Place REAL incorrect Dirt blocks on four OUTER wall faces.
