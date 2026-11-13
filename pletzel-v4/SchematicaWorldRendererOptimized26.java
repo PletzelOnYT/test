@@ -294,6 +294,7 @@ public final class SchematicaWorldRenderer {
         final int alertAlpha=Math.max(150,Math.min(235,alpha+70));
         final int colorMissing=ARGB.color(alpha,180,245,255);
         final int colorWrong=ARGB.color(alertAlpha,255,60,60);
+        final int colorPending=ARGB.color(alertAlpha,255,190,50);
         final int colorRotation=ARGB.color(alertAlpha,255,165,45);
         int quadsSubmitted=0,sectionsDrawn=0,cellsConsidered=0;
         final boolean highlightWrong=mc.options.pletzelWrongHighlight.get();
@@ -317,12 +318,17 @@ public final class SchematicaWorldRenderer {
                     for(DrawCell cell:mesh.cells) {
                         if(!level.hasChunkAt(cell.pos())) continue;
                         BlockState actual=level.getBlockState(cell.pos());
-                        if(actual.equals(cell.expected())) continue;
-                        boolean missing=actual.isAir();
-                        if(!missing&&!highlightWrong)continue;
+                        boolean pending=EasyPlace26.isPlacementPending(cell.pos());
+                        // Predicted client solid state != server acceptance.
+                        // Keep a yellow pending overlay until both vanilla
+                        // ACK and real server block-state update reconcile.
+                        if(actual.equals(cell.expected())&&!pending) continue;
+                        boolean missing=actual.isAir()&&!pending;
+                        if(!missing&&!pending&&!highlightWrong)continue;
                         // Never remove red mismatch faces due to adjacent
                         // connected ghost blocks: retain complete block model.
-                        instance.setColor(missing?colorMissing:colorWrong);
+                        instance.setColor(pending?colorPending:
+                            missing?colorMissing:colorWrong);
                         blockPose.pushPose();
                         blockPose.translate(cell.pos().getX()-cameraPos.x,
                                             cell.pos().getY()-cameraPos.y,
