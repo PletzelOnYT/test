@@ -295,6 +295,40 @@ try:
 
   print("MANUAL_HOLD_STONE_OAK_PLANKS_GLASS_SERVER_ACCEPTED_NO_DUPLICATES",flush=True)
 
+  # Save, quit, and reopen the EXACT integrated-server world. Verify the
+  # three placed materials from new server-side block queries after restart.
+  # This proves actual persistence rather than only a client-rendered block.
+  page.keyboard.press("Escape");page.wait_for_timeout(2000)
+  snap("14-before-save-and-quit")
+  page.mouse.click(625,470);page.wait_for_timeout(19000)
+  snap("15-after-save-and-quit")
+  page.mouse.click(638,353);page.wait_for_timeout(3500)
+  page.keyboard.press("Enter");page.wait_for_timeout(7500)
+  before_reopen=len(events)
+  page.mouse.click(632,200);page.wait_for_timeout(850)
+  page.mouse.click(402,595);page.wait_for_timeout(5500)
+  t0=time.monotonic()
+  reopened=False
+  while time.monotonic()-t0<360:
+   stream=[e["text"] for e in events[before_reopen:]]
+   started=any("Worker received StartServer for world" in x for x in stream)
+   heartbeats=[x for x in stream if "[EagPerfHeartbeat]" in x]
+   if started and any((m:=re.search(r"lastTick=(\\d+)",t)) and int(m.group(1))>320 for t in heartbeats[-30:]):
+    reopened=True
+    break
+   page.wait_for_timeout(4000)
+  if not reopened:raise AssertionError("Save/reload: integrated server never reopened to 320 real ticks")
+  page.wait_for_timeout(3000)
+  snap("16-world-reopened")
+  for offset,block in ((0,"minecraft:stone"),(1,"minecraft:oak_planks"),
+                       (2,"minecraft:glass")):
+   marker="PLETZEL_SAVED_"+block.split(":")[-1].upper()
+   send(f"/execute if block {tx+offset} {ty} {tz} {block} run say {marker}")
+   if not any(marker in x and "CHAT" in x for x in console_text()):
+    raise AssertionError("Previously placed block did NOT persist after reload: "+block)
+  snap("17-all-three-real-blocks-persisted")
+  print("EASYPLACE_HOLD_SAVE_RELOAD_THREE_BLOCKS_SERVER_CONFIRMED",flush=True)
+
   # Same browser origin, fresh game boot: persisted profile must survive a
   # genuine page reload (not merely toggling a JS variable).
   page.reload(wait_until="domcontentloaded",timeout=150000)
