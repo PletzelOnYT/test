@@ -94,6 +94,12 @@ public final class EasyPlace26 {
             if(pending!=null) {
                 unresolvedVisual=pending;
                 correctionServerState=null;
+                // Opening a GUI or switching into Freecam while an action is
+                // outstanding must not silently allow a new placement.
+                if(mc.options.pletzelEasyPlace.get()&&level!=null)
+                    suspended="INTERRUPTED_CONTEXT_OR_GUI";
+                log("INTERRUPTED_PENDING",mc,pending,required,
+                    "stopped; user must explicitly toggle Easy Place OFF/ON");
             }
             clearPending();
             attemptedThisHold=false;
