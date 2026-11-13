@@ -115,6 +115,15 @@ for original,dest in (
     shutil.copyfile(source,target)
     print("PLETZEL_NEXT_INSTALLED",dest)
 
+# Record the sequence allocated by the ORIGINAL vanilla game mode.
+# We never create packets: the original useItemOn still controls item use,
+# selected slot synchronization, prediction and packet construction.
+swap("net/minecraft/client/multiplayer/MultiPlayerGameMode.java",
+'''         return new ServerboundUseItemOnPacket(hand, blockHit, sequence);''',
+'''         net.pletzel.schematica.EasyPlace26.onVanillaSequence(
+            this.minecraft, sequence, hand, blockHit);
+         return new ServerboundUseItemOnPacket(hand, blockHit, sequence);''')
+
 # Server-authoritative callbacks (read only). The original vanilla item-use
 # sequence assignment and client prediction reconciliation remain unmodified.
 listener="net/minecraft/client/multiplayer/ClientPacketListener.java"
