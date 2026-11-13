@@ -28,13 +28,13 @@ echo "$build_json" | jq -e --arg sha "$BUILD_SOURCE_SHA" --arg branch "$BRANCH" 
 accept_json="$(gh api "repos/$REPO/actions/runs/$ACCEPTANCE_RUN_ID")"
 # When called from the accepted browser workflow itself, its publishing job
 # is still running, so the PARENT run cannot already be "completed".
-# All seven Chrome jobs must nevertheless be completed and successful below.
+# All eight Chrome jobs must nevertheless be completed and successful below.
 if [[ "${ACCEPTANCE_RUNNING_PARENT:-false}" == "true" || "${GITHUB_RUN_ID:-}" == "$ACCEPTANCE_RUN_ID" ]]; then
   echo "$accept_json" | jq -e --arg branch "$BRANCH" \
-    '(.status=="in_progress" or .status=="completed") and (.conclusion==null or .conclusion=="success") and .head_branch==$branch and .name=="Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance"' >/dev/null
+    '(.status=="in_progress" or .status=="completed") and (.conclusion==null or .conclusion=="success") and .head_branch==$branch and .name=="Pletzel V4 Easy Place Map Art real Chrome eight-suite acceptance"' >/dev/null
 else
   echo "$accept_json" | jq -e --arg branch "$BRANCH" \
-    '.status=="completed" and .conclusion=="success" and .head_branch==$branch and .name=="Pletzel V4 Easy Place Map Art real Chrome seven-suite acceptance"' >/dev/null
+    '.status=="completed" and .conclusion=="success" and .head_branch==$branch and .name=="Pletzel V4 Easy Place Map Art real Chrome eight-suite acceptance"' >/dev/null
 fi
 accept_sha="$(echo "$accept_json" | jq -r .head_sha)"
 git merge-base --is-ancestor "$accept_sha" HEAD
@@ -54,19 +54,20 @@ if ! git diff --quiet "$accept_sha" HEAD -- \
   pletzel-v4/patch-easyplace-mapart.py \
   pletzel-v4/test-easyplace-real-chrome.py \
   pletzel-v4/test-persistent-mapart-chrome.py \
-  pletzel-v4/test-red-highlight-real-chrome.py; then
+  pletzel-v4/test-red-highlight-real-chrome.py \
+  pletzel-v4/test-mods-separation-real-chrome.py; then
   echo "ABORT: newer game source or stricter Chrome tests exist after this accepted run."
   exit 7
 fi
 
-# Verify the seven independently completed Chromium suites, not just a
+# Verify the eight independently completed Chromium suites, not just a
 # top-level acceptance status or one successful matrix job.
 jobs_json="$(gh api "repos/$REPO/actions/runs/$ACCEPTANCE_RUN_ID/jobs?per_page=100")"
-for suite in easyplace mapart red-highlight fourformat freecam hologram world-save; do
+for suite in easyplace mapart red-highlight fourformat freecam hologram world-save mods; do
   echo "$jobs_json" | jq -e --arg n "chrome ($suite)" \
     '[.jobs[] | select(.name==$n and .status=="completed" and .conclusion=="success")] | length == 1' >/dev/null
 done
-echo "$jobs_json" | jq -e '[.jobs[] | select(.name | startswith("chrome ("))] | length == 7' >/dev/null
+echo "$jobs_json" | jq -e '[.jobs[] | select(.name | startswith("chrome ("))] | length == 8' >/dev/null
 
 # The accepted source must explicitly pin THIS source compilation.
 accepted_workflow="$(git show "$accept_sha:.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml")"
@@ -135,7 +136,7 @@ cat > README.md <<EOF
 **Version:** Pletzel V4 Easy Place + Easy Pick + durable Map Art + red highlights, no voice chat  
 **Build date (UTC):** $build_date  
 **Verified source run:** [GitHub Actions #$BUILD_RUN_ID](https://github.com/$REPO/actions/runs/$BUILD_RUN_ID)  
-**Successful seven-suite browser acceptance:** [Run #$ACCEPTANCE_RUN_ID](https://github.com/$REPO/actions/runs/$ACCEPTANCE_RUN_ID)  
+**Successful eight-suite browser acceptance:** [Run #$ACCEPTANCE_RUN_ID](https://github.com/$REPO/actions/runs/$ACCEPTANCE_RUN_ID)  
 **Source commit:** \`$BUILD_SOURCE_SHA\`  
 **Published filename:** \`$FILE\` ($bytes bytes)  
 **SHA-256:** \`$sha\`
@@ -160,13 +161,13 @@ cat > README.md <<EOF
 
 ## Verification and limitations
 
-The $ACCEPTANCE_RUN_ID Chrome acceptance run passed seven suites: Easy Place, persistent Map Art, red highlighting, all four schematic formats, Freecam, in-world holograms, and world save/reload. Compiled HTML bytes match the original source artifact using SHA-256.
+The $ACCEPTANCE_RUN_ID Chrome acceptance run passed eight suites: Easy Place, persistent Map Art, red highlighting, all four schematic formats, Freecam, in-world holograms, and world save/reload. Compiled HTML bytes match the original source artifact using SHA-256.
 
 **Not claimed as verified:** multiplayer server compatibility, every special block orientation, or stable FPS on a physical Mac. The separate [same-runner FPS comparison #43259063632](https://github.com/$REPO/actions/runs/43259063632) failed; it is not evidence of a speedup. A past render-distance acceptance workflow also failed while automating Video Settings, so complete 2/4/8/16 performance acceptance is not established.
 
 ## Release automation
 
-\`.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml\` publishes only after validating an actual successful game-compilation run and all seven successful Chromium acceptance jobs pinned to that compiled artifact. Repeated publication of identical binary/metadata does not create another Git commit. The acceptance workflow invokes this publisher automatically after its entire browser matrix passes.
+\`.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml\` publishes only after validating an actual successful game-compilation run and all eight successful Chromium acceptance jobs pinned to that compiled artifact. Repeated publication of identical binary/metadata does not create another Git commit. The acceptance workflow invokes this publisher automatically after its entire browser matrix passes.
 EOF
 fi
 
