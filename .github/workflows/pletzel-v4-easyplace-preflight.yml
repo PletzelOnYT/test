@@ -29,12 +29,15 @@ jobs:
             pletzel-v4/test-mods-separation-real-chrome.py \
             pletzel-v4/test-optimized-hologram-performance.py
           bash -n pletzel-v4/publish-easyplace-no-voice.sh
-          grep -Fq 'private static BlockPos aimedGhost(Minecraft mc)' pletzel-v4/EasyPlace26.java
-          grep -Fq 'ClipContext.Block.COLLIDER' pletzel-v4/EasyPlace26.java
-          grep -Fq 'CLIENT_WORLD_MATCHED' pletzel-v4/EasyPlace26.java
+          grep -Fq 'SAFETY_LOCKOUT = true' pletzel-v4/EasyPlace26.java
+          grep -Fq 'public static boolean beforeVanillaUse(Minecraft mc)' pletzel-v4/EasyPlace26.java
+          grep -Fq 'public static boolean shouldHoverPlace(Minecraft mc)' pletzel-v4/EasyPlace26.java
+          ! grep -Fq 'mc.hitResult=' pletzel-v4/EasyPlace26.java
+          ! grep -Fq 'CLIENT_WORLD_MATCHED' pletzel-v4/EasyPlace26.java
+          grep -Fq 'Easy Place SAFETY DISABLED' pletzel-v4/SchematicaScreenRestored26.java
           ! grep -Fq '"Map Tooltip Settings"' pletzel-v4/SchematicaScreenRestored26.java
           grep -Fq 'new PletzelMapArtSettings26(this)' pletzel-v4/PletzelModsScreen26.java
           grep -Fq 'EagRuntime.setStorage(k,output)' pletzel-v4/MapArtStore26.java
           grep -Fq 'cell.wrongQuads()' pletzel-v4/SchematicaWorldRendererOptimized26.java
           test "$(grep -c 'suite: \[easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save, mods\]' .github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml)" -eq 1
-          echo 'SOURCE_PREFLIGHT_OK: test scripts parse; vanilla placement/real art/red overlays referenced'
+          echo 'SOURCE_PREFLIGHT_OK: automatic Easy Place locked out; manual vanilla interaction and independent mods preserved'

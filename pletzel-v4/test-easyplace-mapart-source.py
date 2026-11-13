@@ -36,8 +36,8 @@ assert "public static boolean shouldHoverPlace(Minecraft mc)" in easy
 assert "public static boolean inHoverAttempt()" in easy
 assert "public static void afterVanillaKeybinds(Minecraft mc)" in easy
 assert "return true;" in easy and "return false;" in easy
-assert "SAFETY_LOCKOUT" in read("net/pletzel/schematica/SchematicaScreen.java")
-assert "Easy Place SAFETY DISABLED" in read("net/pletzel/schematica/SchematicaScreen.java")
+# At this build stage the old Schematica screen is still installed.
+# The final restored screen is installed and checked by the LAST UI patch.
 assert "Easy Place SAFETY DISABLED" in read("net/pletzel/schematica/PletzelBuildingSettings26.java")
 for forbidden in (
   "ServerboundUseItemOnPacket", "ServerboundSetCarriedItemPacket",

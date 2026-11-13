@@ -10,6 +10,9 @@ def read(relative,base=game):
 screen=read("net/pletzel/schematica/SchematicaScreen.java")
 assert screen.count('toggle(left,y,"Easy Pick"')==1
 assert screen.count('toggle(right,y,"Easy Place"')==1
+assert "SAFETY_LOCKOUT" in screen
+assert "Easy Place SAFETY DISABLED" in screen
+assert "this.minecraft.options.pletzelEasyPlaceHover.set(false)" in screen
 assert "PITCH=28" in screen
 assert "this.rebuildWidgets()" in screen
 assert "Prev Page" in screen and "Next Page" in screen
