@@ -4,6 +4,11 @@ on:
     branches: [pletzel-v4-easyplace-mapart-red-20261112]
     paths:
       - '.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'
+      - 'pletzel-v4/EasyPlace26.java'
+      - 'pletzel-v4/EasyPick26.java'
+      - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
+      - 'pletzel-v4/patch-easyplace-mapart.py'
+      - 'pletzel-v4/SchematicaScreenRestored26.java'
       - 'pletzel-v4/test-easyplace-real-chrome.py'
       - 'pletzel-v4/test-persistent-mapart-chrome.py'
       - 'pletzel-v4/test-red-highlight-real-chrome.py'
@@ -12,8 +17,55 @@ on:
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: pletzel-v4-easyplace-chrome-${{ github.ref_name }}
+  cancel-in-progress: true
 jobs:
+  exact-compiled-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 175
+    outputs:
+      build_run: ${{ steps.find.outputs.build_run }}
+    steps:
+      - name: Require successful exact-SHA native compiler, never stale HTML
+        id: find
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
+          test "$current" = "$GITHUB_SHA" || {
+            echo "SUPERSEDED_COMMIT: current branch moved; never test stale HTML"; exit 3;
+          }
+          build_run=""
+          for attempt in $(seq 1 100); do
+            build_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" \
+              --jq '[.workflow_runs[] | select(.name=="Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")] | first | .id // empty')"
+            if [[ -n "$build_run" ]]; then break; fi
+            sleep 10
+          done
+          test -n "$build_run" || {
+            echo "NO_EXACT_SOURCE_BUILD: cannot reuse historical compiled HTML"; exit 4;
+          }
+          for attempt in $(seq 1 660); do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .status)"
+            if [[ "$state" = completed ]]; then
+              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .conclusion)"
+              test "$conclusion" = success || {
+                echo "NATIVE_BUILD_NOT_SUCCESSFUL: $conclusion ($build_run)"; exit 5;
+              }
+              break
+            fi
+            sleep 15
+          done
+          test "$state" = completed || exit 6
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_sha)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_branch)" = "$GITHUB_REF_NAME"
+          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
+          echo "EXACT_NATIVE_COMPILATION_CONFIRMED run=$build_run sha=$GITHUB_SHA"
   chrome:
+    needs: [exact-compiled-candidate]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -22,31 +74,25 @@ jobs:
         suite: [easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save, mods]
     steps:
       - uses: actions/checkout@v4
-      - name: Download only the exact new game-compilation artifact
+        with:
+          persist-credentials: false
+      - name: Download exact-source full standalone HTML
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ needs.exact-compiled-candidate.outputs.build_run }}
         shell: bash
         run: |
           set -euo pipefail
-          run=43339444288
-          sha=3a284e409f1c98defc08a5aa751df86eac414888
+          test -n "$BUILD_RUN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)" = "$GITHUB_SHA"
           artifact=pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)" = "$sha"
-          deadline=$(( $(date +%s) + 6900 ))
-          while true; do
-            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)"
-            if [ "$state" = completed ]; then
-              test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .conclusion)" = success
-              break
-            fi
-            test "$(date +%s)" -lt "$deadline" || exit 3
-            sleep 25
-          done
           mkdir -p candidate
-          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
-          test "$(find candidate -name '*.html' | wc -l)" -eq 1
-          sha256sum "$(find candidate -name '*.html' | head -1)" | tee source-html-sha256.txt
-      - name: Run actual Minecraft game in Chromium with WebGL and screenshots
+          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          test "$(find candidate -type f -name '*.html' | wc -l)" -eq 1
+          html="$(find candidate -type f -name '*.html' | head -1)"
+          test "$(stat -c %s "$html")" -gt 80000000
+          sha256sum "$html" | tee source-html-sha256.txt
+      - name: Run actual Minecraft WebGL browser, not a mocked placement
         shell: bash
         run: |
           set -euo pipefail
@@ -62,15 +108,15 @@ jobs:
             world-save) script=pletzel-v4/test-no-voice-world-save.py;;
             *) exit 2;;
           esac
-          set -o pipefail
-          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u "$script" 2>&1 | tee "easyplace-${{ matrix.suite }}.log"
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u "$script" \
+            2>&1 | tee "easyplace-${{ matrix.suite }}.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pletzel-v4-easyplace-${{ matrix.suite }}-real-chrome-evidence
           path: |
             source-html-sha256.txt
-            easyplace-${{ matrix.suite }}.log
+            easyplace-*.log
             red-highlight-real-chrome-evidence/
             easy-pick-real-chrome-evidence/
             map-shulker-real-inventory-evidence/
@@ -82,14 +128,5 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-  publish-accepted-real-html:
-    needs: [chrome]
-    if: ${{ needs.chrome.result == 'success' }}
-    uses: ./.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml
-    permissions:
-      contents: write
-      actions: read
-    with:
-      build_run_id: '43339444288'
-      source_sha: '3a284e409f1c98defc08a5aa751df86eac414888'
-      acceptance_run_id: ${{ github.run_id }}
+# Release intentionally blocked: eight local Chrome suites do not prove
+# dedicated multiplayer correction, latency, disconnect or anticheat safety.
