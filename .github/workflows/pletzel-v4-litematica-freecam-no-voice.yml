@@ -30,6 +30,9 @@ on:
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: pletzel-v4-easyplace-native-${{ github.ref_name }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
