@@ -32,6 +32,10 @@ public final class EasyPlace26 {
     private static int pendingSequence = -1;
     private static boolean predictionAcked;
     private static BlockState observedByServer;
+    // Keep unknown/corrected placement visibly unconfirmed even after a
+    // timeout/rejection until vanilla prediction reconciliation catches up.
+    private static BlockPos unresolvedVisual;
+    private static BlockState correctionServerState;
     private static boolean attemptedThisHold;
     private static String suspended = "";
     private static int attempts, confirmed, rejected, timedOut;
@@ -68,6 +72,7 @@ public final class EasyPlace26 {
         clearPending();
         world=level;schematicVersion=version;
         attemptedThisHold=false;suspended="";
+        unresolvedVisual=null;correctionServerState=null;
     }
 
     /** Run even when a GUI is open to cancel in-flight tracking safely. */
@@ -86,6 +91,10 @@ public final class EasyPlace26 {
         }
         if(!mc.options.pletzelEasyPlace.get()||level==null||mc.player==null||
            !SchematicaSession.loaded()||mc.gui.screen()!=null||Freecam26.active()) {
+            if(pending!=null) {
+                unresolvedVisual=pending;
+                correctionServerState=null;
+            }
             clearPending();
             attemptedThisHold=false;
             if(!mc.options.pletzelEasyPlace.get())suspended="";
@@ -97,6 +106,8 @@ public final class EasyPlace26 {
         if(pending!=null&&System.nanoTime()-sentAt>TIMEOUT_NS) {
             timedOut++;
             log("TIMEOUT_NOT_CONFIRMED",mc,pending,required,"no automatic retry");
+            unresolvedVisual=pending;
+            correctionServerState=observedByServer;
             clearPending();suspended="SERVER_RESPONSE_TIMEOUT";
         }
     }
@@ -208,6 +219,8 @@ public final class EasyPlace26 {
             rejected++;
             log("SERVER_REJECTED_OR_CORRECTED",mc,pending,required,
                 "authoritativeBlock="+observedByServer);
+            unresolvedVisual=pending;
+            correctionServerState=observedByServer;
             clearPending();
             suspended="SERVER_REJECTION";
         } else if(level.getBlockState(pending).equals(required)) {
@@ -227,7 +240,11 @@ public final class EasyPlace26 {
      * The packet may arrive before or after its prediction ACK. */
     public static void onServerBlockUpdate(ClientLevel level,BlockPos pos,
                                            BlockState authoritative) {
-        if(pending==null||level!=world||!pending.equals(pos))return;
+        if(level!=world)return;
+        if(unresolvedVisual!=null&&unresolvedVisual.equals(pos)) {
+            correctionServerState=authoritative;
+        }
+        if(pending==null||!pending.equals(pos))return;
         observedByServer=authoritative;
         log("SERVER_BLOCK_UPDATE_RECEIVED",Minecraft.getInstance(),pending,
             required,"authoritative="+authoritative);
@@ -235,6 +252,8 @@ public final class EasyPlace26 {
             rejected++;
             log("SERVER_REJECTED_OR_CORRECTED",Minecraft.getInstance(),
                 pending,required,"authoritativeBlock="+authoritative);
+            unresolvedVisual=pending;
+            correctionServerState=authoritative;
             clearPending();
             suspended="SERVER_REJECTION";
         } else {
@@ -268,7 +287,17 @@ public final class EasyPlace26 {
     /** Hologram renderer MUST NOT treat a locally predicted solid block as
      * complete while its authoritative server response is outstanding. */
     public static boolean isPlacementPending(BlockPos pos) {
-        return pos!=null && pending!=null && pending.equals(pos);
+        if(pos==null)return false;
+        if(pending!=null&&pending.equals(pos))return true;
+        if(unresolvedVisual!=null&&unresolvedVisual.equals(pos)) {
+            // Once actual world equals server correction, normal ghost AIR /
+            // correct-block rendering resumes. Never fake a solid block.
+            Minecraft mc=Minecraft.getInstance();
+            return correctionServerState==null||mc==null||mc.level==null||
+                !mc.level.hasChunkAt(pos)||
+                !mc.level.getBlockState(pos).equals(correctionServerState);
+        }
+        return false;
     }
 
     public static String diagnosticStatus() {
