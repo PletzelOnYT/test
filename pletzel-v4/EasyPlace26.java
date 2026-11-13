@@ -277,11 +277,19 @@ public final class EasyPlace26 {
         }
     }
 
-    /** Full chunk replacement is authoritative; NEVER use a predicted state. */
+    /** A fresh chunk invalidates any earlier placement prediction. Its
+     * post-apply ClientLevel state is NOT accepted as independent evidence:
+     * a local predicted block might still be visible. Fail closed instead. */
     public static void onServerChunk(ClientLevel level,int cx,int cz) {
         if(pending!=null&&world==level&&
            (pending.getX()>>4)==cx&&(pending.getZ()>>4)==cz) {
-            onServerBlockUpdate(level,pending,level.getBlockState(pending));
+            log("CHUNK_REPLACED_PENDING_NOT_CONFIRMED",
+                Minecraft.getInstance(),pending,required,
+                "no success inferred from client chunk state");
+            unresolvedVisual=pending;
+            correctionServerState=null;
+            clearPending();
+            suspended="CHUNK_REPLACED_DURING_PLACEMENT";
         }
     }
 
