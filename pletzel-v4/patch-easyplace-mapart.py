@@ -55,28 +55,20 @@ swap(opts,
 
 swap("net/minecraft/client/Minecraft.java",
 '''      if (!net.pletzel.schematica.EasyPick26.beforeVanillaUse(this)) return;''',
-'''      // A ghost does NOT authorize a fake hit. Easy Place rejects any target
-      // without a reachable real support face from the vanilla crosshair.
-      if (!net.pletzel.schematica.EasyPlace26.beforeVanillaUse(this)) return;
-      if (!net.pletzel.schematica.EasyPick26.beforeVanillaUse(this)) return;''')
+'''      // Vanilla key-hold selection first; Easy Place then verifies the
+      // actual selected item and untouched crosshair before normal use.
+      if (!net.pletzel.schematica.EasyPick26.beforeVanillaUse(this)) return;
+      if (!net.pletzel.schematica.EasyPlace26.beforeVanillaUse(this)) return;''')
 swap("net/minecraft/client/Minecraft.java",
 '''      if (this.options.keyUse.isDown() && this.rightClickDelay == 0 && !this.player.isUsingItem()) {
          this.startUseItem();
       }''',
 '''      if (this.options.keyUse.isDown() && this.rightClickDelay == 0 && !this.player.isUsingItem()) {
-         this.startUseItem();
-      }
-      // Optional hover mode triggers the *normal* vanilla right-click method
-      // once per valid new ghost target. The built-in four-tick delay applies.
-      if (this.rightClickDelay == 0 && !this.player.isUsingItem()
-          && net.pletzel.schematica.EasyPlace26.shouldHoverPlace(this)) {
+         // Actual user input only: Hover Auto-Place is prohibited.
          this.startUseItem();
       }''')
 
-swap("net/pletzel/schematica/EasyPick26.java",
-'''if (!mc.options.keyUse.isDown() || mc.options.toggleUse().get()) return true;''',
-'''if ((!mc.options.keyUse.isDown() &&
-             !EasyPlace26.inHoverAttempt()) || mc.options.toggleUse().get()) return true;''')
+# Independent Easy Pick remains unmodified: physical right-click only.
 screen=java/"net/pletzel/schematica/SchematicaScreen.java"
 s=screen.read_text()
 pattern=r'        this\.addRenderableWidget\(Button\.builder\(\s*Component\.literal\("Easy Pick: "[\s\S]*?\}\)\.bounds\(left,y,150,20\)\.build\(\)\);'
@@ -122,6 +114,36 @@ for original,dest in (
         raise RuntimeError("Missing exact source/target path "+str(target))
     shutil.copyfile(source,target)
     print("PLETZEL_NEXT_INSTALLED",dest)
+
+# Server-authoritative callbacks (read only). The original vanilla item-use
+# sequence assignment and client prediction reconciliation remain unmodified.
+listener="net/minecraft/client/multiplayer/ClientPacketListener.java"
+swap(listener,
+'''      packet.runUpdates((pos, state) -> this.level.setServerVerifiedBlockState(pos, state, 19));''',
+'''      packet.runUpdates((pos, state) -> {
+         this.level.setServerVerifiedBlockState(pos, state, 19);
+         net.pletzel.schematica.EasyPlace26.onServerBlockUpdate(this.level, pos, state);
+      });''')
+swap(listener,
+'''      this.level.setServerVerifiedBlockState(packet.getPos(), packet.getBlockState(), 19);''',
+'''      this.level.setServerVerifiedBlockState(packet.getPos(), packet.getBlockState(), 19);
+      net.pletzel.schematica.EasyPlace26.onServerBlockUpdate(
+         this.level, packet.getPos(), packet.getBlockState());''')
+swap(listener,
+'''      this.level.handleBlockChangedAck(packet.sequence());''',
+'''      this.level.handleBlockChangedAck(packet.sequence());
+      net.pletzel.schematica.EasyPlace26.onServerPredictionAck(this.level, packet.sequence());''')
+swap(listener,
+'''      this.updateLevelChunk(x, z, packet.getChunkData());''',
+'''      this.updateLevelChunk(x, z, packet.getChunkData());
+      net.pletzel.schematica.EasyPlace26.onServerChunk(this.level, x, z);''')
+swap("net/minecraft/client/Minecraft.java",
+'''      this.gui.tick();
+      if (this.gui.screen() != null) {''',
+'''      this.gui.tick();
+      // Clear Easy Place pending state even if a GUI captures key input.
+      net.pletzel.schematica.EasyPlace26.tick(this);
+      if (this.gui.screen() != null) {''')
 
 assert 'new PletzelBuildingSettings26(this)' in screen.read_text()
 print("PLETZEL_NEXT_NATIVE_SOURCE_PATCH_COMPLETE")
