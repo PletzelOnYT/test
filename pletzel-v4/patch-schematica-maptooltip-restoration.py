@@ -43,6 +43,12 @@ one(options_screen,
 '''      helper.addChild(this.openScreenButton(Component.literal("Mods"),
           () -> new net.pletzel.schematica.PletzelModsScreen26(this)));
       this.layout.addToContents(gridLayout);''')
+# The original no-voice client already has a direct Schematica shortcut;
+# the added Mods hub creates one additional grid row. Tighten vertical
+# spacing by 2 GUI pixels per row instead of overlapping the footer.
+one(options_screen,
+'''      gridLayout.defaultCellSetting().paddingHorizontal(4).paddingBottom(4).alignHorizontallyCenter();''',
+'''      gridLayout.defaultCellSetting().paddingHorizontal(4).paddingBottom(2).alignHorizontallyCenter();''')
 
 preview=game/"net/pletzel/maptooltip/MapTooltipPreviewSize26.java"
 assert not preview.exists(),"Duplicate map preview-size helper"
