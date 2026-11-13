@@ -260,6 +260,53 @@ try:
    raise AssertionError("Real server did not confirm vanilla stone placement at the schematic target")
   print("EASYPLACE_EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
 
+  # Controlled integrated server: real click, not fabricated placement.
+  # Stone, oak planks, glass; one pending attempt per long physical hold.
+  for offset,block,slot in ((0,"minecraft:stone",0),
+                            (1,"minecraft:oak_planks",1),
+                            (2,"minecraft:glass",2)):
+   actual_x=tx+offset
+   # Continue the SAME real first placement vantage. The earlier absolute
+   # teleport after reopening GUI lost the verified support-face targeting.
+   # Shift one block horizontally for the next schematic cell, no rotation.
+   if offset>0:
+    send("/tp @p ~1 ~ ~ 0 38")
+   send(f"/setblock {actual_x} {ty} {tz} minecraft:air")
+   send(f"/setblock {actual_x} {ty-1} {tz} minecraft:bedrock")
+   page.keyboard.press("9")
+   snap("13-before-legal-hold-"+block.split(":")[-1])
+   idle_start=len(events)
+   page.wait_for_timeout(4200)
+   assert not any("[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in
+                  e["text"] for e in events[idle_start:]), (
+                  "Client placed without a physical user right-click")
+   used_at=len(events)
+   hold_use(2700)
+   snap("13-after-legal-hold-"+block.split(":")[-1])
+   texts=[e["text"] for e in events[used_at:]]
+   print("EASYPLACE_HOLD_DIAGNOSTIC",
+      block,json.dumps([x for x in texts if
+         "PletzelEasyPlace" in x or "PletzelEasyPick" in x][-12:])[:5000],
+      flush=True)
+   attempts=[x for x in texts if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in x]
+   accepts=[x for x in texts if "[PletzelEasyPlace] SERVER_CONFIRMED" in x]
+   rejects=[x for x in texts if "[PletzelEasyPlace] SERVER_REJECTED_OR_CORRECTED" in x]
+   if len(attempts)!=1:raise AssertionError((
+       "Physical Hold must generate exactly one placement",block,len(attempts),attempts))
+   if len(accepts)!=1 or rejects:raise AssertionError((
+       "No authoritative server confirmation or unexpected rejection",
+       block,accepts,rejects))
+   marker="PLETZEL_HOLD_SERVER_"+block.split(":")[-1].upper()
+   send(f"/execute if block {actual_x} {ty} {tz} {block} run say {marker}")
+   if not any(marker in t and "CHAT" in t for t in console_text()):
+    raise AssertionError("Integrated server did not accept "+block)
+   snap("13-hold-server-confirmed-"+block.split(":")[-1])
+   print("EASYPLACE_REAL_HOLD_SERVER_CONFIRMED",block,flush=True)
+
+  print("MANUAL_HOLD_STONE_OAK_PLANKS_GLASS_SERVER_ACCEPTED_NO_DUPLICATES",flush=True)
+
+
+
   # Compare real hotbar/main-inventory screenshots, not fabricated item data.
   page.keyboard.press("e");page.wait_for_timeout(2200)
   snap("11a-inventory-after-selection")
@@ -279,41 +326,6 @@ try:
   click(875,360,1400) # physical user reenables Hold
   assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
   close_schematic()
-
-  # Controlled integrated server: real click, not fabricated placement.
-  # Stone, oak planks, glass; one pending attempt per long physical hold.
-  for offset,block,slot in ((0,"minecraft:stone",0),
-                            (1,"minecraft:oak_planks",1),
-                            (2,"minecraft:glass",2)):
-   actual_x=tx+offset
-   send(f"/setblock {actual_x} {ty} {tz} minecraft:air")
-   send(f"/setblock {actual_x} {ty-1} {tz} minecraft:bedrock")
-   send(f"/tp @p {actual_x+0.5:.1f} {ty} {tz-1.5:.1f} 0 38")
-   page.keyboard.press("9")
-   idle_start=len(events)
-   page.wait_for_timeout(4200)
-   assert not any("[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in
-                  e["text"] for e in events[idle_start:]), (
-                  "Client placed without a physical user right-click")
-   used_at=len(events)
-   hold_use(2700)
-   texts=[e["text"] for e in events[used_at:]]
-   attempts=[x for x in texts if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in x]
-   accepts=[x for x in texts if "[PletzelEasyPlace] SERVER_CONFIRMED" in x]
-   rejects=[x for x in texts if "[PletzelEasyPlace] SERVER_REJECTED_OR_CORRECTED" in x]
-   if len(attempts)!=1:raise AssertionError((
-       "Physical Hold must generate exactly one placement",block,len(attempts),attempts))
-   if len(accepts)!=1 or rejects:raise AssertionError((
-       "No authoritative server confirmation or unexpected rejection",
-       block,accepts,rejects))
-   marker="PLETZEL_HOLD_SERVER_"+block.split(":")[-1].upper()
-   send(f"/execute if block {actual_x} {ty} {tz} {block} run say {marker}")
-   if not any(marker in t and "CHAT" in t for t in console_text()):
-    raise AssertionError("Integrated server did not accept "+block)
-   snap("13-hold-server-confirmed-"+block.split(":")[-1])
-   print("EASYPLACE_REAL_HOLD_SERVER_CONFIRMED",block,flush=True)
-
-  print("MANUAL_HOLD_STONE_OAK_PLANKS_GLASS_SERVER_ACCEPTED_NO_DUPLICATES",flush=True)
 
   # Save, quit, and reopen the EXACT integrated-server world. Verify the
   # three placed materials from new server-side block queries after restart.
