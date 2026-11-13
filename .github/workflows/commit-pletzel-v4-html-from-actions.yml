@@ -1,0 +1,78 @@
+name: Commit Pletzel V4 compiled HTML to test repository
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/commit-pletzel-v4-html-from-actions.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: commit-pletzel-v4-experimental-no-voice-html
+  cancel-in-progress: false
+jobs:
+  commit-html:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Download exact compiled game artifact and verify original bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          REPO=PletzelOnYT/test
+          RUN=43339444288
+          SOURCE_SHA=3a284e409f1c98defc08a5aa751df86eac414888
+          NAME=pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
+          OUT=Pletzel-V4-Optimized-Litematica-EasyPlace-EasyPick-MapArt-NoVoice.html
+          EXPECTED_SHA256=31c7f1d13d7e61c95505a019897acc25447abfff550342fda3388a00f06152c9
+          gh api "repos/$REPO/actions/runs/$RUN" | jq -e --arg sha "$SOURCE_SHA" '.status == "completed" and .conclusion == "success" and .head_sha == $sha and .head_branch == "pletzel-v4-easyplace-mapart-red-20261112"' >/dev/null
+          mkdir -p source-artifact
+          gh run download "$RUN" -R "$REPO" -n "$NAME" -D source-artifact
+          mapfile -d '' -t matches < <(find source-artifact -type f -name "$OUT" -print0)
+          test "${#matches[@]}" -eq 1
+          cp "${matches[0]}" "$OUT"
+          echo "$EXPECTED_SHA256  $OUT" | sha256sum --check
+          python3 - "$OUT" <<'PY'
+          import sys
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          with p.open("rb") as f:
+              head = f.read(2048)
+              f.seek(max(0, p.stat().st_size - 100000))
+              tail = f.read()
+          assert head.lstrip().lower().startswith(b"<!doctype html"), "Not a standalone HTML file"
+          assert b"</html>" in tail.lower(), "Incomplete HTML file"
+          assert p.stat().st_size > 80000000, "Unexpectedly small compiled game"
+          print("Verified standalone game HTML:", p.name, p.stat().st_size, "bytes")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          SIZE=$(stat -c %s "$OUT")
+          if (( SIZE > 100000000 )); then
+            echo "HTML exceeds regular GitHub blob size. Track this real HTML via Git LFS."
+            command -v git-lfs >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq git-lfs; }
+            git lfs install --local
+            git lfs track "$OUT"
+            git add .gitattributes
+          fi
+          git add -- "$OUT"
+          if git diff --cached --quiet; then
+            echo "Exact HTML already committed to main."
+          else
+            git commit -m "Add compiled Pletzel V4 no-voice HTML from Actions #43339444288 (experimental, acceptance failing)"
+            git push origin HEAD:main
+          fi
+          echo "## Compiled Pletzel V4 HTML added to test repo" >> "$GITHUB_STEP_SUMMARY"
+          echo "- File: [`$OUT`](https://github.com/PletzelOnYT/test/blob/main/$OUT)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source run: https://github.com/PletzelOnYT/test/actions/runs/$RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA-256 of actual compiled HTML: `$EXPECTED_SHA256`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Size: $SIZE bytes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Note: compiled successfully, but real-browser acceptance still fails." >> "$GITHUB_STEP_SUMMARY"
