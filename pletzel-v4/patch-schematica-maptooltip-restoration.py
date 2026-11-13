@@ -33,6 +33,43 @@ assert "List<IntConsumer> rows" in source
 assert "SchematicaSession.loadAny(" in source
 screen.write_text(source)
 
+# Install an independent native Mods hub on Minecraft's Options screen.
+mods=game/"net/pletzel/schematica/PletzelModsScreen26.java"
+assert not mods.exists(),"Duplicate Mods screen"
+shutil.copyfile(here/"PletzelModsScreen26.java",mods)
+options_screen=game/"net/minecraft/client/gui/screens/options/OptionsScreen.java"
+one(options_screen,
+'''      this.layout.addToContents(gridLayout);''',
+'''      helper.addChild(this.openScreenButton(Component.literal("Mods"),
+          () -> new net.pletzel.schematica.PletzelModsScreen26(this)));
+      this.layout.addToContents(gridLayout);''')
+
+preview=game/"net/pletzel/maptooltip/MapTooltipPreviewSize26.java"
+assert not preview.exists(),"Duplicate map preview-size helper"
+shutil.copyfile(here/"MapTooltipPreviewSize26.java",preview)
+opts=game/"net/minecraft/client/Options.java"
+one(opts,
+'''   public final OptionInstance<Boolean> pletzelRememberMapArt =
+      OptionInstance.createBoolean("pletzelRememberMapArt", true);''',
+'''   public final OptionInstance<Boolean> pletzelRememberMapArt =
+      OptionInstance.createBoolean("pletzelRememberMapArt", true);
+   public final OptionInstance<Boolean> pletzelMapPersistentCache =
+      OptionInstance.createBoolean("pletzelMapPersistentCache", true);''')
+one(opts,
+'''      access.process("pletzelRememberMapArt", this.pletzelRememberMapArt);''',
+'''      access.process("pletzelRememberMapArt", this.pletzelRememberMapArt);
+      access.process("pletzelMapPersistentCache", this.pletzelMapPersistentCache);''')
+
+# Easy Place may temporarily use a distinct authentic vanilla support-face
+# ray hit. Restore the original Minecraft crosshair after use, before render.
+mc=game/"net/minecraft/client/Minecraft.java"
+one(mc,
+'''         this.handleKeybinds();
+         if (this.missTime > 0) {''',
+'''         this.handleKeybinds();
+         net.pletzel.schematica.EasyPlace26.afterVanillaKeybinds(this);
+         if (this.missTime > 0) {''')
+
 # Critical WasmGC cache identity fix: dedicated-server worlds never put an
 # IntegratedServer in Minecraft.singleplayerServer on the browser client.
 # Bind the exact saved-world ID to the client-side controller that launches the
@@ -111,4 +148,13 @@ one(app,
                         if(name.startsWith("pletzel.mapart26.pixel."))
                             PletzelMapArtIndexedDB26.put(eagName,str);
 \t\t\t\t\t\treturn Base64.getMimeDecoder().decode(str);''')
+# Even the now-unused legacy building screen must contain no Map settings.
+legacy_build=game/"net/pletzel/schematica/PletzelBuildingSettings26.java"
+if legacy_build.exists():
+    old=legacy_build.read_text()
+    new=old.replace('add(left,y,"Map Art Settings",()->this.minecraft.gui.setScreen(new PletzelMapArtSettings26(this)));',
+      'add(left,y,"Building Help",()->note="A real reachable support face and correct hotbar block are required");')
+    assert '"Map Art Settings"' not in new
+    legacy_build.write_text(new)
+
 print("PLETZEL_GUI_INDEPENDENT_EASYPICK_EASYPLACE_AND_INDEXEDDB_READY")
