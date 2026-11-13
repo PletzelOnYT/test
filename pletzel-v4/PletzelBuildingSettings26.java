@@ -23,6 +23,14 @@ public final class PletzelBuildingSettings26 extends Screen {
         this.addRenderableWidget(Button.builder(
             Component.literal(label+": "+(value.get()?"ON":"OFF")),
             b->{
+                if ("Easy Place".equals(label)) {
+                    value.set(false);
+                    this.minecraft.options.pletzelEasyPlaceHover.set(false);
+                    this.minecraft.options.save();
+                    note="Easy Place SAFETY DISABLED: placement not server-verified";
+                    b.setMessage(Component.literal("Easy Place: OFF"));
+                    return;
+                }
                 boolean changed=!value.get();value.set(changed);
                 this.minecraft.options.save();
                 b.setMessage(Component.literal(label+": "+(changed?"ON":"OFF")));
@@ -37,11 +45,11 @@ public final class PletzelBuildingSettings26 extends Screen {
         this.addRenderableWidget(Button.builder(
             Component.literal("Mode: "+(this.minecraft.options.pletzelEasyPlaceHover.get()?"Hover Auto-Place":"Hold to Place")),
             b->{
-                boolean hover=!this.minecraft.options.pletzelEasyPlaceHover.get();
-                this.minecraft.options.pletzelEasyPlaceHover.set(hover);
+                this.minecraft.options.pletzelEasyPlaceHover.set(false);
+                this.minecraft.options.pletzelEasyPlace.set(false);
                 this.minecraft.options.save();
-                b.setMessage(Component.literal("Mode: "+(hover?"Hover Auto-Place":"Hold to Place")));
-                note=hover?"Hover mode actively uses vanilla right-click at valid ghost targets":"Hold uses your custom Place Block key";
+                b.setMessage(Component.literal("Mode: Hold to Place"));
+                note="SAFETY LOCKOUT: Easy Place and hover automation unavailable until server-tested";
             }).bounds(right,y,150,20).build());
         y+=24;
         option(left,y,"Easy Pick",this.minecraft.options.pletzelEasyPick);

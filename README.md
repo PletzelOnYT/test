@@ -1,5 +1,7 @@
 # Pletzel V4 Minecraft 26.2 — Latest No-Voice Release
 
+> **EMERGENCY SAFETY WARNING — 2026-11-13:** A newer Easy Place source implementation was reported to cause kicks/bans and client-only ghost blocks. Easy Place and hover automation have been placed under a source-level safety lockout. **The previously published HTML file below does not contain this safety patch.** Do not enable Easy Place or hover automation on public servers. No new safe compiled HTML or controlled multiplayer acceptance has been verified. Easy Pick is independent.
+
 **Version:** Pletzel V4 Easy Pick + Map Tooltips + optimized Litematica, no voice chat  
 **Build date (UTC):** 2026-11-12  
 **Verified source run:** [GitHub Actions #43258316571](https://github.com/PletzelOnYT/test/actions/runs/43258316571)  

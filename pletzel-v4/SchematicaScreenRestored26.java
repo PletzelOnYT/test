@@ -40,6 +40,15 @@ public final class SchematicaScreen extends Screen {
         this.addRenderableWidget(Button.builder(
             Component.literal(label+": "+(setting.get()?"ON":"OFF")),
             b->{
+                if ("Easy Place".equals(label)) {
+                    setting.set(false);
+                    this.minecraft.options.pletzelEasyPlaceHover.set(false);
+                    this.minecraft.options.save();
+                    status="Easy Place SAFETY DISABLED: unverified placement can cause kicks and ghost blocks";
+                    System.out.println("[PletzelEasyPlace] SAFETY_LOCKOUT: Easy Place cannot be enabled");
+                    this.rebuildWidgets();
+                    return;
+                }
                 boolean next=!setting.get();
                 setting.set(next);
                 this.minecraft.options.save();
@@ -105,12 +114,11 @@ public final class SchematicaScreen extends Screen {
                     Component.literal(this.minecraft.options.pletzelEasyPlaceHover.get()
                         ?"Easy Place Mode: Hover":"Easy Place Mode: Hold"),
                     button->{
-                        boolean next=!this.minecraft.options.pletzelEasyPlaceHover.get();
-                        this.minecraft.options.pletzelEasyPlaceHover.set(next);
+                        this.minecraft.options.pletzelEasyPlaceHover.set(false);
+                        this.minecraft.options.pletzelEasyPlace.set(false);
                         this.minecraft.options.save();
-                        status=next?"Hover: aim at legal ghosts to use vanilla placement":
-                            "Hold: aim at ghosts and hold your normal Place Block key";
-                        System.out.println("[PletzelEasyPlace] MODE hover="+next);
+                        status="SAFETY LOCKOUT: Hover Auto-Place is disabled pending real server validation";
+                        System.out.println("[PletzelEasyPlace] SAFETY_LOCKOUT: hover disabled");
                         this.rebuildWidgets();
                     }).bounds(right,y,buttonWidth,BUTTON_H).build());
             });
@@ -153,11 +161,10 @@ public final class SchematicaScreen extends Screen {
                     Component.literal(this.minecraft.options.pletzelEasyPlaceHover.get()
                         ?"Place Mode: Hover":"Place Mode: Hold"),
                     b->{
-                        boolean hover=!this.minecraft.options.pletzelEasyPlaceHover.get();
-                        this.minecraft.options.pletzelEasyPlaceHover.set(hover);
+                        this.minecraft.options.pletzelEasyPlaceHover.set(false);
+                        this.minecraft.options.pletzelEasyPlace.set(false);
                         this.minecraft.options.save();
-                        status=hover?"Hover: vanilla place only at valid targets":
-                                     "Hold: use your normal Place Block binding";
+                        status="SAFETY LOCKOUT: Hover Auto-Place is disabled pending real server validation";
                         this.rebuildWidgets();
                     }).bounds(left,y,buttonWidth,BUTTON_H).build());
                 toggle(right,y,"Chunk Rendering",

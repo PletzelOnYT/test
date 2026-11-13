@@ -25,21 +25,24 @@ assert "net.pletzel.schematica.Freecam26.active()" in mc
 # Ghost-first targeting is necessary: real Minecraft hitResult is a MISS
 # when a hologram occupies empty air. The *support* must still be a real
 # collider raycast with vanilla reach and orientation checks.
-assert "private static BlockPos aimedGhost(Minecraft mc)" in easy
-assert "BlockPos.containing(cursor)" in easy
-assert "ClipContext.Block.COLLIDER" in easy
-assert "hit.getBlockPos().equals(support)" in easy
-assert "hit.getDirection()!=exposed" in easy
-assert "mc.player.blockInteractionRange()" in easy
-assert "mc.level.hasChunkAt(support)" in easy
-assert "EasyPlace26.afterVanillaKeybinds" not in easy
-assert "CLIENT_WORLD_MATCHED target=" in easy  # never claim a local client state is server confirmation
-assert "NOT_CONFIRMED target=" in easy
-assert "context.getClickedPos().equals(target)" in easy
-assert "getStateForPlacement(context)" in easy
-assert "EasyPlace26.inHoverAttempt()" in picker
-for forbidden in ("ServerboundUseItemOnPacket","ServerboundSetCarriedItemPacket",
-                  ".connection.send(",".send(","setBlock(","setItem(","setSelectedSlot("):
+# Emergency fail-closed contract: no Easy Place packet/crosshair/world mutation.
+# Vanilla user right-click must remain available and Easy Pick independent.
+assert "SAFETY_LOCKOUT = true" in easy
+assert "enforceSafetyLockout(mc);" in easy
+assert "mc.options.pletzelEasyPlace.set(false);" in easy
+assert "mc.options.pletzelEasyPlaceHover.set(false);" in easy
+assert "public static boolean beforeVanillaUse(Minecraft mc)" in easy
+assert "public static boolean shouldHoverPlace(Minecraft mc)" in easy
+assert "public static boolean inHoverAttempt()" in easy
+assert "public static void afterVanillaKeybinds(Minecraft mc)" in easy
+assert "return true;" in easy and "return false;" in easy
+assert "SAFETY_LOCKOUT" in read("net/pletzel/schematica/SchematicaScreen.java")
+assert "Easy Place SAFETY DISABLED" in read("net/pletzel/schematica/SchematicaScreen.java")
+assert "Easy Place SAFETY DISABLED" in read("net/pletzel/schematica/PletzelBuildingSettings26.java")
+for forbidden in (
+  "ServerboundUseItemOnPacket", "ServerboundSetCarriedItemPacket",
+  ".connection.send(", ".send(", "setBlock(", "setItem(",
+  "setSelectedSlot(", "mc.hitResult=", "startUseItem("):
  assert forbidden not in easy,forbidden
 assert "ChunkPos.pack(sx,sz)" in schem
 assert "SECTION_COLUMNS" in schem
@@ -60,8 +63,8 @@ assert "LevelResource.ROOT" in store
 assert "PletzelBuildingSettings26(this)" in read("net/pletzel/schematica/SchematicaScreen.java")
 for name in ("PletzelBuildingSettings26","PletzelMapArtSettings26"):
  assert (root/("net/pletzel/schematica/"+name+".java")).exists()
-print("SOURCE PASS: legitimate vanilla support-face right-click, no forged packets")
+print("SOURCE PASS: EMERGENCY EASY PLACE LOCKOUT, vanilla right-click unchanged; NO placement claims")
 print("SOURCE PASS: OFF-by-default persisted Easy Place and map-art options")
 print("SOURCE PASS: cache keyed to world/server+dimension+MapId, 16,384 real colors")
 print("SOURCE PASS: all red wrong-model faces retained, 16x16 column visibility")
-print("LIVE SERVER/CHROME/MULTIPLAYER/GPU ACCEPTANCE: NOT VERIFIED BY THIS CHECK")
+print("EASY PLACE FUNCTIONALITY: DISABLED; SERVER/CHROME/MULTIPLAYER ACCEPTANCE: NOT VERIFIED")
