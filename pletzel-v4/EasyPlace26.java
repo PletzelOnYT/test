@@ -27,6 +27,11 @@ public final class EasyPlace26 {
     private static BlockPos pending;
     private static BlockState required;
     private static long sentAt;
+    private static BlockPos pendingSupport;
+    private static net.minecraft.core.Direction pendingFace;
+    private static int pendingSequence = -1;
+    private static boolean predictionAcked;
+    private static BlockState observedByServer;
     private static boolean attemptedThisHold;
     private static String suspended = "";
     private static int attempts, confirmed, rejected, timedOut;
@@ -42,7 +47,9 @@ public final class EasyPlace26 {
                ?mc.level.getBlockState(pos):"unavailable")+
            " slot="+(mc!=null&&mc.player!=null
                       ?mc.player.getInventory().getSelectedSlot():-1)+
-           " pending="+pending+" attempts="+attempts+
+           " pending="+pending+" sequence="+pendingSequence+
+           " predictionAck="+predictionAcked+" serverObserved="+observedByServer+
+           " attempts="+attempts+
            " confirmed="+confirmed+" rejected="+rejected+
            " timedOut="+timedOut+" suspended="+suspended+" "+detail;
         long now=System.nanoTime();
@@ -53,6 +60,8 @@ public final class EasyPlace26 {
 
     private static void clearPending() {
         pending=null;required=null;sentAt=0L;
+        pendingSupport=null;pendingFace=null;
+        pendingSequence=-1;predictionAcked=false;observedByServer=null;
     }
 
     private static void resetFor(ClientLevel level,long version) {
@@ -83,6 +92,8 @@ public final class EasyPlace26 {
             return;
         }
         if(!mc.options.keyUse.isDown())attemptedThisHold=false;
+        if(pending!=null&&predictionAcked&&observedByServer!=null)
+            finalizeIfBothVerified(level);
         if(pending!=null&&System.nanoTime()-sentAt>TIMEOUT_NS) {
             timedOut++;
             log("TIMEOUT_NOT_CONFIRMED",mc,pending,required,"no automatic retry");
@@ -164,6 +175,11 @@ public final class EasyPlace26 {
         attemptedThisHold=true;
         pending=target.immutable();
         required=expected;
+        pendingSupport=support.immutable();
+        pendingFace=hit.getDirection();
+        pendingSequence=-1;
+        predictionAcked=false;
+        observedByServer=null;
         sentAt=System.nanoTime();
         attempts++;
         log("PENDING_VANILLA_RIGHT_CLICK",mc,target,expected,
@@ -172,22 +188,57 @@ public final class EasyPlace26 {
         return true;
     }
 
-    /** Called after an ACTUAL server BLOCK_UPDATE / SECTION_BLOCKS_UPDATE. */
+    /** Called exclusively from the VANILLA MultiPlayerGameMode prediction
+     * lambda for the actual matching main-hand item-use. No custom packet. */
+    public static void onVanillaSequence(Minecraft mc,int sequence,
+                                          InteractionHand hand,BlockHitResult hit) {
+        if(pending==null||mc==null||mc.level!=world||
+           hand!=InteractionHand.MAIN_HAND||pendingSupport==null||
+           !pendingSupport.equals(hit.getBlockPos())||
+           pendingFace!=hit.getDirection()||pendingSequence>=0)return;
+        pendingSequence=sequence;
+        log("VANILLA_PACKET_SEQUENCE",mc,pending,required,
+            "sequence="+sequence+" clicked="+hit.getBlockPos());
+    }
+
+    private static void finalizeIfBothVerified(ClientLevel level) {
+        if(pending==null||!predictionAcked||observedByServer==null)return;
+        Minecraft mc=Minecraft.getInstance();
+        if(!observedByServer.equals(required)) {
+            rejected++;
+            log("SERVER_REJECTED_OR_CORRECTED",mc,pending,required,
+                "authoritativeBlock="+observedByServer);
+            clearPending();
+            suspended="SERVER_REJECTION";
+        } else if(level.getBlockState(pending).equals(required)) {
+            // A server update + the matching vanilla ACK reconciled the local
+            // prediction. Neither local prediction nor ACK alone can pass.
+            confirmed++;
+            log("SERVER_CONFIRMED_AND_RECONCILED",mc,pending,required,
+                "authoritative="+observedByServer+" sequence="+pendingSequence);
+            clearPending();
+        } else {
+            log("WAITING_FOR_CLIENT_RECONCILIATION",mc,pending,required,
+                "authoritative="+observedByServer);
+        }
+    }
+
+    /** Only an actual received server packet may set server-observed state.
+     * The packet may arrive before or after its prediction ACK. */
     public static void onServerBlockUpdate(ClientLevel level,BlockPos pos,
                                            BlockState authoritative) {
         if(pending==null||level!=world||!pending.equals(pos))return;
-        Minecraft mc=Minecraft.getInstance();
-        if(authoritative.equals(required)) {
-            confirmed++;
-            log("SERVER_CONFIRMED",mc,pending,required,
-                "authoritativeBlock="+authoritative);
-            clearPending();
-        } else {
+        observedByServer=authoritative;
+        log("SERVER_BLOCK_UPDATE_RECEIVED",Minecraft.getInstance(),pending,
+            required,"authoritative="+authoritative);
+        if(!authoritative.equals(required)) {
             rejected++;
-            log("SERVER_REJECTED_OR_CORRECTED",mc,pending,required,
-                "authoritativeBlock="+authoritative);
+            log("SERVER_REJECTED_OR_CORRECTED",Minecraft.getInstance(),
+                pending,required,"authoritativeBlock="+authoritative);
             clearPending();
             suspended="SERVER_REJECTION";
+        } else {
+            finalizeIfBothVerified(level);
         }
     }
 
@@ -199,11 +250,16 @@ public final class EasyPlace26 {
         }
     }
 
-    /** Vanilla prediction ACK alone does NOT constitute placement success. */
+    /** Only an ACK covering this exact vanilla interaction sequence counts;
+     * still requires authoritative target update and reconciled client world. */
     public static void onServerPredictionAck(ClientLevel level,int sequence) {
-        if(pending!=null&&level==world)
-            log("ACK_NOT_CONFIRMATION",Minecraft.getInstance(),pending,required,
-                "vanillaSequence="+sequence);
+        if(pending==null||level!=world)return;
+        if(pendingSequence>=0&&sequence>=pendingSequence) {
+            predictionAcked=true;
+            log("MATCHING_VANILLA_ACK",Minecraft.getInstance(),pending,required,
+                "ackSequence="+sequence+" requires server block update");
+            finalizeIfBothVerified(level);
+        }
     }
 
     public static boolean shouldHoverPlace(Minecraft mc) {return false;}
