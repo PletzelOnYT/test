@@ -129,7 +129,15 @@ try:
     back=shot(page,"18-freecam-disabled-restored")
     if not any("[PletzelFreecam] DISABLED " in e["text"] for e in events):
         raise AssertionError("Freecam F8 did not restore active player camera state")
+    metrics["baseline_skin_colored_coverage"]=self_model_skin_coverage(base)
     metrics["initial_self_model_skin_coverage"]=self_model_skin_coverage(camera_initial)
+    # A genuine dirt-walled spawn can cover >40% of the screen with the
+    # same brown RGB values as skin. The pre-Freecam screenshot is the
+    # control: only EXTRA head-shaped/skin-colored occlusion introduced
+    # by activating Freecam indicates camera-inside-player regression.
+    metrics["added_skin_coverage_on_activation"]=round(max(0,
+        metrics["initial_self_model_skin_coverage"]-
+        metrics["baseline_skin_colored_coverage"]),4)
     metrics["camera_forward_visual_change"]=mean_diff(base,fwd)
     metrics["restored_player_view_difference"]=mean_diff(base,back)
     metrics["world_start_chroma_ok"]=is_world(initial)
@@ -139,8 +147,8 @@ try:
     # Conservative visual assertions: camera must move, then recover player view.
     if metrics["camera_forward_visual_change"] < 8:
         raise AssertionError("Camera movement not visibly established: "+json.dumps(metrics))
-    if metrics["initial_self_model_skin_coverage"] > 0.40:
-        raise AssertionError("Freecam activation still shows player head interior: "+json.dumps(metrics))
+    if metrics["added_skin_coverage_on_activation"] > 0.10:
+        raise AssertionError("Freecam activation ADDED player-head interior occlusion: "+json.dumps(metrics))
     if metrics["restored_player_view_difference"] > 16:
         raise AssertionError("Player view not restored after Freecam: "+json.dumps(metrics))
     if any(e["kind"]=="pageerror" for e in events):
