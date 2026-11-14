@@ -10,9 +10,9 @@ def read(relative,base=game):
 screen=read("net/pletzel/schematica/SchematicaScreen.java")
 assert screen.count('toggle(left,y,"Easy Pick"')==1
 assert screen.count('toggle(right,y,"Easy Place"')==1
-assert "Hover auto-place remains DISABLED" in screen
+assert "Hover: aim at ghosts without clicking" in screen
 assert "EasyPlace26.diagnosticStatus()" in screen
-assert "this.minecraft.options.pletzelEasyPlaceHover.set(false)" in screen
+assert "this.minecraft.options.pletzelEasyPlaceHover.set(!this.minecraft.options.pletzelEasyPlaceHover.get())" in screen
 assert "PITCH=28" in screen
 assert "this.rebuildWidgets()" in screen
 assert "Prev Page" in screen and "Next Page" in screen
@@ -23,7 +23,7 @@ assert "SchematicaSession.loadAny(" in screen
 assert "PletzelSchematicImport] LOADED" in screen
 assert '"Map Tooltip Settings"' not in screen
 assert '"Map Art Settings"' not in screen
-assert '"Hover: DISABLED"' in screen
+assert '"Place Mode: Hover"' in screen
 mods=read("net/pletzel/schematica/PletzelModsScreen26.java")
 assert 'new SchematicaScreen(this)' in mods
 assert 'new PletzelMapArtSettings26(this)' in mods
