@@ -20,26 +20,29 @@ for field,val in [
  assert f'OptionInstance.createBoolean("{field}", {val})' in options,field
  assert f'access.process("{field}", this.{field})' in options,field
 assert mc.index("EasyPick26.beforeVanillaUse(this)")<mc.index("EasyPlace26.beforeVanillaUse(this)")
-assert 'EasyPlace26.shouldHoverPlace(this)' not in mc
+assert "EasyPlace26.afterVanillaKeybinds(this)" in mc
 assert "EasyPlace26.tick(this)" in mc
 assert "net.pletzel.schematica.Freecam26.active()" in mc
 # Ghost-first targeting is necessary: real Minecraft hitResult is a MISS
 # when a hologram occupies empty air. The *support* must still be a real
 # collider raycast with vanilla reach and orientation checks.
 # Hold-mode source contract: vanilla manual use, server-only confirmation.
-assert "HOVER_AUTOPLACE_DISABLED = true" in easy
+assert "HOVER_AUTOPLACE_DISABLED = false" in easy
 assert "mc.hitResult=" not in easy
 assert "onServerBlockUpdate(ClientLevel level" in easy
 assert "onServerChunk(ClientLevel level" in easy
 assert "onServerPredictionAck(ClientLevel level" in easy
 assert "SERVER_CONFIRMED" in easy and "SERVER_REJECTED_OR_CORRECTED" in easy
 assert "TIMEOUT_NOT_CONFIRMED" in easy
-assert "attemptedThisHold=true" in easy
+assert "rejectedTargets.contains(target)" in easy
 assert "pending!=null" in easy
 assert "getStateForPlacement(ctx)" in easy
 assert "mc.player.blockInteractionRange()" in easy
 assert "mc.level.clip(" in easy
-assert "public static boolean shouldHoverPlace(Minecraft mc) {return false;}" in easy
+assert "mc.gameMode.useItemOn(mc.player,InteractionHand.MAIN_HAND,hit)" in easy
+assert "mc.options.pletzelEasyPlaceHover.get()" in easy
+assert "mc.options.keyUse.isDown()" in easy
+assert "selected+1" in easy
 listener=read("net/minecraft/client/multiplayer/ClientPacketListener.java")
 assert listener.count("EasyPlace26.onServerBlockUpdate(")==2
 assert "EasyPlace26.onServerPredictionAck(" in listener
@@ -51,7 +54,7 @@ assert "SERVER_CONFIRMED_AND_RECONCILED" in easy
 assert "observedByServer" in easy
 for forbidden in ("ServerboundUseItemOnPacket", "ServerboundSetCarriedItemPacket",
                   ".connection.send(", ".send(", "setBlock(", "setItem(",
-                  "setSelectedSlot(", "mc.hitResult=", "startUseItem("):
+                  "mc.hitResult=", "startUseItem("):
  assert forbidden not in easy,forbidden
 assert "ChunkPos.pack(sx,sz)" in schem
 assert "SECTION_COLUMNS" in schem
@@ -75,7 +78,7 @@ assert "LevelResource.ROOT" in store
 assert "PletzelBuildingSettings26(this)" in read("net/pletzel/schematica/SchematicaScreen.java")
 for name in ("PletzelBuildingSettings26","PletzelMapArtSettings26"):
  assert (root/("net/pletzel/schematica/"+name+".java")).exists()
-print("SOURCE PASS: manual Hold only, unchanged vanilla use, authoritative block packet callbacks")
+print("SOURCE PASS: Hover and continuous Hold target ray-verified REAL faces; vanilla item use")
 print("SOURCE PASS: OFF-by-default persisted Easy Place and map-art options")
 print("SOURCE PASS: cache keyed to world/server+dimension+MapId, 16,384 real colors")
 print("SOURCE PASS: all red wrong-model faces retained, 16x16 column visibility")
