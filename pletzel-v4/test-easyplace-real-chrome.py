@@ -380,24 +380,33 @@ try:
   snap("13-continuous-eleven-ghosts-imported")
   close_schematic()
   bx,bz=tx+2,tz-2
-  send(f"/fill {bx-1} {ty} {bz-1} {bx+12} {ty+3} {bz+1} minecraft:air")
-  send(f"/fill {bx-1} {ty-1} {bz-1} {bx+12} {ty-1} {bz+1} minecraft:bedrock")
-  # A single mouse-down followed by physical mouse motion; never call
-  # hold_use() or mouse.down() again during this full building sequence.
-  send(f"/tp @p {bx+5.5:.1f} {ty} {bz-6.0:.1f} 0 10")
+  # The old test parked the player SIX blocks away and rotated only the
+  # camera, never reaching any of the 11 real targets. Prepare a flat real
+  # walkable support platform and an unobstructed corridor at the same y.
+  # These commands place only AIR/BEDROCK support, NEVER expected materials.
+  send(f"/fill {bx-2} {ty} {bz-4} {bx+12} {ty+3} {bz+1} minecraft:air")
+  send(f"/fill {bx-2} {ty-1} {bz-4} {bx+12} {ty-1} {bz+1} minecraft:bedrock")
+  # Minecraft yaw 0 faces +Z; holding A physically strafes +X down this
+  # eleven-cell row. Eye height +1.62 and pitch 25 reaches z=bz at y=ty.
+  # A stationary player could NEVER reach all 11 cells (4.5-block reach).
+  send(f"/tp @p {bx-0.5:.1f} {ty} {bz-2.5:.1f} 0 25")
   page.mouse.move(640,360);page.wait_for_timeout(1600)
   before_continuous=len(events)
   page.mouse.down(button="right")
   continuous_down_events=1
   try:
-   # Sweep both directions with the cursor captured by native Minecraft.
-   # The actual server and native aim tests decide which cells are legal.
-   sweep=[640]+list(range(680,1181,40))+list(range(1140,99,-40))+list(range(140,1141,40))
-   for scan_i,x in enumerate(sweep):
-    page.mouse.move(x,360,steps=3)
-    page.wait_for_timeout(950)
-    if scan_i%12==0:snap("13-continuous-hold-sweep-"+str(scan_i))
+   # One REAL physical mouse-down throughout. Move the PLAYER/crosshair
+   # relative to the world using ordinary Minecraft A key input; do NOT
+   # teleport, open chat, forge input packets or call mouse.down again.
+   page.wait_for_timeout(1600)
+   for stride in range(26):
+    page.keyboard.down("a")
+    page.wait_for_timeout(100)
+    page.keyboard.up("a")
+    page.wait_for_timeout(650) # allow vanilla server ACK at 2-6 Chrome FPS
+    if stride%5==0:snap("13-continuous-hold-strafe-"+str(stride))
   finally:
+   page.keyboard.up("a")
    page.mouse.up(button="right")
   page.wait_for_timeout(4000)
   continuous_logs=[e["text"] for e in events[before_continuous:]]
