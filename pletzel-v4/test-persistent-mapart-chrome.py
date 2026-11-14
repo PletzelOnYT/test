@@ -142,7 +142,8 @@ try:
   def death_events():
    return [e for e in events if " drowned" in e["text"] and
            ("[CHAT]" in e["text"] or "Render thread" in e["text"])]
-  if death_events():
+  drowned_before_effect=bool(death_events())
+  if drowned_before_effect:
    snap("09a-player-drowned-before-maps")
    page.mouse.click(640,426) # Native Minecraft Respawn button (1280x720)
    page.wait_for_timeout(5000)
@@ -150,8 +151,7 @@ try:
   send("/effect give @p minecraft:water_breathing 999999 0 true")
   # Initial oxygen may have expired while sending the first command; if so,
   # repeat real Respawn and the authentic vanilla effect command once.
-  if death_events() and not any("REAL_MAP_SURVIVAL_RESPAWN_AFTER_DROWNING" in
-                              e["text"] for e in events):
+  if not drowned_before_effect and death_events():
    # Only execute if first detection occurred AFTER attempting the effect.
    page.mouse.click(640,426)
    page.wait_for_timeout(4500)
