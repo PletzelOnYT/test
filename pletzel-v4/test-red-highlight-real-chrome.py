@@ -35,7 +35,9 @@ try:
   page=browser.new_page(viewport={"width":1280,"height":720})
   page.on("console",lambda m:events.append({"t":elapsed(),"kind":m.type,"text":m.text[:2500]}))
   page.on("pageerror",lambda e:events.append({"t":elapsed(),"kind":"pageerror","text":str(e)[:3000]}))
+  chooser_events=[]
   def choose(fc):
+   chooser_events.append(elapsed())
    fc.set_files(str(fixture.resolve()))
    print("EASYPICK_REAL_CHOOSER",fixture.name,flush=True)
   page.on("filechooser",choose)
@@ -139,9 +141,25 @@ try:
   snap("05-stone-and-dirt-hotbar")
   open_schematic()
   snap("06-load-red-overlay-fixture")
-  click(410,183,8500)
-  if not any("[PletzelSchematicImport] LOADED "+fixture.name in e["text"] for e in events):
-   raise AssertionError("Real connected-wall schematic never loaded")
+  # On actual low-FPS Chrome (#43567860419) the first physical click was
+  # occasionally dropped before any filechooser event. Retry THE REAL native
+  # Load Schematic button only if no chooser opened, and await the real import.
+  # Never inject a schematic, mutate game memory or spoof the LOADED log.
+  imported=False
+  for click_attempt in range(4):
+   before_choosers=len(chooser_events)
+   click(410,183,3500)
+   if len(chooser_events)>before_choosers:
+    for import_poll in range(45):
+     if any("[PletzelSchematicImport] LOADED "+fixture.name in e["text"] for e in events):
+      imported=True
+      break
+     page.wait_for_timeout(700)
+    if imported:break
+    raise AssertionError("Native file chooser opened, but real red schematic import did not complete")
+   snap("06-native-load-click-retry-"+str(click_attempt))
+  if not imported:
+   raise AssertionError("Native Load Schematic clicks did not trigger a real file chooser/import")
   click(410,440,900) # Position/Transform panel
   click(875,280,900) # Move to Player
   click(875,525,900) # Back to main
