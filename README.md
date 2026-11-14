@@ -36,3 +36,17 @@ The goal is to enable AI agents with authorized GitHub access and execution tool
 ## Status
 
 **AI Development & Testing Repository — Active**
+
+## Experimental Pletzel V4 No-Voice build — 2026-11-14
+
+The complete playable HTML is committed in the root as [Pletzel-V4-Experimental-NoVoice.html](https://github.com/PletzelOnYT/test/raw/refs/heads/main/Pletzel-V4-Experimental-NoVoice.html).
+
+GitHub experimental prerelease: https://github.com/PletzelOnYT/test/releases/tag/pletzel-v4-easyplace-experimental-20261114
+
+Full native compile: https://github.com/PletzelOnYT/test/actions/runs/43549286002 (successful).
+Chromium eight-suite test: https://github.com/PletzelOnYT/test/actions/runs/43615183423 (6/8 passing; Easy Place and Map Art failing).
+Source commit compiled: b2e5f41c87ed9d0a6645a00031d60de154bf52a2. Exact compiled HTML SHA-256: 75f229d91369e94c34550de2645c0bcb972ef5db1535d27bc3d1397afdc9c298; size: 89799848 bytes.
+
+EXPERIMENTAL/UNVERIFIED: Do not use automated Easy Place on public multiplayer servers; potential kicks/bans and ghost blocks. Map Art persistence after a browser restart has not passed.
+
+Previous main HTML is preserved unchanged as Pletzel-V4-Optimized-Litematica-EasyPlace-EasyPick-MapArt-NoVoice.html and also copied to backups/Pletzel-V4-main-before-2026-11-14.html. No voice chat in this release.

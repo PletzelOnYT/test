@@ -1,0 +1,168 @@
+name: Pletzel V4 Easy Place Map Art real Chrome eight-suite acceptance
+on:
+  push:
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
+    paths:
+      - '.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'
+      - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
+      - 'pletzel-v4/EasyPlace26.java'
+      - 'pletzel-v4/EasyPick26.java'
+      - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
+      - 'pletzel-v4/patch-easyplace-mapart.py'
+      - 'pletzel-v4/SchematicaScreenRestored26.java'
+      - 'pletzel-v4/test-easyplace-real-chrome.py'
+      - 'pletzel-v4/test-persistent-mapart-chrome.py'
+      - 'pletzel-v4/test-red-highlight-real-chrome.py'
+      - 'pletzel-v4/test-mods-separation-real-chrome.py'
+      # Include every checked behavior, not just Easy Place. A Freecam-only
+      # game-code or test correction must trigger fresh 8/8 acceptance.
+      - 'pletzel-v4/Freecam26.java'
+      - 'pletzel-v4/patch-multiformat-freecam.py'
+      - 'pletzel-v4/MapArtStore26.java'
+      - 'pletzel-v4/MapTooltipClientPersistent26.java'
+      - 'pletzel-v4/PletzelMapArtIndexedDB26.java'
+      - 'pletzel-v4/patch-schematica-maptooltip-restoration.py'
+      - 'pletzel-v4/test-freecam-real-flight.py'
+      - 'pletzel-v4/test-fourformat-browser-smoke.py'
+      - 'pletzel-v4/test-native-schematic-inworld.py'
+      - 'pletzel-v4/test-no-voice-world-save.py'
+      - 'pletzel-v4/publish-easyplace-no-voice.sh'
+      - '.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: pletzel-v4-easyplace-chrome-current-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  exact-compiled-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 175
+    outputs:
+      build_run: ${{ steps.find.outputs.build_run }}
+      compiled_source_sha: ${{ steps.find.outputs.compiled_source_sha }}
+    steps:
+      - name: Verify newly built immutable native source and test-only differences
+        id: find
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPILED_SOURCE_SHA: b2e5f41c87ed9d0a6645a00031d60de154bf52a2
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
+          test "$current" = "$GITHUB_SHA" || { echo "SUPERSEDED_HEAD"; exit 3; }
+          # EXACT same Java + native patch sources as freshly compiled run.
+          # Test-only edits may not silently use an old game binary.
+          diff="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMPILED_SOURCE_SHA...$GITHUB_SHA" --jq '.files[].filename')"
+          test -n "$diff" || { echo "NO_DIFF_EXPECTED"; exit 4; }
+          while IFS= read -r p; do
+            case "$p" in
+              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'|'.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'|'pletzel-v4/publish-easyplace-no-voice.sh') ;;
+              *) echo "GAME_CODE_DRIFT_REQUIRES_RECOMPILATION=$p"; exit 5;;
+            esac
+            echo "REVIEWED_HARNESS_ONLY=$p"
+          done <<< "$diff"
+          build_run=""
+          for attempt in $(seq 1 120); do
+            build_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$COMPILED_SOURCE_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")] | first | .id // empty')"
+            if [[ -n "$build_run" ]]; then break; fi
+            sleep 10
+          done
+          test -n "$build_run" || { echo "NEW_EXACT_SOURCE_NATIVE_BUILD_MISSING"; exit 5; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_branch)" = "$GITHUB_REF_NAME"
+          for attempt in $(seq 1 660); do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .status)"
+            if [[ "$status" = completed ]]; then
+              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .conclusion)"
+              test "$outcome" = success || { echo "FRESH_NATIVE_COMPILATION_FAILED:$outcome"; exit 6; }
+              break
+            fi
+            sleep 15
+          done
+          test "$status" = completed || { echo "COMPILER_TIMEOUT"; exit 7; }
+          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
+          echo "compiled_source_sha=$COMPILED_SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "FRESH_NATIVE_BINARY_PROVENANCE_OK run=$build_run compiled=$COMPILED_SOURCE_SHA tests=$GITHUB_SHA"
+  chrome:
+    needs: [exact-compiled-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [easyplace, mapart, red-highlight, fourformat, freecam, hologram, world-save, mods]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download exact-source full standalone HTML
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ needs.exact-compiled-candidate.outputs.build_run }}
+          COMPILED_SOURCE_SHA: ${{ needs.exact-compiled-candidate.outputs.compiled_source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BUILD_RUN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
+          artifact=pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html
+          mkdir -p candidate
+          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate
+          test "$(find candidate -type f -name '*.html' | wc -l)" -eq 1
+          html="$(find candidate -type f -name '*.html' | head -1)"
+          test "$(stat -c %s "$html")" -gt 80000000
+          sha256sum "$html" | tee source-html-sha256.txt
+      - name: Run actual Minecraft WebGL browser, not a mocked placement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --no-input 'playwright==1.56.0' Pillow
+          case "${{ matrix.suite }}" in
+            easyplace) script=pletzel-v4/test-easyplace-real-chrome.py;;
+            mods) script=pletzel-v4/test-mods-separation-real-chrome.py;;
+            mapart) script=pletzel-v4/test-persistent-mapart-chrome.py;;
+            red-highlight) script=pletzel-v4/test-red-highlight-real-chrome.py;;
+            fourformat) script=pletzel-v4/test-fourformat-browser-smoke.py;;
+            freecam) script=pletzel-v4/test-freecam-real-flight.py;;
+            hologram) script=pletzel-v4/test-native-schematic-inworld.py;;
+            world-save) script=pletzel-v4/test-no-voice-world-save.py;;
+            *) exit 2;;
+          esac
+          xvfb-run -a -s '-screen 0 1280x768x24' python3 -u "$script" \
+            2>&1 | tee "easyplace-${{ matrix.suite }}.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-easyplace-${{ matrix.suite }}-real-chrome-evidence
+          path: |
+            source-html-sha256.txt
+            easyplace-*.log
+            red-highlight-real-chrome-evidence/
+            easy-pick-real-chrome-evidence/
+            map-shulker-real-inventory-evidence/
+            mods-menu-real-chrome-evidence/
+            inworld-schematic-evidence/
+            freecam-real-flight-evidence/
+            fourformat-browser-evidence/
+            world-save-reload-evidence/
+          retention-days: 30
+          if-no-files-found: warn
+
+# Release intentionally blocked: eight local Chrome suites do not prove
+# dedicated multiplayer correction, latency, disconnect or anticheat safety.
+
+  # No publishing on partial or compile-only success. Matrix must be 8/8.
+  publish-accepted-standalone:
+    needs: [exact-compiled-candidate, chrome]
+    if: ${{ success() && github.ref_name == 'pletzel-v4-easyplace-mapart-red-20261112' }}
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml
+    with:
+      build_run_id: ${{ needs.exact-compiled-candidate.outputs.build_run }}
+      source_sha: ${{ needs.exact-compiled-candidate.outputs.compiled_source_sha }}
+      acceptance_run_id: ${{ github.run_id }}

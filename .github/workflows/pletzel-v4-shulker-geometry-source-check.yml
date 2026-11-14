@@ -1,0 +1,37 @@
+name: Shulker 5.4.3 geometry correction source parity (NO ENGINE BUILD)
+on:
+  push:
+    branches: [pletzel-v4-shulker-original-gui-geometry-fix]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: MisterPeModder/ShulkerBoxTooltip
+          ref: v5.4.3+26.2
+          path: original
+          persist-credentials: false
+      - name: Compare original GUI math, item counts, sprite SHA and source syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/patch-exact-shulker-gui.py pletzel-v4/test-exact-shulker-gui-source.py
+          python3 pletzel-v4/test-shulker-geometry-upstream.py
+      - name: Record source parity result (not gameplay acceptance)
+        if: always()
+        shell: bash
+        run: |
+          printf '%s\n' 'This workflow is source-only; visual/gameplay verification remains pending.' > shulker-source-parity-not-gameplay.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shulker-geometry-source-only
+          path: shulker-source-parity-not-gameplay.txt

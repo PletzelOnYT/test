@@ -1,0 +1,44 @@
+name: Pletzel V4 - Mac chunk structure-starts player-sync repair source preflight (NO BUILD)
+on:
+  push:
+    branches: [pletzel-v4-mac-structure-starts-field-preflight]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  confirm-exact-structure-starts-read-path:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+      - name: Verify specific Mac 4045ms advancement/structure-request source chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pletzel-v4/repair-player-structure-starts-nonblocking.py
+          grep -F 'this.player.doTick();' engine/game/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+          grep -F 'CriteriaTriggers.LOCATION.trigger(this);' engine/game/src/main/java/net/minecraft/server/level/ServerPlayer.java
+          grep -F 'this.level.getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_STARTS)' engine/game/src/main/java/net/minecraft/world/level/StructureManager.java
+          grep -F 'this.mainThreadProcessor.managedBlock(serverFuture::isDone)' engine/game/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+          python3 pletzel-v4/repair-player-structure-starts-nonblocking.py engine
+          test "$(grep -c 'eaglerRequestChunkStatusNoWait' engine/game/src/main/java/net/minecraft/server/level/ServerChunkCache.java)" -eq 1
+          test "$(grep -c 'eaglerStructureStartsAvailableWithoutBlocking' engine/game/src/main/java/net/minecraft/world/level/StructureManager.java)" -eq 1
+          grep -F 'CriteriaTriggers.LOCATION.trigger(this)' engine/game/src/main/java/net/minecraft/server/level/ServerPlayer.java
+          grep -F 'level.structureManager().getStructureWithPieceAt(pos, this.structures.get()).isValid()' engine/game/src/main/java/net/minecraft/advancements/predicates/LocationPredicate.java
+          git -C engine diff --check
+          git -C engine diff --stat | tee actual-source-diff-stat.txt
+          git -C engine diff --binary > mac-structure-starts-field.patch
+          sha256sum mac-structure-starts-field.patch > mac-structure-starts-field.patch.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-mac-structure-starts-source-fix-evidence
+          retention-days: 45
+          path: |
+            mac-structure-starts-field.patch
+            mac-structure-starts-field.patch.sha256
+            actual-source-diff-stat.txt

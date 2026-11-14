@@ -1,0 +1,85 @@
+name: Pletzel V4 corrected Shulker Tooltip live visual + Ctrl lock evidence (NO REBUILD)
+on:
+  push:
+    branches: [pletzel-v4-shulker-original-gui-geometry-fix]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download ONLY the exact original GUI parity build, no duplicate link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          build=42764166538
+          expected=fc36438367d550c91e889a257e57b9942c7c808f
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .head_sha)" = "$expected"
+          deadline=$(( $(date +%s) + 5600 ))
+          while true; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .status)"
+            echo "Pinned original GUI build $build: $status"
+            if [ "$status" = completed ]; then
+              result="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build" --jq .conclusion)"
+              test "$result" = success || { echo "Original GUI build was not successful: $result"; exit 3; }
+              break
+            fi
+            test "$(date +%s)" -lt "$deadline" || exit 4
+            sleep 25
+          done
+          mkdir -p candidate
+          gh run download "$build" -R "$GITHUB_REPOSITORY" -n pletzel-v4-corrected-shulker-gui-complete-html -D candidate
+          test "$(find candidate -name '*.html' | wc -l)" -eq 1
+          test "$(find candidate -name '*.html' -exec stat -c %s {} \;)" -gt 85000000
+          find candidate -name '*.html' -exec sha256sum {} \; | tee original-gui-binary-sha256.txt
+      - name: Install real Chromium + Mesa/OpenGL
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0' Pillow
+          python -m playwright install --with-deps chromium
+      - name: Download public ORIGINAL MOD Full Preview screenshot as visual reference
+        shell: bash
+        run: |
+          curl -fL --retry 3 'https://cdn.modrinth.com/data/2M01OLQq/images/437f67b3c053f691e268571c8f059aa7f3697dd9.png' -o original-shulker-mod-full-preview.png || true
+          if test -s original-shulker-mod-full-preview.png; then
+            sha256sum original-shulker-mod-full-preview.png
+          else
+            echo 'Original published screenshot unavailable; no synthetic replacement generated'
+          fi
+      - name: Exercise actual Minecraft world, real item tooltip slots, empty, partial, full and GUI size
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x768x24' python pletzel-v4/test-original-shulker-gui-ctrl-lock.py 2>&1 | tee original-gui-browser.log
+      - name: Create labeled reference-versus-browser comparison (no fake UI)
+        if: always()
+        shell: bash
+        run: |
+          python pletzel-v4/make-original-shulker-comparison.py | tee original-gui-comparison.log || true
+      - name: Save unmodified game screenshots, reference, logs and comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-corrected-shulker-gui-gameplay-visual-evidence
+          path: |
+            original-shulker-gui-gameplay-evidence/
+            original-shulker-mod-full-preview.png
+            original-gui-binary-sha256.txt
+            original-gui-browser.log
+            original-gui-comparison.log
+          if-no-files-found: warn
+          retention-days: 21

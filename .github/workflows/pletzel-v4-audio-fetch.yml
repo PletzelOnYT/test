@@ -1,0 +1,31 @@
+name: Pletzel V4 Real 26.2 Sound Asset Validation
+on:
+  push:
+    branches: [pletzel-v4-singleplayer-repair]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Retrieve public 26.2 sound EPK and validate header
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 'https://raw.githubusercontent.com/melonman106/Eagler-26.2-Client/main/sounds.epk' -o sounds.epk
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          data=Path('sounds.epk').read_bytes()
+          print('EPK bytes',len(data),'sha256',hashlib.sha256(data).hexdigest())
+          print('EPK signature',repr(data[:24]))
+          assert len(data)>1000000,'not a real sound archive'
+          assert data.startswith(b'EAGPKG$$'),'not a valid EPK signature'
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pletzel-v4-public-real-26-2-sounds
+          path: sounds.epk
+          retention-days: 3

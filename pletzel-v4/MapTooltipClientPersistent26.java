@@ -1,0 +1,71 @@
+package net.pletzel.maptooltip;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.state.MapRenderState;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+
+/** Vanilla 128x128 pixels for ALL ordinary filled maps, including terrain.
+ * Explorer/navigation maps are excluded by metadata. Original previously
+ * observed colors reload from IndexedDB for the same world/server and MapId.
+ */
+public final class MapTooltipClientComponent implements ClientTooltipComponent {
+    private static final Identifier BACKGROUND=Identifier.withDefaultNamespace("textures/map/map_background.png");
+    private final MapId id;
+    private final boolean explorer;
+    public MapTooltipClientComponent(MapId id,boolean explorer) {
+        this.id=id;this.explorer=explorer;
+    }
+    private boolean permitted() {
+        Minecraft mc=Minecraft.getInstance();
+        if(mc==null||mc.level==null||mc.options==null)return false;
+        MapItemSavedData live=mc.level.getMapData(id);
+        return MapArtStore26.canPreview(id,explorer,live);
+    }
+    private MapItemSavedData current() {
+        if(!permitted())return null;
+        Minecraft mc=Minecraft.getInstance();
+        MapItemSavedData live=mc.level.getMapData(id);
+        if(MapArtStore26.hasObservedColors(live)) {
+            MapArtStore26.observe(id,live);
+            return live;
+        }
+        // When reconnecting, Minecraft may have a map-data object before
+        // its colors arrive; prefer proven cached pixels instead of showing
+        // a blank preview or destroying the durable art.
+        return MapArtStore26.cachedData(id);
+    }
+    @Override public int getHeight(Font font) {
+        return permitted()?MapTooltipPreviewSize26.get():0;
+    }
+    @Override public int getWidth(Font font) {
+        return permitted()?MapTooltipPreviewSize26.get():0;
+    }
+    @Override public void extractImage(Font font,int x,int y,int width,int height,GuiGraphicsExtractor graphics) {
+        if(!permitted())return;
+        int side=MapTooltipPreviewSize26.get();
+        graphics.blit(RenderPipelines.GUI_TEXTURED,BACKGROUND,x,y-2,0.0F,0.0F,side,side,66,66);
+        MapItemSavedData data=current();
+        if(data==null) {
+            graphics.text(font,"Map #"+id.id(),x+6,y+16,0xffeeeeee);
+            graphics.text(font,"Waiting for map pixels",x+2,y+30,0xffffd49b);
+            return;
+        }
+        graphics.pose().pushMatrix();
+        try {
+            float ratio=side/66.0F;
+            graphics.pose().translate(x+4.0F*ratio,y+2.0F*ratio);
+            graphics.pose().scale(.45F*ratio,.45F*ratio);
+            MapRenderState state=new MapRenderState();
+            Minecraft.getInstance().getMapRenderer().extractRenderState(id,data,state);
+            graphics.map(state);
+        } finally {
+            graphics.pose().popMatrix();
+        }
+    }
+}

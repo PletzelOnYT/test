@@ -1,0 +1,65 @@
+name: Pletzel V4 optimization inspect native map and hologram sources
+on:
+  push:
+    branches: [pletzel-v4-map-tooltip-chunk-hologram-20261112]
+    paths: ['.github/workflows/pletzel-v4-optimization-inspect.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dicestack88/Eaglercraft-26.2-source
+          ref: f73bff91f0f0840bc958c09ab536dbba1e146b2e
+          path: engine
+      - name: Extract and apply original schematic patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const fs=require('node:fs'),zlib=require('node:zlib');
+          for (const [input,output,compress] of [
+            ['pletzel-v4/native-patches.tar.br.b64','pletzel-v4/native-patches.tar','br'],
+            ['pletzel-v4/gui-hotfix.py.br.b64','pletzel-v4/gui-hotfix.py','br'],
+            ['pletzel-v4/engine-render-repair.py.gz.b64','pletzel-v4/engine-render-repair.py','gzip']]){
+            const b=Buffer.from(fs.readFileSync(input,'utf8').trim(),'base64');
+            fs.writeFileSync(output,compress==='br'?zlib.brotliDecompressSync(b):zlib.gunzipSync(b));
+          }
+          JS
+          tar -xf pletzel-v4/native-patches.tar -C pletzel-v4/
+          python3 pletzel-v4/apply_to_26_2_source.py engine
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('engine/game/src/main/java/net/pletzel/schematica/SchematicaSession.java')
+          s=p.read_text().replace('Blocks.WHITE_WOOL.defaultBlockState()', 'Blocks.WOOL.white().defaultBlockState()')
+          p.write_text(s)
+          PY
+          python3 pletzel-v4/gui-hotfix.py engine
+          python3 pletzel-v4/engine-render-repair.py engine
+          python3 pletzel-v4/patch-map-tooltip-native.py engine
+      - name: Export exact native Java files for diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p inspection
+          cp engine/game/src/main/java/net/pletzel/schematica/{SchematicaWorldRenderer,SchematicaSession,SchematicaScreen}.java inspection/
+          cp engine/game/src/main/java/net/pletzel/maptooltip/{MapTooltipClientComponent,MapTooltipData}.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/resources/MapTextureManager.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/renderer/MapRenderer.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipComponent.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/gui/GuiGraphicsExtractor.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/renderer/extract/LevelExtractor.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/renderer/LevelRenderer.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/renderer/Frustum.java inspection/
+          cp engine/game/src/main/java/net/minecraft/client/multiplayer/ClientLevel.java inspection/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-optimization-native-java-inspection
+          path: inspection/
+          retention-days: 14

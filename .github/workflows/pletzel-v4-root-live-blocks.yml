@@ -1,0 +1,46 @@
+name: Pletzel V4 Exact HTML - Live Block State Comparison
+on:
+  push:
+    branches: [pletzel-v4-root-block-comparison]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  real-blocks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact already compiled root-fixed artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 42392345185 -R "${GITHUB_REPOSITORY}" -n pletzel-v4-singleplayer-root-fixed-html-candidate -D candidate
+          f=$(find candidate -name '*.html' | head -1)
+          echo "510c41635be41ff62ac1ebe05eb0b810ca7d6dcacfcfc0d2150c3e56378f0e5d  $f" | sha256sum -c -
+      - name: Install Chromium with working WebGL2/IndexedDB
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Create Creative normal world; run real setblock comparison states
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' python pletzel-v4-root-live-block-test.py 2>&1 | tee live-comparison.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-exact-rootfix-live-block-states
+          path: |
+            root-live-block-evidence/
+            live-comparison.log
+          retention-days: 7
+          if-no-files-found: warn
