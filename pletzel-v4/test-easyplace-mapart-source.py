@@ -20,7 +20,8 @@ for field,val in [
  assert f'OptionInstance.createBoolean("{field}", {val})' in options,field
  assert f'access.process("{field}", this.{field})' in options,field
 assert mc.index("EasyPick26.beforeVanillaUse(this)")<mc.index("EasyPlace26.beforeVanillaUse(this)")
-assert "EasyPlace26.afterVanillaKeybinds(this)" in mc
+# The final GUI/IndexedDB restoration stage injects afterVanillaKeybinds.
+# That final stage is checked independently after it runs.
 assert "EasyPlace26.tick(this)" in mc
 assert "net.pletzel.schematica.Freecam26.active()" in mc
 # Ghost-first targeting is necessary: real Minecraft hitResult is a MISS
