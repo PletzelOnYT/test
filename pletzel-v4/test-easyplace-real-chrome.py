@@ -318,17 +318,37 @@ try:
   open_schematic();snap("12-independent-buttons-retained")
   click(410,525,1400) # Advanced Settings, separate from both toggles
   snap("12-advanced-settings-layout")
-  click(410,183,1500) # attempt to enable disallowed Hover mode
-  snap("12-hover-refused")
-  assert stored_option("pletzelEasyPlaceHover")=="pletzelEasyPlaceHover:false", (
-      "Hover Auto-Place must remain OFF",stored_option("pletzelEasyPlaceHover"))
+  click(410,183,1500) # Enable actual Hover Auto-Place mode
+  snap("12-hover-enabled")
+  assert stored_option("pletzelEasyPlaceHover")=="pletzelEasyPlaceHover:true", (
+      "Hover must be selectable and persist",stored_option("pletzelEasyPlaceHover"))
   click(875,440,1400) # Back to main
-  # Pressing the disabled Hover control intentionally turns Hold OFF.
-  # Re-enable Hold explicitly for subsequent legitimate physical clicks.
-  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:false"
-  click(875,360,1400) # physical user reenables Hold
-  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true"
+  assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:true", (
+      "Changing modes must NOT turn Easy Place off")
   close_schematic()
+
+  # HOVER: no physical right click, one native vanilla placement per
+  # genuine schematic target. Use server commands only to prepare empty
+  # fixture cells and separately QUERY server state. Commands cannot create
+  # the expected material and cannot serve as placement evidence.
+  for offset,block in ((0,"minecraft:stone"),
+                       (1,"minecraft:oak_planks"),(2,"minecraft:glass")):
+   x=tx+offset
+   send(f"/setblock {x} {ty} {tz} minecraft:air")
+   started=len(events)
+   send(f"/tp @p {x+0.5:.1f} {ty} {tz-1.5:.1f} 0 38")
+   page.wait_for_timeout(7000)
+   trace=[e["text"] for e in events[started:]]
+   sends=[e for e in trace if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in e]
+   ack=[e for e in trace if "[PletzelEasyPlace] SERVER_CONFIRMED_AND_RECONCILED" in e]
+   if len(sends)!=1 or len(ack)!=1 or "mode=HOVER" not in sends[0]:
+    raise AssertionError(("Hover must auto-place exactly one real block WITHOUT right-click",block,sends,ack))
+   marker="PLETZEL_HOVER_SERVER_"+str(offset)
+   send(f"/execute if block {x} {ty} {tz} {block} run say {marker}")
+   if not any(marker in line and "CHAT" in line for line in console_text()):
+    raise AssertionError("Hover block not confirmed by integrated server "+block)
+   snap("13-hover-authoritative-"+block.split(":")[-1])
+  print("EASYPLACE_HOVER_THREE_SERVER_CONFIRMED_WITHOUT_MOUSE_DOWN",flush=True)
 
   # Save, quit, and reopen the EXACT integrated-server world. Verify the
   # three placed materials from new server-side block queries after restart.
@@ -384,7 +404,7 @@ report={"actions":commands,"screenshots":shots,"slotObservations":observations,
           "Single real stone placement checks server response; other rotated or multi-block placements are not independently verified",
           "LocalStorage persistence on reload is checked; UI restoration after full world reopen not separately checked",
           "No proof of correct slab/stair orientation without actual physical build screenshots",
-          "Hover Auto-Place is disabled; controlled dedicated remote multiplayer remains unverified"]}
+          "Hover Auto-Place requires dedicated Chrome confirmation; controlled remote multiplayer remains unverified"]}
 (out/"result.json").write_text(json.dumps(report,indent=2))
 (out/"console.json").write_text(json.dumps(events,indent=2))
 print("EASYPLACE_EASYPICK_REAL_RESULT",json.dumps({"screens":len(shots),"observations":len(observations),
