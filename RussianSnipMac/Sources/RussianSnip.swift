@@ -73,6 +73,22 @@ final class SnipState: ObservableObject {
     @Published var image: NSImage?
     @Published var capturing = false
     @Published var translating = false
+    @Published var checkingProviders = false
+    @Published var engineUsed = "Not translated yet"
+    @Published var fallbackReport: [String] = []
+    @Published var providerChecks: [String] = []
+    @Published var mode: ProviderMode = ProviderMode(rawValue:
+        UserDefaults.standard.string(forKey: "providerMode") ?? "") ?? .automatic {
+        didSet { UserDefaults.standard.set(mode.rawValue, forKey: "providerMode") }
+    }
+    @Published var allowCommunity: Bool =
+        (UserDefaults.standard.object(forKey: "allowCommunity") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(allowCommunity, forKey: "allowCommunity") }
+    }
+    @Published var preferApple: Bool =
+        (UserDefaults.standard.object(forKey: "preferApple") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(preferApple, forKey: "preferApple") }
+    }
     private let speaker = AVSpeechSynthesizer()
     private init() {}
 
@@ -156,21 +172,51 @@ final class SnipState: ObservableObject {
         }
         translating = true
         error = nil
-        status = "Translating Russian into English…"
+        fallbackReport = []
+        engineUsed = "Selecting a provider…"
+        status = "Finding a working Russian-to-English translator…"
+        let settings = EngineSettings.fromStorage(
+            mode: mode, allowCommunity: allowCommunity, preferApple: preferApple
+        )
         Task {
             do {
-                let answer = try await MyMemory.translate(text)
+                let result = try await SmartTranslate.translate(text, settings: settings) { [weak self] name in
+                    Task { @MainActor in
+                        guard let self = self, self.translating else { return }
+                        self.status = "Trying " + name + "…"
+                    }
+                }
                 if text == russian.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    english = answer
-                    status = "Done. Translation and pronunciation ready."
+                    english = result.text
+                    engineUsed = result.provider
+                    fallbackReport = result.reports
+                    status = "Translated using " + result.provider + "."
                 } else {
-                    status = "Text changed; translate again."
+                    status = "Original text changed; translate again."
                 }
             } catch {
                 self.error = error.localizedDescription
-                status = "Translation unavailable. Offline OCR and pronunciation still work."
+                engineUsed = "No provider available"
+                status = "Online translators unavailable. OCR and pronunciation remain functional."
             }
             translating = false
+        }
+    }
+
+    func checkProviders() {
+        guard !checkingProviders && !capturing && !translating else { return }
+        checkingProviders = true
+        providerChecks = []
+        let settings = EngineSettings.fromStorage(
+            mode: mode, allowCommunity: allowCommunity, preferApple: preferApple
+        )
+        Task {
+            let results = await SmartTranslate.testAll(settings: settings) { [weak self] name in
+                Task { @MainActor in self?.status = "Checking " + name + "…" }
+            }
+            providerChecks = results
+            checkingProviders = false
+            status = "Provider checks finished. These are connectivity tests, not quality scores."
         }
     }
 
@@ -255,55 +301,6 @@ enum Romanizer {
     }
 }
 
-enum MyMemory {
-    struct Result: Decodable {
-        struct DataItem: Decodable { let translatedText: String? }
-        let responseData: DataItem?
-        let responseStatus: Int?
-        let responseDetails: String?
-    }
-    static func split(_ input: String) -> [String] {
-        var parts: [String] = []
-        var current = ""
-        for character in input {
-            let next = current + String(character)
-            if next.utf8.count > 430 && !current.isEmpty {
-                parts.append(current)
-                current = ""
-            }
-            current.append(character)
-        }
-        if !current.isEmpty { parts.append(current) }
-        return parts
-    }
-    static func translate(_ input: String) async throws -> String {
-        var parts: [String] = []
-        for chunk in split(input) {
-            var url = URLComponents(string: "https://api.mymemory.translated.net/get")!
-            url.queryItems = [
-                URLQueryItem(name: "q", value: chunk),
-                URLQueryItem(name: "langpair", value: "ru|en")
-            ]
-            var request = URLRequest(url: url.url!)
-            request.timeoutInterval = 25
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                throw SnipFailure.service("Server error or rate limit reached.")
-            }
-            let parsed = try JSONDecoder().decode(Result.self, from: data)
-            guard parsed.responseStatus == 200, let text = parsed.responseData?.translatedText,
-                  !text.isEmpty else {
-                throw SnipFailure.service(parsed.responseDetails ?? "Daily quota reached.")
-            }
-            var clean = text
-            for (a, b) in [("&quot;", "\""), ("&#39;", "'"), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">")] {
-                clean = clean.replacingOccurrences(of: a, with: b)
-            }
-            parts.append(clean)
-        }
-        return parts.joined()
-    }
-}
 
 struct MainView: View {
     @ObservedObject var state: SnipState
@@ -356,7 +353,7 @@ struct MainView: View {
                             Button("Copy") { state.copy(state.russian) }
                         }
                     }
-                    card("English Translation", badge: "FREE API") {
+                    card("English Translation", badge: "SMART FAILOVER") {
                         ScrollView {
                             Text(state.english.isEmpty ? "The English translation appears here." : state.english)
                                 .font(.system(size: 16))
@@ -365,7 +362,7 @@ struct MainView: View {
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
                         }.frame(minHeight: 240)
                         HStack {
-                            Text("MyMemory · internet required")
+                            Text("Used: " + state.engineUsed)
                                 .font(.caption).foregroundStyle(.secondary)
                             Spacer()
                             Button("Copy") { state.copy(state.english) }
@@ -385,8 +382,19 @@ struct MainView: View {
                         Button("Copy") { state.copy(state.reading) }
                     }
                 }
+                if !state.fallbackReport.isEmpty {
+                    DisclosureGroup("Fallback details (" + String(state.fallbackReport.count) + " failed provider attempts)") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(state.fallbackReport, id: \.self) { item in
+                                Text(item).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                            }
+                        }.padding(.top, 8)
+                    }
+                }
+                ProviderSettingsView(state: state)
                 Divider()
-                Text("Privacy: screenshots are processed and deleted locally. Only recognized text is sent to the free translation service. The service has a daily limit. Screen Recording permission may be required.")
+                Text("Privacy: Screenshots are recognized locally. Apple on-device translation (macOS 15+) stays on your Mac when language packs are installed. Online providers receive only the recognized text, not your screenshot. Community mirrors are independently operated, may go offline, and are not vetted for private documents. Optional keys are stored in macOS Keychain. The app is ad-hoc signed, not Apple-notarized.")
+                    .font(.caption).foregroundStyle(.secondary)
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(24)
         }
@@ -406,6 +414,95 @@ struct MainView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+
+struct ProviderSettingsView: View {
+    @ObservedObject var state: SnipState
+    @State private var expanded = false
+    @State private var deeplKey = SecretVault.get("deepl")
+    @State private var azureKey = SecretVault.get("azure")
+    @State private var azureRegion = UserDefaults.standard.string(forKey: "azureRegion") ?? ""
+    @State private var googleKey = SecretVault.get("google")
+    @State private var libreURL = UserDefaults.standard.string(forKey: "libreURL") ?? ""
+    @State private var libreKey = SecretVault.get("libre")
+    @State private var memoryEmail = UserDefaults.standard.string(forKey: "memoryEmail") ?? ""
+    @State private var saveResult = ""
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Translation engine", selection: $state.mode) {
+                    ForEach(ProviderMode.allCases) { item in
+                        Text(item.rawValue).tag(item)
+                    }
+                }.pickerStyle(.menu)
+                Text("Automatic mode tries configured premium/official providers, optional offline Apple translation, MyMemory, then public LibreTranslate mirrors. Unavailable or untranslated responses are rejected.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Try Apple on-device translation first (macOS 15+, installed languages)", isOn: $state.preferApple)
+                Toggle("Use community LibreTranslate mirrors as last-resort backups", isOn: $state.allowCommunity)
+                Text("Community mirrors are independently operated. Their availability and privacy policies can change. Disable this for sensitive text.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button(state.checkingProviders ? "Checking…" : "Check provider connections") {
+                        state.checkProviders()
+                    }.disabled(state.checkingProviders || state.translating)
+                    Spacer()
+                    Text("Test uses a sample sentence, not your screenshot")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !state.providerChecks.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(state.providerChecks, id: \.self) { item in
+                            Text(item).font(.caption).textSelection(.enabled)
+                        }
+                    }
+                }
+                Divider()
+                Text("Optional API keys & custom server").font(.headline)
+                Text("Leave these blank for no-account operation. Some cloud APIs can bill above their free allowance; check your provider plan.")
+                    .font(.caption).foregroundStyle(.secondary)
+                SecureField("DeepL API Developer / Free key (optional)", text: $deeplKey)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    SecureField("Microsoft Azure Translator key (optional)", text: $azureKey)
+                    TextField("Azure region (if required)", text: $azureRegion)
+                }.textFieldStyle(.roundedBorder)
+                SecureField("Google Cloud Translation API key (optional)", text: $googleKey)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Custom LibreTranslate HTTPS base URL (optional)", text: $libreURL)
+                    .textFieldStyle(.roundedBorder)
+                SecureField("Custom LibreTranslate API key (optional)", text: $libreKey)
+                    .textFieldStyle(.roundedBorder)
+                TextField("MyMemory contact email, optional (increases published quota)", text: $memoryEmail)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Save provider settings") {
+                        let results = [
+                            SecretVault.set("deepl", value: deeplKey.trimmingCharacters(in: .whitespacesAndNewlines)),
+                            SecretVault.set("azure", value: azureKey.trimmingCharacters(in: .whitespacesAndNewlines)),
+                            SecretVault.set("google", value: googleKey.trimmingCharacters(in: .whitespacesAndNewlines)),
+                            SecretVault.set("libre", value: libreKey.trimmingCharacters(in: .whitespacesAndNewlines))
+                        ]
+                        UserDefaults.standard.set(azureRegion.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "azureRegion")
+                        UserDefaults.standard.set(libreURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "libreURL")
+                        UserDefaults.standard.set(memoryEmail.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "memoryEmail")
+                        state.providerChecks = []
+                        saveResult = results.allSatisfy { $0 } ? "Saved to Keychain and preferences." : "Could not save one or more keys to Keychain."
+                    }.buttonStyle(.borderedProminent)
+                    if !saveResult.isEmpty {
+                        Text(saveResult).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.top, 12)
+        } label: {
+            Label("Translation providers, API keys & diagnostics", systemImage: "server.rack")
+                .font(.headline)
+        }
+        .padding(16)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
     }
 }
