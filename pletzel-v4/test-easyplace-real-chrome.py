@@ -210,8 +210,21 @@ try:
   assert stored_option("pletzelEasyPick")=="pletzelEasyPick:true"
   assert stored_option("pletzelEasyPlace")=="pletzelEasyPlace:false"
   close_schematic()
-  page.keyboard.press("9");page.wait_for_timeout(700)
+  page.keyboard.press("9");page.wait_for_timeout(250)
   before_pick=len(events)
+  # The target is a schematic ghost in AIR: its vanilla hitResult can be MISS.
+  # A real player expects Easy Pick to choose the material by AIMING alone.
+  # No synthetic mouse-use or placement packet is allowed in this phase.
+  page.wait_for_timeout(3000)
+  passive=[ev["text"] for ev in events[before_pick:]
+           if "[PletzelEasyPick] SELECT " in ev["text"] and
+              "source=GHOST_AIM_NO_RIGHT_CLICK" in ev["text"]]
+  if not passive:
+   raise AssertionError("Easy Pick must select the matching hotbar block by aiming at an AIR ghost, without any right-click")
+  if any("[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in ev["text"]
+         for ev in events[before_pick:]):
+   raise AssertionError("Passive Easy Pick must NEVER place a block")
+  print("EASY_PICK_GHOST_AIM_SELECTED_WITHOUT_CLICK",passive[-1],flush=True)
   hold_use(2500)
   if not any("[PletzelEasyPick] SELECT " in ev["text"] for ev in events[before_pick:]):
    raise AssertionError("Easy Pick ON with Easy Place OFF did not choose a hotbar item")
@@ -247,7 +260,12 @@ try:
   close_schematic()
   page.keyboard.press("9");page.wait_for_timeout(700)
   for slot in range(10):
+   # Force a different physical hotbar selection before each target;
+   # independent Easy Pick can legitimately switch during AIM, before
+   # the actual right-click. The observation window covers both phases.
+   page.keyboard.press("9" if slot!=8 else "1")
    t0=len(events)
+   page.wait_for_timeout(1500)
    hold_use(2700)
    window=events[t0:]
    selected=[e["text"] for e in window if "[PletzelEasyPick] SELECT " in e["text"]]
