@@ -48,7 +48,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMPILED_SOURCE_SHA: 9bd8756620a5914a343379d4727562ad4ce3cefe
+          COMPILED_SOURCE_SHA: 8a6ff641f469a4f49940e7ed5d9acbfde7bad724
         run: |
           set -euo pipefail
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
