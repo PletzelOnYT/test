@@ -406,19 +406,47 @@ try:
   before_continuous=len(events)
   page.mouse.down(button="right")
   continuous_down_events=1
+  def confirmed_during_hold():
+   # Count ONLY the game's real authoritative server+vanilla-ACK completion
+   # callbacks for 11 distinct fixture positions. No client-world mutation,
+   # dummy confirmation or synthetic key/mouse event is possible here.
+   positions=set()
+   for event in events[before_continuous:]:
+    t=event["text"]
+    if "[PletzelEasyPlace] SERVER_CONFIRMED_AND_RECONCILED" not in t:continue
+    match=re.search(r"target=BlockPos\\{x=(-?\\d+), y=(-?\\d+), z=(-?\\d+)\\}",t)
+    if match:
+     x,y,z=(int(v) for v in match.groups())
+     if y==ty and z==bz and bx<=x<bx+11:positions.add(x-bx)
+   return positions
   try:
-   # One REAL physical mouse-down throughout. Move the PLAYER/crosshair
-   # relative to the world using ordinary Minecraft A key input; do NOT
-   # teleport, open chat, forge input packets or call mouse.down again.
+   # The previous seven successful positions were x offsets 0,1,2,3,6,8,10.
+   # All seven were server-ACKed; the player moved past 4,5,7,9 faster than
+   # native ray sampling under software WebGL, NOT because Hold stopped.
+   # Keep the EXACT SAME physical right mouse-down throughout additional
+   # forward/backward walks. Ordinary Minecraft A/D keys move the real player.
+   # Reversing crosses skipped cells from the opposite direction while they
+   # remain unbuilt; this must still produce >=10 DISTINCT server confirmations.
    page.wait_for_timeout(1600)
-   for stride in range(26):
-    page.keyboard.down("a")
-    page.wait_for_timeout(100)
-    page.keyboard.up("a")
-    page.wait_for_timeout(650) # allow vanilla server ACK at 2-6 Chrome FPS
-    if stride%5==0:snap("13-continuous-hold-strafe-"+str(stride))
+   for sweep_i,(direction,steps) in enumerate(
+       (("a",26),("d",28),("a",28),("d",28))):
+    for stride in range(steps):
+     if len(confirmed_during_hold())>=10:break
+     page.keyboard.down(direction)
+     page.wait_for_timeout(100)
+     page.keyboard.up(direction)
+     page.wait_for_timeout(850) # vanilla placement/ACK; never a new click
+     if stride%6==0:
+      snap("13-continuous-hold-pass-"+str(sweep_i)+"-step-"+str(stride))
+    verified_live=sorted(confirmed_during_hold())
+    print("EASYPLACE_HOLD_SWEEP_PROGRESS",
+          json.dumps({"pass":sweep_i,"direction":direction,
+                      "realServerConfirmedOffsets":verified_live,
+                      "count":len(verified_live)}),flush=True)
+    if len(verified_live)>=10:break
   finally:
    page.keyboard.up("a")
+   page.keyboard.up("d")
    page.mouse.up(button="right")
   page.wait_for_timeout(4000)
   continuous_logs=[e["text"] for e in events[before_continuous:]]
