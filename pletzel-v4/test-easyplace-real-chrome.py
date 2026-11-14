@@ -414,7 +414,7 @@ try:
    for event in events[before_continuous:]:
     t=event["text"]
     if "[PletzelEasyPlace] SERVER_CONFIRMED_AND_RECONCILED" not in t:continue
-    match=re.search(r"target=BlockPos\\{x=(-?\\d+), y=(-?\\d+), z=(-?\\d+)\\}",t)
+    match=re.search(r"target=BlockPos\{x=(-?\d+), y=(-?\d+), z=(-?\d+)\}",t)
     if match:
      x,y,z=(int(v) for v in match.groups())
      if y==ty and z==bz and bx<=x<bx+11:positions.add(x-bx)
