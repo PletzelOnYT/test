@@ -72,6 +72,13 @@ final class SnipState: ObservableObject {
     @Published var error: String?
     @Published var image: NSImage?
     @Published var capturing = false
+    @Published var showingCrop = false
+    @Published var cropSource: NSImage?
+    @Published var awaitingClipboard = false
+    private var pickerHolder: AnyObject?
+    private var clipboardTimer: Timer?
+    private var clipboardStarted: Date?
+    private var clipboardChange = 0
     @Published var translating = false
     @Published var checkingProviders = false
     @Published var engineUsed = "Not translated yet"
@@ -99,52 +106,144 @@ final class SnipState: ObservableObject {
     }
 
     func snip() {
-        guard !capturing && !translating else { return }
-        capturing = true
+        guard !capturing && !translating && !awaitingClipboard && !showingCrop else { return }
         error = nil
-        status = "Drag to select Russian text. Press Esc to cancel."
-        Task { await takeScreenshot() }
+        status = "Choose a window or display in Apple's picker. No Screen Recording permission required."
+        if #available(macOS 14.0, *) {
+            capturing = true
+            let picker = PermissionlessScreenPicker()
+            pickerHolder = picker
+            picker.begin(onImage: { [weak self] picture in
+                guard let self else { return }
+                self.pickerHolder = nil
+                self.capturing = false
+                self.cropSource = picture
+                self.showingCrop = true
+                self.status = "Drag to select the Russian text."
+                Self.showWindow()
+            }, onFailure: { [weak self] explanation in
+                guard let self else { return }
+                self.pickerHolder = nil
+                self.capturing = false
+                self.error = explanation
+                self.status = "Use the clipboard screenshot option if the picker is unavailable."
+                Self.showWindow()
+            })
+        } else {
+            waitForSystemScreenshot()
+        }
     }
 
-    private func takeScreenshot() async {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("RussianSnip-" + UUID().uuidString + ".png")
-        defer { try? FileManager.default.removeItem(at: url) }
-        NSApp.hide(nil)
-        try? await Task.sleep(nanoseconds: 300_000_000)
-        do {
-            let code = try await Task.detached(priority: .userInitiated) { () -> Int32 in
-                let task = Process()
-                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                task.arguments = ["-x", "-i", "-s", url.path]
-                try task.run()
-                task.waitUntilExit()
-                return task.terminationStatus
-            }.value
+    // Uses macOS's own trusted screenshot shortcut. Requires ZERO app permissions.
+    func waitForSystemScreenshot() {
+        guard !capturing && !translating && !awaitingClipboard else { return }
+        error = nil
+        awaitingClipboard = true
+        clipboardChange = NSPasteboard.general.changeCount
+        clipboardStarted = Date()
+        status = "Press Control + Command + Shift + 4, select an area; this app will recognize it automatically."
+        clipboardTimer?.invalidate()
+        clipboardTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkClipboard() }
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 850_000_000)
+            if awaitingClipboard { NSApp.hide(nil) }
+        }
+    }
+
+    private func checkClipboard() {
+        guard awaitingClipboard else { return }
+        if let started = clipboardStarted, Date().timeIntervalSince(started) > 45 {
+            stopClipboardWatch()
             Self.showWindow()
-            guard code == 0 && FileManager.default.fileExists(atPath: url.path) else {
-                status = "Selection cancelled."
+            status = "Clipboard screenshot timed out. Try again, or click Paste Screenshot."
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        guard pasteboard.changeCount != clipboardChange else { return }
+        clipboardChange = pasteboard.changeCount
+        guard let pasted = imageFromClipboard() else { return }
+        stopClipboardWatch()
+        Self.showWindow()
+        receiveImage(pasted)
+    }
+
+    private func stopClipboardWatch() {
+        clipboardTimer?.invalidate()
+        clipboardTimer = nil
+        clipboardStarted = nil
+        awaitingClipboard = false
+    }
+
+    private func imageFromClipboard() -> NSImage? {
+        let clipboard = NSPasteboard.general
+        if let image = clipboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
+            return image
+        }
+        if let data = clipboard.data(forType: .png) ?? clipboard.data(forType: .tiff) {
+            return NSImage(data: data)
+        }
+        return nil
+    }
+
+    func pasteScreenshot() {
+        guard !translating && !capturing else { return }
+        if let result = imageFromClipboard() {
+            stopClipboardWatch()
+            Self.showWindow()
+            receiveImage(result)
+        } else {
+            error = "No screenshot image on clipboard. Press Control + Command + Shift + 4, drag a region, then click Paste Screenshot."
+        }
+    }
+
+    private func receiveImage(_ image: NSImage) {
+        error = nil
+        cropSource = image
+        showingCrop = true
+        status = "Drag a box around the words or choose Use Full Image."
+    }
+
+    func cancelCrop() {
+        showingCrop = false
+        cropSource = nil
+        status = "Ready. Use Snip & Translate or Paste Screenshot."
+    }
+
+    func acceptCrop(_ picture: NSImage) {
+        showingCrop = false
+        cropSource = nil
+        capturing = true
+        image = picture
+        status = "Recognizing selected text locally…"
+        Task {
+            let filename = "RussianSnip-OCR-" + UUID().uuidString + ".png"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+            defer { try? FileManager.default.removeItem(at: url) }
+            do {
+                guard let tiff = picture.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    throw SnipFailure.noText
+                }
+                try png.write(to: url, options: .atomic)
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try TextRecognizer.read(url)
+                }.value
+                guard !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw SnipFailure.noText
+                }
+                russian = result
+                reading = Romanizer.convert(result)
+                english = ""
                 capturing = false
-                return
+                translate()
+            } catch {
+                self.error = error.localizedDescription
+                status = "Unable to recognize text in that region."
+                capturing = false
             }
-            image = NSImage(contentsOf: url)
-            status = "Recognizing Russian locally…"
-            let result = try await Task.detached(priority: .userInitiated) {
-                try TextRecognizer.read(url)
-            }.value
-            guard !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw SnipFailure.noText
-            }
-            russian = result
-            reading = Romanizer.convert(result)
-            english = ""
-            capturing = false
-            translate()
-        } catch {
-            Self.showWindow()
-            self.error = error.localizedDescription
-            status = "Unable to read selection."
-            capturing = false
         }
     }
 
@@ -328,6 +427,14 @@ struct MainView: View {
                     Button { state.snip() } label: { Label("Snip & Translate", systemImage: "crop") }
                         .buttonStyle(.borderedProminent).tint(.indigo)
                         .disabled(state.capturing || state.translating)
+                    Button { state.waitForSystemScreenshot() } label: {
+                        Label("No-Permission Snip", systemImage: "rectangle.dashed")
+                    }
+                    .disabled(state.awaitingClipboard || state.capturing || state.translating)
+                    Button { state.pasteScreenshot() } label: {
+                        Label("Paste Screenshot", systemImage: "doc.on.clipboard")
+                    }
+                    .disabled(state.capturing || state.translating)
                     Button("Translate again") { state.translate() }
                         .disabled(state.capturing || state.translating || state.russian.isEmpty)
                     Button("Try example") { state.example() }
@@ -335,11 +442,15 @@ struct MainView: View {
                     Text("⌃⌥R").font(.system(.subheadline, design: .monospaced))
                 }
                 HStack {
-                    if state.capturing || state.translating { ProgressView().controlSize(.small) }
+                    if state.capturing || state.translating || state.awaitingClipboard { ProgressView().controlSize(.small) }
                     Text(state.status).font(.callout).foregroundStyle(.secondary)
                 }
                 if let error = state.error {
                     Text(error).foregroundStyle(.orange).textSelection(.enabled)
+                }
+                if state.awaitingClipboard {
+                    Text("Press Control + Command + Shift + 4, then drag across Russian text. The app detects the clipboard screenshot.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
                 HStack(alignment: .top, spacing: 14) {
                     card("Original Russian", badge: "OFFLINE OCR") {
@@ -396,10 +507,18 @@ struct MainView: View {
                 }
                 ProviderSettingsView(state: state)
                 Divider()
-                Text("Privacy: Screenshots are recognized locally. Apple on-device translation (macOS 15+) stays on your Mac when language packs are installed. Online providers receive only the recognized text, not your screenshot. Community mirrors are independently operated, may go offline, and are not vetted for private documents. Optional keys are stored in macOS Keychain. The app is ad-hoc signed, not Apple-notarized.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("Capture fix: Apple user-selected window/display picker on macOS 14+ (no global Screen Recording permission), plus a built-in clipboard screenshot method on all supported Macs. No screencapture subprocess. Privacy: Screenshots are recognized locally. Apple on-device translation (macOS 15+) stays on your Mac when language packs are installed. Online providers receive only the recognized text, not your screenshot. Community mirrors are independently operated, may go offline, and are not vetted for private documents. Optional keys are stored in macOS Keychain. The app is ad-hoc signed, not Apple-notarized.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(24)
+        }
+        .sheet(isPresented: $state.showingCrop) {
+            if let picture = state.cropSource {
+                ScreenshotCropSheet(image: picture, accept: { cropped in
+                    state.acceptCrop(cropped)
+                }, cancel: {
+                    state.cancelCrop()
+                })
+            }
         }
     }
 
