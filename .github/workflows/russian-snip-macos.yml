@@ -1,7 +1,7 @@
 name: Build Russian Snip ready-to-use macOS app
 on:
   push:
-    branches: [russian-snip-v2-multiengine-20261113]
+    branches: [russian-snip-v22-classic-snip-20261113]
     paths:
       - "RussianSnipMac/**"
       - ".github/workflows/russian-snip-macos.yml"
@@ -40,19 +40,31 @@ jobs:
           <key>CFBundleDisplayName</key><string>Russian Snip</string>
           <key>CFBundlePackageType</key><string>APPL</string>
           <key>CFBundleIconFile</key><string>AppIcon</string>
-          <key>CFBundleShortVersionString</key><string>2.0</string>
-          <key>CFBundleVersion</key><string>2</string>
+          <key>CFBundleShortVersionString</key><string>2.2</string>
+          <key>CFBundleVersion</key><string>4</string>
           <key>LSMinimumSystemVersion</key><string>13.0</string>
           <key>NSHighResolutionCapable</key><true/>
           <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
           </dict></plist>
           PLIST
           plutil -lint "$APP/Contents/Info.plist"
+      - name: Verify original on-screen snipping tool restored
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '"/usr/sbin/screencapture"' RussianSnipMac/Sources/RussianSnip.swift
+          grep -Fq 'task.arguments = ["-x", "-i", "-s", url.path]' RussianSnipMac/Sources/RussianSnip.swift
+          if grep -R -q 'SCContentSharingPicker\|ScreenshotCropSheet\|No-Permission Snip' RussianSnipMac/Sources; then
+            echo "FAIL: New system-picker UI still present"
+            exit 1
+          fi
+          echo "PASS: Original drag-to-select screen snip is restored without new picker/crop UI."
       - name: Run native translation engine tests
         shell: bash
         run: |
           set -euo pipefail
-          xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macosx15.0 -framework AppKit -framework SwiftUI -framework Translation -framework Security \
+          HOST_ARCH="$(uname -m)"
+          xcrun swiftc -parse-as-library -swift-version 5 -target "$HOST_ARCH-apple-macosx15.0" -framework AppKit -framework SwiftUI -framework Translation -framework Security \
             "RussianSnipMac/Sources/SmartTranslate.swift" \
             "RussianSnipMac/Tests/TranslationEngineAcceptance.swift" -o "$RUNNER_TEMP/TranslationEngineTests"
           "$RUNNER_TEMP/TranslationEngineTests"
@@ -114,12 +126,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           lipo -info "$APP/Contents/MacOS/RussianSnip"
           file "$APP/Contents/MacOS/RussianSnip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-v2-ready.zip"
-          unzip -t "Russian-Snip-Mac-v2-ready.zip" | tail -n 2
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-v22-Classic-Snip.zip"
+          unzip -t "Russian-Snip-Mac-v22-Classic-Snip.zip" | tail -n 2
       - name: Publish compiled downloadable Mac app
         uses: actions/upload-artifact@v4
         with:
-          name: Russian-Snip-Mac-v2-Compiled-App
-          path: Russian-Snip-Mac-v2-ready.zip
+          name: Russian-Snip-v22-Classic-Snip-Compiled-App
+          path: Russian-Snip-Mac-v22-Classic-Snip.zip
           if-no-files-found: error
           retention-days: 30
