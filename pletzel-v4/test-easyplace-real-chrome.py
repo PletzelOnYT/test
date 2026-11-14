@@ -225,7 +225,7 @@ try:
    window=events[t0:]
    selected=[e["text"] for e in window if "[PletzelEasyPick] SELECT " in e["text"]]
    easy_place=[e["text"] for e in window if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in e["text"]]
-   missing=[e["text"] for e in window if "[PletzelEasyPick] MISSING " in e["text"]]
+   missing=[e["text"] for e in window if "[PletzelEasyPick] MISSING " in e["text"] or "[PletzelEasyPlace] NO_CORRECT_HOTBAR_ITEM" in e["text"]]
    observations.append({"material":materials[slot],"position":slot,
       "slotSelections":selected,"missingMessages":missing,"nativePlaceAttempts":easy_place})
    print("EASYPLACE_EASYPICK_REAL_SLOT_TEST",json.dumps(observations[-1])[:2200],flush=True)
