@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
