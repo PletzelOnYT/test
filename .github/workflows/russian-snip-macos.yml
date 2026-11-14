@@ -1,7 +1,7 @@
 name: Build Russian Snip ready-to-use macOS app
 on:
   push:
-    branches: [russian-snip-ready-app-20261111]
+    branches: [russian-snip-v2-multiengine-20261113]
     paths:
       - "RussianSnipMac/**"
       - ".github/workflows/russian-snip-macos.yml"
@@ -10,7 +10,7 @@ on:
 jobs:
   package:
     name: Compile universal .app and make installation ZIP
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - name: Check out source
@@ -23,8 +23,9 @@ jobs:
           APP="$PWD/Russian Snip.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           SOURCE="RussianSnipMac/Sources/RussianSnip.swift"
-          xcrun swiftc -parse-as-library -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-arm64"
-          xcrun swiftc -parse-as-library -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon "$SOURCE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
+          ENGINE="RussianSnipMac/Sources/SmartTranslate.swift"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security "$SOURCE" "$ENGINE" -o "$RUNNER_TEMP/RussianSnip-arm64"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security "$SOURCE" "$ENGINE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
           lipo -create "$RUNNER_TEMP/RussianSnip-arm64" "$RUNNER_TEMP/RussianSnip-x86_64" -output "$APP/Contents/MacOS/RussianSnip"
           chmod 755 "$APP/Contents/MacOS/RussianSnip"
           cat >"$APP/Contents/Info.plist" <<'PLIST'
@@ -39,14 +40,37 @@ jobs:
           <key>CFBundleDisplayName</key><string>Russian Snip</string>
           <key>CFBundlePackageType</key><string>APPL</string>
           <key>CFBundleIconFile</key><string>AppIcon</string>
-          <key>CFBundleShortVersionString</key><string>1.0</string>
-          <key>CFBundleVersion</key><string>1</string>
+          <key>CFBundleShortVersionString</key><string>2.0</string>
+          <key>CFBundleVersion</key><string>2</string>
           <key>LSMinimumSystemVersion</key><string>13.0</string>
           <key>NSHighResolutionCapable</key><true/>
           <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
           </dict></plist>
           PLIST
           plutil -lint "$APP/Contents/Info.plist"
+      - name: Run native translation engine tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macosx15.0 -framework AppKit -framework Translation -framework Security \
+            "RussianSnipMac/Sources/SmartTranslate.swift" \
+            "RussianSnipMac/Tests/TranslationEngineAcceptance.swift" -o "$RUNNER_TEMP/TranslationEngineTests"
+          "$RUNNER_TEMP/TranslationEngineTests"
+      - name: Check live free API status (informational)
+        shell: bash
+        run: |
+          set +e
+          echo "Testing only a fixed public phrase; never uploading user content"
+          curl -fsS --connect-timeout 3 --max-time 10 --get \
+            --data-urlencode 'q=Привет! Как дела?' \
+            --data-urlencode 'langpair=ru|en' \
+            https://api.mymemory.translated.net/get | head -c 400
+          echo
+          for host in translate.cutie.dating translate.fedilab.app; do
+            echo "Public mirror: $host"
+            curl -sS -o /dev/null -w 'HTTP %{http_code}\n' --connect-timeout 3 --max-time 7 \
+              "https://$host/languages" || true
+          done
       - name: Make application icon
         shell: bash
         run: |
@@ -90,12 +114,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           lipo -info "$APP/Contents/MacOS/RussianSnip"
           file "$APP/Contents/MacOS/RussianSnip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-ready.zip"
-          unzip -t "Russian-Snip-Mac-ready.zip" | tail -n 2
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-v2-ready.zip"
+          unzip -t "Russian-Snip-Mac-v2-ready.zip" | tail -n 2
       - name: Publish compiled downloadable Mac app
         uses: actions/upload-artifact@v4
         with:
-          name: Russian-Snip-Mac-Compiled-App
-          path: Russian-Snip-Mac-ready.zip
+          name: Russian-Snip-Mac-v2-Compiled-App
+          path: Russian-Snip-Mac-v2-ready.zip
           if-no-files-found: error
           retention-days: 30
