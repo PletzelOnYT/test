@@ -156,6 +156,13 @@ try:
    page.mouse.click(640,426)
    page.wait_for_timeout(4500)
    send("/effect give @p minecraft:water_breathing 999999 0 true")
+  # Real #43567860419 screenshots then exposed a SECOND independent
+  # fixture failure: a 1024-block teleport dropped the survival player off
+  # a cliff before map #2 was opened. Prevent drowning AND fall death with
+  # legitimate vanilla effects, preserving survival inventory and authentic
+  # terrain-map generation; no map bytes are ever injected.
+  send("/effect give @p minecraft:slow_falling 999999 0 true")
+  send("/effect give @p minecraft:resistance 999999 4 true")
   send("/time query gametime")
   snap("10-genuine-commands-enabled")
   send("/give @p minecraft:map 1")
