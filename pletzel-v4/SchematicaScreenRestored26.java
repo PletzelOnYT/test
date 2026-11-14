@@ -103,13 +103,13 @@ public final class SchematicaScreen extends Screen {
                 add(left,y,"Advanced Settings",()->selectPanel(3));
                 this.addRenderableWidget(Button.builder(
                     Component.literal(this.minecraft.options.pletzelEasyPlaceHover.get()
-                        ?"Hover: DISABLED":"Easy Place Mode: Hold"),
+                        ?"Easy Place Mode: Hover":"Easy Place Mode: Hold"),
                     button->{
-                        this.minecraft.options.pletzelEasyPlaceHover.set(false);
-                        this.minecraft.options.pletzelEasyPlace.set(false);
+                        this.minecraft.options.pletzelEasyPlaceHover.set(!this.minecraft.options.pletzelEasyPlaceHover.get());
                         this.minecraft.options.save();
-                        status="Hover auto-place remains DISABLED. Aim at real support and hold Right Click.";
-                        System.out.println("[PletzelEasyPlace] HOVER_DISABLED: manual right-click required");
+                        status="Hover: aim at ghosts without clicking. Hold: keep Right Click down.";
+                        System.out.println("[PletzelEasyPlace] MODE_CHANGED mode="+
+                            (this.minecraft.options.pletzelEasyPlaceHover.get()?"HOVER":"CONTINUOUS_HOLD"));
                         this.rebuildWidgets();
                     }).bounds(right,y,buttonWidth,BUTTON_H).build());
             });
@@ -150,12 +150,11 @@ public final class SchematicaScreen extends Screen {
             rows.add(y->{
                 this.addRenderableWidget(Button.builder(
                     Component.literal(this.minecraft.options.pletzelEasyPlaceHover.get()
-                        ?"Hover: DISABLED":"Place Mode: Hold"),
+                        ?"Place Mode: Hover":"Place Mode: Hold"),
                     b->{
-                        this.minecraft.options.pletzelEasyPlaceHover.set(false);
-                        this.minecraft.options.pletzelEasyPlace.set(false);
+                        this.minecraft.options.pletzelEasyPlaceHover.set(!this.minecraft.options.pletzelEasyPlaceHover.get());
                         this.minecraft.options.save();
-                        status="Hover auto-place remains DISABLED. Aim at real support and hold Right Click.";
+                        status="Hover: aim at ghosts without clicking. Hold: keep Right Click down.";
                         this.rebuildWidgets();
                     }).bounds(left,y,buttonWidth,BUTTON_H).build());
                 toggle(right,y,"Chunk Rendering",
