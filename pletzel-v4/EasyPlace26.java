@@ -229,7 +229,151 @@ public final class EasyPlace26 {
             mc.options.pletzelEasyPlaceHover.get()&&!mc.isMultiplayerServer();
     }
     public static boolean inHoverAttempt() {return false;}
-    public static void afterVanillaKeybinds(Minecraft mc) {tick(mc);}
+    /** A schematic ghost is AIR, so vanilla hitResult cannot select it.
+     * Walk only the player's REAL view ray; stop at solid obstructions.
+     * As a fallback, aiming directly at a real support face also works.
+     */
+    private static BlockPos ghostTarget(Minecraft mc) {
+        Vec3 eye=mc.player.getEyePosition();
+        Vec3 ray=mc.player.getLookAngle();
+        double range=mc.player.blockInteractionRange();
+        BlockPos prior=null;
+        for(double d=0.125D;d<=range;d+=0.125D) {
+            BlockPos pos=BlockPos.containing(eye.add(ray.scale(d)));
+            if(pos.equals(prior))continue;
+            prior=pos;
+            if(!mc.level.hasChunkAt(pos))return null;
+            BlockState expected=SchematicaWorldRenderer.expectedAt(pos);
+            if(expected!=null&&!expected.isAir())return pos;
+            if(!mc.level.getBlockState(pos).getCollisionShape(mc.level,pos).isEmpty())break;
+        }
+        if(mc.hitResult instanceof BlockHitResult hit&&
+           hit.getType()==HitResult.Type.BLOCK) {
+            BlockPos support=hit.getBlockPos();
+            if(!mc.level.hasChunkAt(support))return null;
+            BlockPos target=mc.level.getBlockState(support).canBeReplaced()
+                ?support:support.relative(hit.getDirection());
+            BlockState expected=SchematicaWorldRenderer.expectedAt(target);
+            if(expected!=null&&!expected.isAir())return target;
+        }
+        return null;
+    }
+
+    /** Find a physically visible, nonreplaceable real neighboring block and
+     * have Minecraft itself raytrace the face. Never place through solids.
+     */
+    private static BlockHitResult supportHit(Minecraft mc,BlockPos target) {
+        if(!mc.level.hasChunkAt(target)||
+           !mc.level.getWorldBorder().isWithinBounds(target))return null;
+        Vec3 eye=mc.player.getEyePosition();
+        double reach=mc.player.blockInteractionRange();
+        for(Direction side:Direction.values()) {
+            BlockPos support=target.relative(side);
+            if(!mc.level.hasChunkAt(support)||
+               !mc.level.getWorldBorder().isWithinBounds(support))continue;
+            BlockState supportState=mc.level.getBlockState(support);
+            if(supportState.isAir()||supportState.canBeReplaced())continue;
+            Vec3 face=Vec3.atCenterOf(target).add(
+                0.5D*side.getStepX(),
+                0.5D*side.getStepY(),
+                0.5D*side.getStepZ());
+            if(eye.distanceToSqr(face)>reach*reach)continue;
+            Vec3 intoSupport=face.add(
+                0.02D*side.getStepX(),
+                0.02D*side.getStepY(),
+                0.02D*side.getStepZ());
+            BlockHitResult hit=mc.level.clip(new ClipContext(
+                eye,intoSupport,ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,mc.player));
+            if(hit.getType()==HitResult.Type.BLOCK&&
+               hit.getBlockPos().equals(support)&&
+               hit.getDirection()==side.getOpposite())return hit;
+        }
+        return null;
+    }
+
+    /** Independent Easy Pick: only pre-existing hotbar slots are selectable.
+     * With Easy Pick OFF this checks exactly the currently held item.
+     */
+    private static boolean selectLegalItem(Minecraft mc,BlockPos target,
+                                            BlockState wanted,BlockHitResult hit) {
+        int selected=mc.player.getInventory().getSelectedSlot();
+        boolean easyPick=mc.options.pletzelEasyPick.get();
+        for(int i=easyPick?0:selected;i<(easyPick?9:selected+1);i++) {
+            ItemStack stack=mc.player.getInventory().getItem(i);
+            if(stack.isEmpty()||!(stack.getItem() instanceof BlockItem item)||
+               item.getBlock()!=wanted.getBlock())continue;
+            BlockPlaceContext ctx=new BlockPlaceContext(
+                mc.player,InteractionHand.MAIN_HAND,stack,hit);
+            if(!ctx.canPlace()||!ctx.getClickedPos().equals(target))continue;
+            BlockState predicted=item.getBlock().getStateForPlacement(ctx);
+            if(predicted==null||!predicted.equals(wanted))continue;
+            if(i!=selected) {
+                mc.player.getInventory().setSelectedSlot(i);
+                System.out.println("[PletzelEasyPick] SELECT slot="+i+
+                    " target="+target+" expected="+wanted.getBlock());
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /** Activated on every game tick, NOT on right-click transitions.
+     * After one authoritatively reconciled placement, a new ghost target
+     * can be processed without releasing Right Click. No click at all is
+     * needed in opt-in Hover. Shift+right-click bypasses assistance.
+     */
+    public static void afterVanillaKeybinds(Minecraft mc) {
+        tick(mc);
+        if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get()||
+           mc.level==null||mc.player==null||mc.gameMode==null||
+           !SchematicaSession.loaded()||Freecam26.active()||
+           mc.gui.screen()!=null||mc.isMultiplayerServer())return;
+        boolean hover=mc.options.pletzelEasyPlaceHover.get();
+        if(!hover&&(!mc.options.keyUse.isDown()||
+                    mc.options.toggleUse().get()))return;
+        if(mc.player.isSecondaryUseActive()||mc.player.isSpectator()||
+           mc.player.isUsingItem()||mc.player.isHandsBusy()||
+           mc.gameMode.isDestroying()||pending!=null||
+           !suspended.isEmpty())return;
+        BlockPos target=ghostTarget(mc);
+        if(target==null||rejectedTargets.contains(target))return;
+        BlockState wanted=SchematicaWorldRenderer.expectedAt(target);
+        if(wanted==null||wanted.isAir()||!mc.level.hasChunkAt(target))return;
+        BlockState actual=mc.level.getBlockState(target);
+        if(actual.equals(wanted)||(!actual.isAir()&&!actual.canBeReplaced()))return;
+        BlockHitResult hit=supportHit(mc,target);
+        if(hit==null) {
+            log("NO_LEGAL_SUPPORT",mc,target,wanted,"no vanilla interaction");
+            return;
+        }
+        if(!selectLegalItem(mc,target,wanted,hit)) {
+            log("NO_CORRECT_HOTBAR_ITEM",mc,target,wanted,
+                "EasyPick="+mc.options.pletzelEasyPick.get());
+            return;
+        }
+        // Both support and target were checked using actual world states.
+        // Vanilla BlockPlaceContext must agree on the EXACT schematic cell.
+        BlockPlaceContext ctx=new BlockPlaceContext(
+            mc.player,InteractionHand.MAIN_HAND,mc.player.getMainHandItem(),hit);
+        if(!ctx.canPlace()||!ctx.getClickedPos().equals(target))return;
+        pending=target.immutable();
+        required=wanted;
+        pendingSupport=hit.getBlockPos().immutable();
+        pendingFace=hit.getDirection();
+        pendingSequence=-1;
+        predictionAcked=false;
+        observedByServer=null;
+        sentAt=System.nanoTime();
+        attempts++;
+        log("PENDING_VANILLA_RIGHT_CLICK",mc,target,wanted,
+            "mode="+(hover?"HOVER":"CONTINUOUS_HOLD")+
+            " support="+pendingSupport+" face="+pendingFace);
+        // Native placement includes inventory-slot sync, vanilla prediction,
+        // actual packet sequence and its ordinary server validation.
+        // No blocks or packets are constructed or written by this helper.
+        mc.gameMode.useItemOn(mc.player,InteractionHand.MAIN_HAND,hit);
+    }
     /** Hologram renderer MUST NOT treat a locally predicted solid block as
      * complete while its authoritative server response is outstanding. */
     public static boolean isPlacementPending(BlockPos pos) {
