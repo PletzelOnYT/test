@@ -147,10 +147,6 @@ swap(listener,
 '''      this.updateLevelChunk(x, z, packet.getChunkData());
       net.pletzel.schematica.EasyPlace26.onServerChunk(this.level, x, z);''')
 swap("net/minecraft/client/Minecraft.java",
-'''         this.handleKeybinds();''',
-'''         this.handleKeybinds();
-         net.pletzel.schematica.EasyPlace26.afterVanillaKeybinds(this);''')
-swap("net/minecraft/client/Minecraft.java",
 '''      this.gui.tick();
       if (this.gui.screen() != null) {''',
 '''      this.gui.tick();
