@@ -14,6 +14,20 @@ on:
       - 'pletzel-v4/test-persistent-mapart-chrome.py'
       - 'pletzel-v4/test-red-highlight-real-chrome.py'
       - 'pletzel-v4/test-mods-separation-real-chrome.py'
+      # Include every checked behavior, not just Easy Place. A Freecam-only
+      # game-code or test correction must trigger fresh 8/8 acceptance.
+      - 'pletzel-v4/Freecam26.java'
+      - 'pletzel-v4/patch-multiformat-freecam.py'
+      - 'pletzel-v4/MapArtStore26.java'
+      - 'pletzel-v4/MapTooltipClientPersistent26.java'
+      - 'pletzel-v4/PletzelMapArtIndexedDB26.java'
+      - 'pletzel-v4/patch-schematica-maptooltip-restoration.py'
+      - 'pletzel-v4/test-freecam-real-flight.py'
+      - 'pletzel-v4/test-fourformat-browser-smoke.py'
+      - 'pletzel-v4/test-native-schematic-inworld.py'
+      - 'pletzel-v4/test-no-voice-world-save.py'
+      - 'pletzel-v4/publish-easyplace-no-voice.sh'
+      - '.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'
   workflow_dispatch:
 permissions:
   contents: read
