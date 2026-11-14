@@ -283,7 +283,16 @@ try:
     rejoined=True;break
    page.wait_for_timeout(4500)
   if not rejoined:
-   raise AssertionError("Saved world did not genuinely reopen after browser reload")
+   # Do not claim failure of map pixels when IndexedDB hashes survived.
+   # Preserve actual native server heartbeat evidence of the failed rejoin.
+   snap("25b-real-saved-world-rejoin-stalled")
+   recent=[e["text"] for e in events[previous_count:]]
+   beats=[s for s in recent if "[EagPerfHeartbeat]" in s]
+   starts=[s for s in recent if "StartServer" in s or "Starting Integrated Server" in s]
+   print("REAL_MAP_ART_REJOIN_STALL_DIAGNOSTIC",
+         json.dumps({"starts":starts[-8:],"lastHeartbeats":beats[-12:],
+                     "persistedMapPixelHashCount":len(saved_after)}),flush=True)
+   raise AssertionError("Saved world did not genuinely reopen after browser reload; real server heartbeats and screenshot recorded")
   page.keyboard.press("e");page.wait_for_timeout(6000)
   page.mouse.move(410,555);page.wait_for_timeout(6000)
   snap("26-map0-cached-tooltip-after-rejoin")
