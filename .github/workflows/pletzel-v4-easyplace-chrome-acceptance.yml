@@ -33,7 +33,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: pletzel-v4-easyplace-chrome-${{ github.sha }}
+  group: pletzel-v4-easyplace-chrome-current-${{ github.ref_name }}
   cancel-in-progress: true
 jobs:
   exact-compiled-candidate:
