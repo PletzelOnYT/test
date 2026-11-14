@@ -61,6 +61,10 @@ public final class SchematicaWorldRenderer {
     private static final LinkedHashMap<Long,MeshSection> MESH_CACHE=new LinkedHashMap<>(80,0.75f,true);
     private static long indexVersion=Long.MIN_VALUE;
     private static int indexCursor;
+    // One bounded index pass per render/tick interval, NOT one pass per
+    // block sampled by the Easy Place ray. A single aim can test dozens of
+    // cells, which previously multiplied the 2.5ms indexing budget.
+    private static long lastIndexSliceNanos;
     private static long lastReportNanos;
     private static int cachedCellCount;
     private static ClientLevel levelOwner;
@@ -91,6 +95,7 @@ public final class SchematicaWorldRenderer {
         MESH_CACHE.clear();
         cachedCellCount=0;
         indexCursor=0;
+        lastIndexSliceNanos=0L;
         indexVersion=Long.MIN_VALUE;
         lastReportNanos=0L;
     }
@@ -110,6 +115,7 @@ public final class SchematicaWorldRenderer {
             MESH_CACHE.clear();
             cachedCellCount=0;
             indexCursor=0;
+            lastIndexSliceNanos=0L;
             indexVersion=SchematicaSession.version();
         }
         indexSome();
@@ -119,7 +125,14 @@ public final class SchematicaWorldRenderer {
 
     private static void indexSome() {
         final List<SchematicaSession.Cell> all=SchematicaSession.cells();
+        if(indexCursor>=all.size())return;
         final long start=System.nanoTime();
+        // Aiming through N ghost cells must not consume N full indexing
+        // budgets on one input tick. This cap also applies to low-FPS
+        // clients, where per-ray quadratic work can starve actual input.
+        if(lastIndexSliceNanos!=0L&&
+           start-lastIndexSliceNanos<16_000_000L)return;
+        lastIndexSliceNanos=start;
         int processed=0;
         while(indexCursor<all.size() && processed<INDEX_CELLS_PER_FRAME) {
             // Always process at least one cell, even on systems with a coarse clock.
@@ -279,6 +292,7 @@ public final class SchematicaWorldRenderer {
             MESH_CACHE.clear();
             cachedCellCount=0;
             indexCursor=0;
+            lastIndexSliceNanos=0L;
             indexVersion=SchematicaSession.version();
         }
 
