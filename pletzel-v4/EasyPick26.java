@@ -30,6 +30,45 @@ public final class EasyPick26 {
     private EasyPick26() {}
 
     /**
+     * Independently choose the required hotbar material while the player
+     * aims at a missing schematic ghost. Vanilla hitResult is MISS for a
+     * ghost occupying air, so a right-click-only picker cannot satisfy the
+     * ordinary "aim at a ghost" workflow. Selection is read-only with regard
+     * to the world and never requests or simulates a placement.
+     *
+     * Only an exact matching block type in slots 0..8 is eligible. Actual
+     * placement and orientation remain validated by the vanilla use path.
+     * An absent block never causes an inventory mutation.
+     */
+    public static void updateAim(final Minecraft mc) {
+        if(mc==null||mc.options==null||!mc.options.pletzelEasyPick.get()||
+           mc.level==null||mc.player==null||mc.gui.screen()!=null||
+           !SchematicaSession.loaded()||Freecam26.active()||
+           mc.player.isSpectator())return;
+        if(EasyPlace26.isAwaitingConfirmation())return;
+        BlockPos target=EasyPlace26.aimedMissingSchematicBlock(mc);
+        if(target==null||!mc.level.hasChunkAt(target))return;
+        BlockState required=SchematicaWorldRenderer.expectedAt(target);
+        if(required==null||required.isAir())return;
+        BlockState actual=mc.level.getBlockState(target);
+        if(actual.equals(required)||(!actual.isAir()&&!actual.canBeReplaced()))return;
+        int selected=mc.player.getInventory().getSelectedSlot();
+        ItemStack current=mc.player.getInventory().getItem(selected);
+        if(!current.isEmpty()&&current.getItem() instanceof BlockItem held&&
+           held.getBlock()==required.getBlock())return;
+        for(int slot=0;slot<9;slot++) {
+            ItemStack candidate=mc.player.getInventory().getItem(slot);
+            if(candidate.isEmpty()||!(candidate.getItem() instanceof BlockItem item)||
+               item.getBlock()!=required.getBlock())continue;
+            mc.player.getInventory().setSelectedSlot(slot);
+            System.out.println("[PletzelEasyPick] SELECT slot="+slot+
+                " target="+target+" expected="+required.getBlock()+
+                " source=GHOST_AIM_NO_RIGHT_CLICK");
+            return;
+        }
+    }
+
+    /**
      * Called exclusively before the vanilla Minecraft.startUseItem() body.
      * true: allow ordinary use/placement; false: block a wrong/repeated
      * placement at a known schematic cell. Never synthesizes a use input.
