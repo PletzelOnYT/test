@@ -183,17 +183,14 @@ public final class EasyPlace26 {
         observedByServer=authoritative;
         log("SERVER_BLOCK_UPDATE_RECEIVED",Minecraft.getInstance(),pending,
             required,"authoritative="+authoritative);
-        if(!authoritative.equals(required)) {
-            rejected++;
-            log("SERVER_REJECTED_OR_CORRECTED",Minecraft.getInstance(),
+        // A correction alone is NOT enough to release the single-flight gate:
+        // wait for vanilla's matching sequence ACK and its own prediction
+        // reconciliation before another target can start. This avoids overlap,
+        // speculative client-only solidity, and repeated rejected uses.
+        if(!authoritative.equals(required))
+            log("SERVER_CORRECTION_WAITING_FOR_ACK",Minecraft.getInstance(),
                 pending,required,"authoritativeBlock="+authoritative);
-            unresolvedVisual=pending;
-            correctionServerState=authoritative;
-            rejectedTargets.add(pending);
-            clearPending();
-        } else {
-            finalizeIfBothVerified(level);
-        }
+        finalizeIfBothVerified(level);
     }
 
     /** A fresh chunk invalidates any earlier placement prediction. Its
