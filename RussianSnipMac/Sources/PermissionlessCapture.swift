@@ -52,7 +52,7 @@ final class PermissionlessScreenPicker: NSObject, SCContentSharingPickerObserver
         do {
             let config = SCStreamConfiguration()
             let rect = filter.contentRect
-            let pixelScale = filter.pointPixelScale
+            let pixelScale = CGFloat(filter.pointPixelScale)
             config.width = max(256, Int(rect.width * pixelScale))
             config.height = max(256, Int(rect.height * pixelScale))
             config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
