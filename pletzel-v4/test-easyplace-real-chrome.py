@@ -39,6 +39,18 @@ started=time.monotonic();events=[];shots=[];commands=[];fault=None;observations=
 def elapsed():return round(time.monotonic()-started,1)
 def console_text():
  return [x["text"] for x in events]
+def server_proves(page,marker):
+ # A real integrated-server /execute if block ... run say marker emits this
+ # unforgeable-in-test SERVER THREAD line only when the authoritative block
+ # has the requested state. Client chat packets can be delayed or dropped at
+ # 2-6 browser FPS; never substitute the predicted client world.
+ for _ in range(30):
+  if any(marker in e["text"] and "[Server thread" in e["text"] and
+         "[Not Secure]" in e["text"] for e in events):
+   return True
+  page.wait_for_timeout(400)
+ print("EASYPLACE_SERVER_MARKER_MISSING",marker,flush=True)
+ return False
 try:
  with sync_playwright() as pw:
   browser=pw.chromium.launch(
@@ -270,7 +282,7 @@ try:
   if not target_match: raise AssertionError("Native Easy Pick did not expose target BlockPos")
   tx,ty,tz=map(int,target_match.groups())
   send(f"/execute if block {tx} {ty} {tz} minecraft:stone run say PLETZEL_EASY_PICK_REAL_PLACEMENT_OK")
-  if not any("PLETZEL_EASY_PICK_REAL_PLACEMENT_OK" in x["text"] and "CHAT" in x["text"] for x in events):
+  if not server_proves(page,"PLETZEL_EASY_PICK_REAL_PLACEMENT_OK"):
    raise AssertionError("Real server did not confirm vanilla stone placement at the schematic target")
   print("EASYPLACE_EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
 
@@ -315,7 +327,7 @@ try:
        block,accepts,rejects))
    marker="PLETZEL_HOLD_SERVER_"+block.split(":")[-1].upper()
    send(f"/execute if block {actual_x} {ty} {tz} {block} run say {marker}")
-   if not any(marker in t and "CHAT" in t for t in console_text()):
+   if not server_proves(page,marker):
     raise AssertionError("Integrated server did not accept "+block)
    snap("13-hold-server-confirmed-"+block.split(":")[-1])
    print("EASYPLACE_REAL_HOLD_SERVER_CONFIRMED",block,flush=True)
@@ -359,7 +371,7 @@ try:
     raise AssertionError(("Hover must auto-place exactly one real block WITHOUT right-click",block,sends,ack))
    marker="PLETZEL_HOVER_SERVER_"+str(offset)
    send(f"/execute if block {x} {ty} {tz} {block} run say {marker}")
-   if not any(marker in line and "CHAT" in line for line in console_text()):
+   if not server_proves(page,marker):
     raise AssertionError("Hover block not confirmed by integrated server "+block)
    snap("13-hover-authoritative-"+block.split(":")[-1])
   print("EASYPLACE_HOVER_THREE_SERVER_CONFIRMED_WITHOUT_MOUSE_DOWN",flush=True)
@@ -428,7 +440,7 @@ try:
    block=("minecraft:stone","minecraft:oak_planks","minecraft:glass")[offset%3]
    marker="PLETZEL_CONTINUOUS_SERVER_"+str(offset)
    send(f"/execute if block {bx+offset} {ty} {bz} {block} run say {marker}")
-   if any(marker in t and "CHAT" in t for t in console_text()):
+   if server_proves(page,marker):
     verified_continuous.append(offset)
   if len(verified_continuous)<10:
    raise AssertionError(("Under ten server-authoritative continuous Hold blocks",verified_continuous))
@@ -446,7 +458,7 @@ try:
   if off_attempts:raise AssertionError(("Off-schematic physical Hold sent placement",off_attempts))
   off_marker="PLETZEL_OFF_SCHEMATIC_AIR_VERIFIED"
   send(f"/execute if block {bx+5} {ty} {bz-5} minecraft:air run say {off_marker}")
-  if not any(off_marker in t and "CHAT" in t for t in console_text()):
+  if not server_proves(page,off_marker):
    raise AssertionError("Unintended solid block outside schematic")
   print("EASYPLACE_HOLD_OFF_SCHEMATIC_NO_PLACEMENT",flush=True)
 
@@ -479,7 +491,7 @@ try:
                        (2,"minecraft:glass")):
    marker="PLETZEL_SAVED_"+block.split(":")[-1].upper()
    send(f"/execute if block {tx+offset} {ty} {tz} {block} run say {marker}")
-   if not any(marker in x and "CHAT" in x for x in console_text()):
+   if not server_proves(page,marker):
     raise AssertionError("Previously placed block did NOT persist after reload: "+block)
   # Every one of the ten-plus continuous Hold placements must persist in the
   # actual reopened integrated-server world (not a local predicted ghost).
@@ -487,7 +499,7 @@ try:
    block=("minecraft:stone","minecraft:oak_planks","minecraft:glass")[offset%3]
    marker="PLETZEL_REJOINED_CONTINUOUS_"+str(offset)
    send(f"/execute if block {bx+offset} {ty} {bz} {block} run say {marker}")
-   if not any(marker in t and "CHAT" in t for t in console_text()):
+   if not server_proves(page,marker):
     raise AssertionError("Continuous Hold accepted block lost after world reopen "+str(offset))
   snap("17-all-three-plus-ten-continuous-persisted")
   print("EASYPLACE_HOLD_SAVE_RELOAD_THREE_AND_TEN_PLUS_BLOCKS_SERVER_CONFIRMED",flush=True)
