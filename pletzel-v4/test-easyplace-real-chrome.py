@@ -364,6 +364,68 @@ try:
    snap("13-hover-authoritative-"+block.split(":")[-1])
   print("EASYPLACE_HOVER_THREE_SERVER_CONFIRMED_WITHOUT_MOUSE_DOWN",flush=True)
 
+  # HOLD: import the genuine 11-cell schematic (three available block
+  # types), and keep ONE physical right-button press active while moving the
+  # crosshair over the whole row. Chat commands are never used while held.
+  open_schematic()
+  click(410,525,1400) # Advanced Settings
+  click(410,183,1400) # Change Hover back to Hold
+  assert stored_option("pletzelEasyPlaceHover")=="pletzelEasyPlaceHover:false"
+  click(875,440,1400) # Return to schematic main panel
+  active_fixture[0]=continuous_fixture
+  click(410,183,8500)
+  if not any("[PletzelSchematicImport] LOADED "+continuous_fixture.name in t for t in console_text()):
+   raise AssertionError("Native continuous 11-cell schematic did not import")
+  move_to_player()
+  snap("13-continuous-eleven-ghosts-imported")
+  close_schematic()
+  bx,bz=tx+2,tz-2
+  send(f"/fill {bx-1} {ty} {bz-1} {bx+12} {ty+3} {bz+1} minecraft:air")
+  send(f"/fill {bx-1} {ty-1} {bz-1} {bx+12} {ty-1} {bz+1} minecraft:bedrock")
+  # A single mouse-down followed by physical mouse motion; never call
+  # hold_use() or mouse.down() again during this full building sequence.
+  send(f"/tp @p {bx+5.5:.1f} {ty} {bz-6.0:.1f} 0 10")
+  page.mouse.move(640,360);page.wait_for_timeout(1600)
+  before_continuous=len(events)
+  page.mouse.down(button="right")
+  continuous_down_events=1
+  try:
+   # Sweep both directions with the cursor captured by native Minecraft.
+   # The actual server and native aim tests decide which cells are legal.
+   sweep=[640]+list(range(680,1181,40))+list(range(1140,99,-40))+list(range(140,1141,40))
+   for scan_i,x in enumerate(sweep):
+    page.mouse.move(x,360,steps=3)
+    page.wait_for_timeout(950)
+    if scan_i%12==0:snap("13-continuous-hold-sweep-"+str(scan_i))
+  finally:
+   page.mouse.up(button="right")
+  page.wait_for_timeout(4000)
+  continuous_logs=[e["text"] for e in events[before_continuous:]]
+  continuous_attempts=[t for t in continuous_logs if
+      "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in t and
+      "mode=CONTINUOUS_HOLD" in t]
+  continuous_confirmations=[t for t in continuous_logs if
+      "[PletzelEasyPlace] SERVER_CONFIRMED_AND_RECONCILED" in t]
+  print("EASYPLACE_CONTINUOUS_ONE_MOUSE_DOWN_DIAGNOSTIC",
+        json.dumps({"downs":continuous_down_events,"attempts":len(continuous_attempts),
+                    "confirmed":len(continuous_confirmations),
+                    "logs":[t for t in continuous_logs if "PletzelEasyPlace" in t][-25:]})[:7000],
+        flush=True)
+  assert continuous_down_events==1
+  if len(continuous_attempts)<10 or len(continuous_confirmations)<10:
+   raise AssertionError("A SINGLE held right-click must build at least TEN real schematic blocks")
+  verified_continuous=[]
+  for offset in range(11):
+   block=("minecraft:stone","minecraft:oak_planks","minecraft:glass")[offset%3]
+   marker="PLETZEL_CONTINUOUS_SERVER_"+str(offset)
+   send(f"/execute if block {bx+offset} {ty} {bz} {block} run say {marker}")
+   if any(marker in t and "CHAT" in t for t in console_text()):
+    verified_continuous.append(offset)
+  if len(verified_continuous)<10:
+   raise AssertionError(("Under ten server-authoritative continuous Hold blocks",verified_continuous))
+  snap("13-continuous-hold-ten-plus-server-accepted")
+  print("EASYPLACE_CONTINUOUS_HOLD_TEN_OR_MORE_REAL_BLOCKS_ONE_PRESS",verified_continuous,flush=True)
+
   # Save, quit, and reopen the EXACT integrated-server world. Verify the
   # three placed materials from new server-side block queries after restart.
   # This proves actual persistence rather than only a client-rendered block.
