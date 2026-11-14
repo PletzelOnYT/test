@@ -24,41 +24,42 @@ concurrency:
 jobs:
   exact-compiled-candidate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 175
     outputs:
       build_run: ${{ steps.find.outputs.build_run }}
       compiled_source_sha: ${{ steps.find.outputs.compiled_source_sha }}
     steps:
-      - name: Require immutable exact game source; allow only test harness edits
+      - name: Require successful native compile of EXACT HEAD SHA
         id: find
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMPILED_SOURCE_SHA: 044a0c155eae402f3195e4a764b37e36179b1d32
-          COMPILED_BUILD_RUN: '43514932828'
         run: |
           set -euo pipefail
-          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)" = "$GITHUB_SHA" || {
-            echo "SUPERSEDED: refusing stale-run acceptance"; exit 3;
-          }
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .conclusion)" = success
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_branch)" = "$GITHUB_REF_NAME"
-          # Test new navigation using IDENTICAL compiled game bytes.
-          # If gameplay source/GUI/assets have changed, refuse to reuse binary.
-          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMPILED_SOURCE_SHA...$GITHUB_SHA" --jq .status)" = ahead
-          changed="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMPILED_SOURCE_SHA...$GITHUB_SHA" --jq '.files[].filename')"
-          test -n "$changed"
-          while IFS= read -r path; do
-            case "$path" in
-              pletzel-v4/test-*-chrome.py|pletzel-v4/test-native-schematic-inworld.py|pletzel-v4/test-fourformat-browser-smoke.py|.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml) ;;
-              *) echo "GAME_CODE_CHANGED_SINCE_COMPILE: $path"; exit 4;;
-            esac
-            echo "TEST_HARNESS_ONLY_CHANGE $path"
-          done <<< "$changed"
-          echo "build_run=$COMPILED_BUILD_RUN" >> "$GITHUB_OUTPUT"
-          echo "compiled_source_sha=$COMPILED_SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "EXACT_GAME_BYTES_AT_SOURCE=$COMPILED_SOURCE_SHA; only tests changed"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
+          test "$current" = "$GITHUB_SHA" || { echo "SUPSERSEDED_SOURCE"; exit 3; }
+          build_run=""
+          for attempt in $(seq 1 120); do
+            build_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")] | first | .id // empty')"
+            if [[ -n "$build_run" ]]; then break; fi
+            sleep 10
+          done
+          test -n "$build_run" || { echo "NO_EXACT_SOURCE_COMPILATION"; exit 4; }
+          for attempt in $(seq 1 660); do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .status)"
+            if [[ "$state" = completed ]]; then
+              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .conclusion)"
+              test "$outcome" = success || { echo "COMPILER_FAILED:$outcome"; exit 5; }
+              break
+            fi
+            sleep 15
+          done
+          test "$state" = completed || { echo "COMPILER_DID_NOT_COMPLETE"; exit 6; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_sha)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_branch)" = "$GITHUB_REF_NAME"
+          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
+          echo "compiled_source_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "EXACT_SOURCE_COMPILED=$GITHUB_SHA run=$build_run"
   chrome:
     needs: [exact-compiled-candidate]
     runs-on: ubuntu-24.04

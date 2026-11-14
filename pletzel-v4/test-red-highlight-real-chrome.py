@@ -127,6 +127,15 @@ try:
   # Tenth block is available in MAIN INVENTORY, deliberately not hotbar.
   # No main inventory alterations are needed for red-overlay geometry.
   send("/tp @p ~ ~ ~ 0 90")
+  # Ground red mismatch queries in ONE absolute spawn-local anchor, not
+  # relative positions that drift after GUI navigation and spectator teleports.
+  teleport=[e["text"] for e in events if "Teleported " in e["text"]]
+  if not teleport:raise AssertionError("Cannot read actual server teleport position")
+  position=re.search(r"to (-?\\d+(?:\\.\\d+)?), (-?\\d+(?:\\.\\d+)?), (-?\\d+(?:\\.\\d+)?)",teleport[-1])
+  if not position:raise AssertionError("Cannot extract server-authoritative player position")
+  import math
+  ax,ay,az=(math.floor(float(n)) for n in position.groups())
+  print("RED_HIGHLIGHT_REAL_SERVER_ANCHOR",ax,ay,az,flush=True)
   snap("05-stone-and-dirt-hotbar")
   open_schematic()
   snap("06-load-red-overlay-fixture")
@@ -138,34 +147,35 @@ try:
   click(875,525,900) # Back to main
   close_schematic()
   snap("07-connected-hologram-inworld")
-  # Place REAL incorrect Dirt blocks on four OUTER wall faces.
-  for pos in ("~2 ~1 ~0","~2 ~1 ~4","~0 ~1 ~2","~4 ~1 ~2"):
-   send("/setblock "+pos+" minecraft:dirt")
-  send("/execute if block ~2 ~1 ~0 minecraft:dirt run say PLETZEL_WRONG_FACE_CONFIRMED")
-  if not any("PLETZEL_WRONG_FACE_CONFIRMED" in e["text"] and "CHAT" in e["text"] for e in events):
-   raise AssertionError("Actual integrated server did not confirm wrong Dirt state")
+  # Four real server-backed wrong blocks, with absolute target coords.
+  # A relative ~ query became invalid whenever gameplay moved the player.
+  dirt_positions=[(ax+2,ay+1,az),(ax+2,ay+1,az+4),
+                  (ax,ay+1,az+2),(ax+4,ay+1,az+2)]
+  for i,(x,y,z) in enumerate(dirt_positions):
+   send(f"/setblock {x} {y} {z} minecraft:dirt")
+   marker="PLETZEL_WRONG_FACE_CONFIRMED_"+str(i)
+   send(f"/execute if block {x} {y} {z} minecraft:dirt run say {marker}")
+   if not any(marker in e["text"] and "CHAT" in e["text"] for e in events):
+    raise AssertionError("Actual integrated server did not confirm Dirt at "+str((x,y,z)))
   snap("08-real-dirt-four-wall-faces")
-  # Previous red-overlay screenshots proved the first angle was red, but
-  # the next three teleports placed the player INSIDE terrain. Use real
-  # spectator flight solely to inspect four genuinely unobstructed camera
-  # angles; do not alter the hologram or server world data for screenshots.
   send("/gamemode spectator")
   vantages=(
-    ("~2 ~7 ~-6 0 50","~-2 ~-7 ~6 0 0"),
-    ("~2 ~7 ~10 180 50","~-2 ~-7 ~-10 0 0"),
-    ("~10 ~7 ~2 90 50","~-10 ~-7 ~-2 0 0"),
-    ("~-6 ~7 ~2 -90 50","~6 ~-7 ~-2 0 0"),
+    f"{ax+2.5} {ay+7} {az-6.5} 0 50",
+    f"{ax+2.5} {ay+7} {az+10.5} 180 50",
+    f"{ax+10.5} {ay+7} {az+2.5} 90 50",
+    f"{ax-6.5} {ay+7} {az+2.5} -90 50",
   )
-  for idx,(there,back) in enumerate(vantages):
+  for idx,there in enumerate(vantages):
    send("/tp @p "+there,1600)
    page.wait_for_timeout(5500)
    snap("09-all-red-exterior-angle-"+str(idx))
-   send("/tp @p "+back,1200)
-  # Spectator coordinates never fall through the bedrock setup. The
-  # following relative changes now reference the ORIGINAL test origin.
-  for pos in ("~2 ~1 ~0","~2 ~1 ~4","~0 ~1 ~2","~4 ~1 ~2"):
-   send("/setblock "+pos+" minecraft:stone")
-  send("/tp @p ~2 ~7 ~-6 0 50")
+  for i,(x,y,z) in enumerate(dirt_positions):
+   send(f"/setblock {x} {y} {z} minecraft:stone")
+   marker="PLETZEL_CORRECTED_STONE_CONFIRMED_"+str(i)
+   send(f"/execute if block {x} {y} {z} minecraft:stone run say {marker}")
+   if not any(marker in e["text"] and "CHAT" in e["text"] for e in events):
+    raise AssertionError("Server did not confirm corrected Stone "+str((x,y,z)))
+  send("/tp @p "+vantages[0])
   page.wait_for_timeout(4300)
   snap("10-after-mismatch-correction")
   from PIL import Image

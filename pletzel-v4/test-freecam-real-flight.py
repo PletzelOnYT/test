@@ -70,7 +70,8 @@ try:
     shot(page,"02-pause")
     page.mouse.click(478,394);page.wait_for_timeout(1200)
     shot(page,"03-options")
-    page.mouse.click(825,363);page.wait_for_timeout(1200)
+    # Actual 3x GUI screenshot placed Controls at x850,y320; y363 opens Chat.
+    page.mouse.click(850,320);page.wait_for_timeout(1200)
     shot(page,"04-controls")
     page.mouse.click(850,140);page.wait_for_timeout(1300)
     shot(page,"05-keybinds-initial")
@@ -105,6 +106,9 @@ try:
     if not is_world(base):raise AssertionError("Could not return to Minecraft world from standard Key Binds UI")
     page.keyboard.press("F8");page.wait_for_timeout(850)
     camera_initial=shot(page,"11-freecam-on")
+    enabled=[e for e in events if "[PletzelFreecam] ENABLED " in e["text"]]
+    if not enabled:
+        raise AssertionError("Actual Freecam was NOT enabled by bound F8 key; refuse screenshot-only pseudo-flight")
     press(page,"w",3200)
     fwd=shot(page,"12-freecam-forward")
     press(page,"Space",1300)
@@ -116,6 +120,8 @@ try:
     press(page,"s",1500);shot(page,"17-freecam-backward")
     page.keyboard.press("F8");page.wait_for_timeout(1100)
     back=shot(page,"18-freecam-disabled-restored")
+    if not any("[PletzelFreecam] DISABLED " in e["text"] for e in events):
+        raise AssertionError("Freecam F8 did not restore active player camera state")
     metrics["initial_self_model_skin_coverage"]=self_model_skin_coverage(camera_initial)
     metrics["camera_forward_visual_change"]=mean_diff(base,fwd)
     metrics["restored_player_view_difference"]=mean_diff(base,back)

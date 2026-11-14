@@ -31,8 +31,24 @@ public final class Freecam26 {
         z=oldZ=minecraft.player.getZ();
         yaw=minecraft.player.getYRot();pitch=minecraft.player.getXRot();
         enabled=true;
+        System.out.println("[PletzelFreecam] ENABLED player="+
+            minecraft.player.getX()+","+minecraft.player.getY()+","+
+            minecraft.player.getZ()+" rotation="+
+            minecraft.player.getYRot()+","+minecraft.player.getXRot()+
+            " camera="+x+","+y+","+z);
     }
-    public static void disable() { enabled=false; }
+    public static void disable() {
+        if(enabled) {
+            Minecraft mc=Minecraft.getInstance();
+            System.out.println("[PletzelFreecam] DISABLED player="+
+                (mc!=null&&mc.player!=null
+                    ? mc.player.getX()+","+mc.player.getY()+","+mc.player.getZ()+
+                      " rotation="+mc.player.getYRot()+","+mc.player.getXRot()
+                    : "unavailable")+
+                " priorDetachedCamera="+x+","+y+","+z);
+        }
+        enabled=false;
+    }
     public static Vec3 position(float partialTicks) {
         float t=Math.max(0.0f,Math.min(1.0f,partialTicks));
         return new Vec3(oldX+(x-oldX)*t,oldY+(y-oldY)*t,oldZ+(z-oldZ)*t);

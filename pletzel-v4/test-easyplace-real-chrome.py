@@ -261,19 +261,22 @@ try:
   print("EASYPLACE_EASYPICK_REAL_VANILLA_PLACEMENT_CONFIRMED",flush=True)
 
   # Controlled integrated server: real click, not fabricated placement.
+  # Restore server-confirmed EMPTY space across the ray path. Earlier hotbar
+  # trials left a solid Stone block between the eye and intended floor face.
+  # Clearing actual world blocks is fixture setup, NOT mocked placement.
+  send(f"/fill {tx-2} {ty} {tz-4} {tx+12} {ty+4} {tz+4} minecraft:air")
+  send(f"/fill {tx-2} {ty-1} {tz-4} {tx+12} {ty-1} {tz+4} minecraft:bedrock")
+  snap("13-server-fixture-ray-path-cleared")
   # Stone, oak planks, glass; one pending attempt per long physical hold.
   for offset,block,slot in ((0,"minecraft:stone",0),
                             (1,"minecraft:oak_planks",1),
                             (2,"minecraft:glass",2)):
    actual_x=tx+offset
-   # Continue the SAME real first placement vantage. The earlier absolute
-   # teleport after reopening GUI lost the verified support-face targeting.
-   # Shift one block horizontally for the next schematic cell, no rotation.
-   if offset>0:
-    send("/tp @p ~1 ~ ~ 0 38")
-   send(f"/setblock {actual_x} {ty} {tz} minecraft:air")
-   send(f"/setblock {actual_x} {ty-1} {tz} minecraft:bedrock")
-   page.keyboard.press("9")
+   # 38 degrees below horizon from z-1.5 intersects the bedrock TOP face
+   # at the target cell, with no intervening solid collision. Only vanilla
+   # placement can create the expected block; no world edit supplies success.
+   send(f"/tp @p {actual_x+0.5:.1f} {ty} {tz-1.5:.1f} 0 38")
+   page.keyboard.press(str(slot+1))
    snap("13-before-legal-hold-"+block.split(":")[-1])
    idle_start=len(events)
    page.wait_for_timeout(4200)

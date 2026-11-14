@@ -135,6 +135,10 @@ try:
    raise RuntimeError("Known broken singleplayer never reached 320 completed server ticks; cannot test two genuine maps")
   page.mouse.click(640,360);page.wait_for_timeout(1500)
   send("/time query gametime")
+  # On the earlier real run the player drowned after a long stationary map
+  # capture, so the screenshot was You Died rather than Save and Quit.
+  # Water breathing keeps the real SURVIVAL inventory and map pipeline intact.
+  send("/effect give @p minecraft:water_breathing 999999 0 true")
   snap("10-genuine-commands-enabled")
   send("/give @p minecraft:map 1")
   page.keyboard.press("1");page.wait_for_timeout(1500)
@@ -204,7 +208,12 @@ try:
   print("REAL_MAP_ART_PERSISTED_AFTER_RELOAD",len(saved_after),flush=True)
   if saved_before!=saved_after:
    raise AssertionError("Map art bytes changed after actual Chromium process close and fresh launch")
-  snap("24-reloaded-main-menu")
+  snap("24-reloaded-profile-screen")
+  # The standalone client shows Edit Profile on EVERY fresh browser process.
+  # Previously this script tried to choose a world while still in that GUI.
+  page.mouse.click(638,618);page.wait_for_timeout(3500)
+  page.mouse.click(638,572);page.wait_for_timeout(3500)
+  snap("24b-reloaded-main-menu")
   # Rejoin the genuine saved world, WITHOUT holding or opening either map.
   page.mouse.click(638,353);page.wait_for_timeout(3500)
   page.keyboard.press("Enter");page.wait_for_timeout(7500)

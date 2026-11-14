@@ -37,6 +37,7 @@ public final class EasyPlace26 {
     private static BlockPos unresolvedVisual;
     private static BlockState correctionServerState;
     private static boolean attemptedThisHold;
+    private static boolean loggedPhysicalUseThisHold;
     private static String suspended = "";
     private static int attempts, confirmed, rejected, timedOut;
     private static String lastLog = "";
@@ -71,7 +72,7 @@ public final class EasyPlace26 {
     private static void resetFor(ClientLevel level,long version) {
         clearPending();
         world=level;schematicVersion=version;
-        attemptedThisHold=false;suspended="";
+        attemptedThisHold=false;loggedPhysicalUseThisHold=false;suspended="";
         unresolvedVisual=null;correctionServerState=null;
     }
 
@@ -106,7 +107,10 @@ public final class EasyPlace26 {
             if(!mc.options.pletzelEasyPlace.get())suspended="";
             return;
         }
-        if(!mc.options.keyUse.isDown())attemptedThisHold=false;
+        if(!mc.options.keyUse.isDown()){
+            attemptedThisHold=false;
+            loggedPhysicalUseThisHold=false;
+        }
         if(pending!=null&&predictionAcked&&observedByServer!=null)
             finalizeIfBothVerified(level);
         if(pending!=null&&System.nanoTime()-sentAt>TIMEOUT_NS) {
@@ -124,6 +128,14 @@ public final class EasyPlace26 {
         tick(mc);
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get())
             return true;
+        if(!loggedPhysicalUseThisHold) {
+            loggedPhysicalUseThisHold=true;
+            log("PHYSICAL_RIGHT_CLICK_INPUT",mc,null,null,
+                "keyDown="+mc.options.keyUse.isDown()+
+                " realHit="+mc.hitResult+
+                " schematicLoaded="+SchematicaSession.loaded()+
+                " freecam="+Freecam26.active());
+        }
         if(mc.level==null||mc.player==null||mc.gameMode==null||
            !SchematicaSession.loaded()||Freecam26.active()||
            mc.gui.screen()!=null||mc.player.isSpectator()||
@@ -132,7 +144,11 @@ public final class EasyPlace26 {
         // Never break unrelated vanilla item-use in air (food, buckets,
         // bows, etc.) or on ordinary non-schematic blocks.
         if(!(mc.hitResult instanceof BlockHitResult hit)||
-           hit.getType()!=HitResult.Type.BLOCK)return true;
+           hit.getType()!=HitResult.Type.BLOCK) {
+            log("NO_VANILLA_BLOCK_SUPPORT_HIT",mc,null,null,
+                "ordinary vanilla item use unaffected");
+            return true;
+        }
 
         BlockPos support=hit.getBlockPos();
         if(!mc.level.hasChunkAt(support))return false;
@@ -140,8 +156,15 @@ public final class EasyPlace26 {
         BlockPos target=supportState.canBeReplaced()
             ?support:support.relative(hit.getDirection());
         BlockState expected=SchematicaWorldRenderer.expectedAt(target);
-        if(expected==null||expected.isAir())
+        if(expected==null||expected.isAir()) {
+            log("REAL_SUPPORT_OUTSIDE_SCHEMATIC",mc,target,expected,
+                "support="+support+" face="+hit.getDirection()+
+                " hit="+hit.getLocation()+" vanilla use remains enabled");
             return true; // Unrelated ordinary Minecraft right-click.
+        }
+        log("SCHEMATIC_TARGET_FROM_REAL_SUPPORT",mc,target,expected,
+            "support="+support+" face="+hit.getDirection()+
+            " hit="+hit.getLocation()+" selected="+mc.player.getMainHandItem());
         // Emergency multiplayer containment. Server rules differ and
         // dedicated remote acceptance has NOT yet passed. Never test
         // automatic/assisted placement on public accounts or servers.
@@ -151,7 +174,13 @@ public final class EasyPlace26 {
             return false;
         }
         if(!mc.options.keyUse.isDown()||mc.options.toggleUse().get()||
-           pending!=null||attemptedThisHold||!suspended.isEmpty())return false;
+           pending!=null||attemptedThisHold||!suspended.isEmpty()) {
+            log("HELD_CLICK_DENIED_PENDING_OR_SUSPENDED",mc,target,expected,
+                "keyDown="+mc.options.keyUse.isDown()+
+                " toggleUse="+mc.options.toggleUse().get()+
+                " attemptedHold="+attemptedThisHold);
+            return false;
+        }
         if(!mc.level.hasChunkAt(target)||
            !mc.level.getWorldBorder().isWithinBounds(support)||
            !mc.level.getWorldBorder().isWithinBounds(target)||
