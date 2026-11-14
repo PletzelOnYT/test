@@ -59,7 +59,7 @@ jobs:
           test -n "$diff" || { echo "NO_DIFF_EXPECTED"; exit 4; }
           while IFS= read -r p; do
             case "$p" in
-              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'|'.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'|'pletzel-v4/publish-easyplace-no-voice.sh') ;;
+              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'|'.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'|'pletzel-v4/publish-easyplace-no-voice.sh'|'.github/workflows/pletzel-v4-publish-experimental-20261114.yml') ;;
               *) echo "GAME_CODE_DRIFT_REQUIRES_RECOMPILATION=$p"; exit 5;;
             esac
             echo "REVIEWED_HARNESS_ONLY=$p"
