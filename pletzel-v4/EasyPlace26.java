@@ -136,11 +136,12 @@ public final class EasyPlace26 {
                 " schematicLoaded="+SchematicaSession.loaded()+
                 " freecam="+Freecam26.active());
         }
+        // Never consume an unrelated vanilla right-click merely because the
+        // independent Easy Place setting is ON. Only a genuine in-world
+        // schematic block target can enter the guarded placement pipeline.
         if(mc.level==null||mc.player==null||mc.gameMode==null||
-           !SchematicaSession.loaded()||Freecam26.active()||
-           mc.gui.screen()!=null||mc.player.isSpectator()||
-           mc.player.isUsingItem()||mc.player.isHandsBusy()||
-           mc.gameMode.isDestroying())return false;
+           !SchematicaSession.loaded()||mc.gui.screen()!=null)return true;
+        if(Freecam26.active())return false;
         // Never break unrelated vanilla item-use in air (food, buckets,
         // bows, etc.) or on ordinary non-schematic blocks.
         if(!(mc.hitResult instanceof BlockHitResult hit)||
@@ -169,8 +170,18 @@ public final class EasyPlace26 {
         // dedicated remote acceptance has NOT yet passed. Never test
         // automatic/assisted placement on public accounts or servers.
         if(mc.isMultiplayerServer()) {
-            log("MULTIPLAYER_DISABLED_UNTIL_TESTED",mc,target,expected,
-                "use ordinary vanilla placement with Easy Place OFF");
+            // No assisted placement or special packets on remote servers.
+            // Nevertheless, do not cancel the player's ORIGINAL vanilla
+            // physical click: that made a schematic unusable whenever the
+            // safety-disabled Easy Place toggle had accidentally remained ON.
+            log("MULTIPLAYER_ASSIST_DISABLED_VANILLA_ALLOWED",mc,target,expected,
+                "no Easy Place tracking, vanilla click unchanged");
+            return true;
+        }
+        if(mc.player.isSpectator()||mc.player.isUsingItem()||
+           mc.player.isHandsBusy()||mc.gameMode.isDestroying()) {
+            log("VANILLA_CONTEXT_BUSY",mc,target,expected,
+                "no schematic-assisted attempt in invalid use context");
             return false;
         }
         if(!mc.options.keyUse.isDown()||mc.options.toggleUse().get()||
