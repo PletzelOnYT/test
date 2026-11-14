@@ -157,6 +157,15 @@ public final class EasyPlace26 {
             unresolvedVisual=pending;
             correctionServerState=observedByServer;
             rejectedTargets.add(pending);
+            if(!level.getBlockState(pending).equals(observedByServer)) {
+                // Native prediction ACK has ALREADY been applied by
+                // ClientPacketListener. A remaining predicted client-solid
+                // block after a real server rejection is a desynchronization,
+                // not a successful schematic placement. Fail closed.
+                suspended="CLIENT_SERVER_DESYNC_AFTER_REJECTION";
+                log("REJECTED_CLIENT_SOLID_NOT_RECONCILED",mc,pending,required,
+                    "server="+observedByServer+" no further auto use");
+            }
             clearPending();
         } else if(level.getBlockState(pending).equals(required)) {
             // A server update + the matching vanilla ACK reconciled the local
