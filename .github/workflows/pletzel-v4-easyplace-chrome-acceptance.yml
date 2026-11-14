@@ -29,37 +29,43 @@ jobs:
       build_run: ${{ steps.find.outputs.build_run }}
       compiled_source_sha: ${{ steps.find.outputs.compiled_source_sha }}
     steps:
-      - name: Require successful native compile of EXACT HEAD SHA
+      - name: Verify newly built immutable native source and test-only differences
         id: find
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          COMPILED_SOURCE_SHA: 9270a5d27c345570f09114e992da2b5d3cc3cad0
+          COMPILED_BUILD_RUN: '43536878070'
         run: |
           set -euo pipefail
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
-          test "$current" = "$GITHUB_SHA" || { echo "SUPSERSEDED_SOURCE"; exit 3; }
-          build_run=""
-          for attempt in $(seq 1 120); do
-            build_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")] | first | .id // empty')"
-            if [[ -n "$build_run" ]]; then break; fi
-            sleep 10
-          done
-          test -n "$build_run" || { echo "NO_EXACT_SOURCE_COMPILATION"; exit 4; }
+          test "$current" = "$GITHUB_SHA" || { echo "SUPERSEDED_HEAD"; exit 3; }
+          # EXACT same Java + native patch sources as freshly compiled run.
+          # Test-only edits may not silently use an old game binary.
+          diff="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMPILED_SOURCE_SHA...$GITHUB_SHA" --jq '.files[].filename')"
+          test -n "$diff" || { echo "NO_DIFF_EXPECTED"; exit 4; }
+          while IFS= read -r p; do
+            case "$p" in
+              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml') ;;
+              *) echo "GAME_CODE_DRIFT_REQUIRES_RECOMPILATION=$p"; exit 5;;
+            esac
+            echo "REVIEWED_HARNESS_ONLY=$p"
+          done <<< "$diff"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_branch)" = "$GITHUB_REF_NAME"
           for attempt in $(seq 1 660); do
-            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .status)"
-            if [[ "$state" = completed ]]; then
-              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .conclusion)"
-              test "$outcome" = success || { echo "COMPILER_FAILED:$outcome"; exit 5; }
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .status)"
+            if [[ "$status" = completed ]]; then
+              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .conclusion)"
+              test "$outcome" = success || { echo "FRESH_NATIVE_COMPILATION_FAILED:$outcome"; exit 6; }
               break
             fi
             sleep 15
           done
-          test "$state" = completed || { echo "COMPILER_DID_NOT_COMPLETE"; exit 6; }
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_sha)" = "$GITHUB_SHA"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_branch)" = "$GITHUB_REF_NAME"
-          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
-          echo "compiled_source_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-          echo "EXACT_SOURCE_COMPILED=$GITHUB_SHA run=$build_run"
+          test "$status" = completed || { echo "COMPILER_TIMEOUT"; exit 7; }
+          echo "build_run=$COMPILED_BUILD_RUN" >> "$GITHUB_OUTPUT"
+          echo "compiled_source_sha=$COMPILED_SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "FRESH_NATIVE_BINARY_PROVENANCE_OK run=$COMPILED_BUILD_RUN compiled=$COMPILED_SOURCE_SHA tests=$GITHUB_SHA"
   chrome:
     needs: [exact-compiled-candidate]
     runs-on: ubuntu-24.04
