@@ -26,6 +26,12 @@ started=time.monotonic();events=[];shots=[];commands=[];fault=None;observations=
 def elapsed():return round(time.monotonic()-started,1)
 def console_text():
  return [x["text"] for x in events]
+def server_confirmed(marker):
+ # Stronger than delayed client chat: this is the actual integrated
+ # SERVER thread output of /execute if block ... run say. The marker can
+ # only appear if the expected server-side block state matches.
+ return any(marker in e["text"] and "[Server thread" in e["text"]
+            and "[Not Secure]" in e["text"] for e in events)
 try:
  with sync_playwright() as pw:
   browser=pw.chromium.launch(
@@ -173,8 +179,10 @@ try:
    send(f"/setblock {x} {y} {z} minecraft:dirt")
    marker="PLETZEL_WRONG_FACE_CONFIRMED_"+str(i)
    send(f"/execute if block {x} {y} {z} minecraft:dirt run say {marker}")
-   if not any(marker in e["text"] and "CHAT" in e["text"] for e in events):
-    raise AssertionError("Actual integrated server did not confirm Dirt at "+str((x,y,z)))
+   for poll in range(24):
+    if server_confirmed(marker):break
+    page.wait_for_timeout(500)
+   else:raise AssertionError("Actual integrated server did not confirm Dirt at "+str((x,y,z)))
   snap("08-real-dirt-four-wall-faces")
   send("/gamemode spectator")
   vantages=(
@@ -196,7 +204,7 @@ try:
    # reply rather than fabricating a block or lowering the assertion.
    confirmed=False
    for chat_poll in range(24):
-    if any(marker in e["text"] and "CHAT" in e["text"] for e in events):
+    if server_confirmed(marker):
      confirmed=True
      break
     page.wait_for_timeout(500)
