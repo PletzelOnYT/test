@@ -308,6 +308,9 @@ struct MainView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if #available(macOS 15.0, *) {
+                    AppleTranslationHost()
+                }
                 HStack(spacing: 12) {
                     Image(systemName: "text.viewfinder")
                         .font(.system(size: 30, weight: .bold))
