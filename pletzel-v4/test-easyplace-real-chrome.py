@@ -426,6 +426,21 @@ try:
   snap("13-continuous-hold-ten-plus-server-accepted")
   print("EASYPLACE_CONTINUOUS_HOLD_TEN_OR_MORE_REAL_BLOCKS_ONE_PRESS",verified_continuous,flush=True)
 
+  # Separate strict schematic boundary check: a NORMAL bedrock support,
+  # but no ghost at the aimed destination. Easy Place ON must consume the
+  # held physical use rather than send a single outside-schematic packet.
+  send(f"/tp @p {bx+5.5:.1f} {ty} {bz-5.5:.1f} 0 90")
+  off_at=len(events)
+  hold_use(1900)
+  off_attempts=[e["text"] for e in events[off_at:]
+      if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in e["text"]]
+  if off_attempts:raise AssertionError(("Off-schematic physical Hold sent placement",off_attempts))
+  off_marker="PLETZEL_OFF_SCHEMATIC_AIR_VERIFIED"
+  send(f"/execute if block {bx+5} {ty} {bz-5} minecraft:air run say {off_marker}")
+  if not any(off_marker in t and "CHAT" in t for t in console_text()):
+   raise AssertionError("Unintended solid block outside schematic")
+  print("EASYPLACE_HOLD_OFF_SCHEMATIC_NO_PLACEMENT",flush=True)
+
   # Save, quit, and reopen the EXACT integrated-server world. Verify the
   # three placed materials from new server-side block queries after restart.
   # This proves actual persistence rather than only a client-rendered block.
@@ -457,8 +472,16 @@ try:
    send(f"/execute if block {tx+offset} {ty} {tz} {block} run say {marker}")
    if not any(marker in x and "CHAT" in x for x in console_text()):
     raise AssertionError("Previously placed block did NOT persist after reload: "+block)
-  snap("17-all-three-real-blocks-persisted")
-  print("EASYPLACE_HOLD_SAVE_RELOAD_THREE_BLOCKS_SERVER_CONFIRMED",flush=True)
+  # Every one of the ten-plus continuous Hold placements must persist in the
+  # actual reopened integrated-server world (not a local predicted ghost).
+  for offset in verified_continuous:
+   block=("minecraft:stone","minecraft:oak_planks","minecraft:glass")[offset%3]
+   marker="PLETZEL_REJOINED_CONTINUOUS_"+str(offset)
+   send(f"/execute if block {bx+offset} {ty} {bz} {block} run say {marker}")
+   if not any(marker in t and "CHAT" in t for t in console_text()):
+    raise AssertionError("Continuous Hold accepted block lost after world reopen "+str(offset))
+  snap("17-all-three-plus-ten-continuous-persisted")
+  print("EASYPLACE_HOLD_SAVE_RELOAD_THREE_AND_TEN_PLUS_BLOCKS_SERVER_CONFIRMED",flush=True)
 
   # Same browser origin, fresh game boot: persisted profile must survive a
   # genuine page reload (not merely toggling a JS variable).
