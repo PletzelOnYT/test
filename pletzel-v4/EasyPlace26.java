@@ -280,10 +280,34 @@ public final class EasyPlace26 {
         return null;
     }
 
-    /** Find a physically visible, nonreplaceable real neighboring block and
-     * have Minecraft itself raytrace the face. Never place through solids.
+    /** Evaluate the SAME real vanilla BlockPlaceContext used for the actual
+     * placement. A reachable support is not automatically an eligible support:
+     * stairs, slabs, logs and direction-sensitive blocks can require a
+     * different face to produce the exact oriented schematic state.
      */
-    private static BlockHitResult supportHit(Minecraft mc,BlockPos target) {
+    private static int legalSlot(Minecraft mc,BlockPos target,
+                                  BlockState wanted,BlockHitResult hit) {
+        int selected=mc.player.getInventory().getSelectedSlot();
+        boolean easyPick=mc.options.pletzelEasyPick.get();
+        for(int i=easyPick?0:selected;i<(easyPick?9:selected+1);i++) {
+            ItemStack stack=mc.player.getInventory().getItem(i);
+            if(stack.isEmpty()||!(stack.getItem() instanceof BlockItem item)||
+               item.getBlock()!=wanted.getBlock())continue;
+            BlockPlaceContext ctx=new BlockPlaceContext(
+                mc.player,InteractionHand.MAIN_HAND,stack,hit);
+            if(!ctx.canPlace()||!ctx.getClickedPos().equals(target))continue;
+            BlockState predicted=item.getBlock().getStateForPlacement(ctx);
+            if(predicted!=null&&predicted.equals(wanted))return i;
+        }
+        return -1;
+    }
+
+    /** Find a physically visible, reachable, real support with a matching
+     * vanilla placement ORIENTATION, not merely the first visible face.
+     * Never place through solids or turn a MISS into a fabricated block hit.
+     */
+    private static BlockHitResult supportHit(Minecraft mc,BlockPos target,
+                                              BlockState wanted) {
         if(!mc.level.hasChunkAt(target)||
            !mc.level.getWorldBorder().isWithinBounds(target))return null;
         Vec3 eye=mc.player.getEyePosition();
@@ -308,35 +332,28 @@ public final class EasyPlace26 {
                 ClipContext.Fluid.NONE,mc.player));
             if(hit.getType()==HitResult.Type.BLOCK&&
                hit.getBlockPos().equals(support)&&
-               hit.getDirection()==side.getOpposite())return hit;
+               hit.getDirection()==side.getOpposite()&&
+               legalSlot(mc,target,wanted,hit)>=0)return hit;
         }
         return null;
     }
 
-    /** Independent Easy Pick: only pre-existing hotbar slots are selectable.
+    /** Independent Easy Pick: only existing hotbar slots are selectable.
      * With Easy Pick OFF this checks exactly the currently held item.
+     * Do not switch the hotbar until the exact oriented vanilla placement
+     * context has been validated.
      */
     private static boolean selectLegalItem(Minecraft mc,BlockPos target,
                                             BlockState wanted,BlockHitResult hit) {
         int selected=mc.player.getInventory().getSelectedSlot();
-        boolean easyPick=mc.options.pletzelEasyPick.get();
-        for(int i=easyPick?0:selected;i<(easyPick?9:selected+1);i++) {
-            ItemStack stack=mc.player.getInventory().getItem(i);
-            if(stack.isEmpty()||!(stack.getItem() instanceof BlockItem item)||
-               item.getBlock()!=wanted.getBlock())continue;
-            BlockPlaceContext ctx=new BlockPlaceContext(
-                mc.player,InteractionHand.MAIN_HAND,stack,hit);
-            if(!ctx.canPlace()||!ctx.getClickedPos().equals(target))continue;
-            BlockState predicted=item.getBlock().getStateForPlacement(ctx);
-            if(predicted==null||!predicted.equals(wanted))continue;
-            if(i!=selected) {
-                mc.player.getInventory().setSelectedSlot(i);
-                System.out.println("[PletzelEasyPick] SELECT slot="+i+
-                    " target="+target+" expected="+wanted.getBlock());
-            }
-            return true;
+        int chosen=legalSlot(mc,target,wanted,hit);
+        if(chosen<0)return false;
+        if(chosen!=selected) {
+            mc.player.getInventory().setSelectedSlot(chosen);
+            System.out.println("[PletzelEasyPick] SELECT slot="+chosen+
+                " target="+target+" expected="+wanted.getBlock());
         }
-        return false;
+        return true;
     }
 
     /** Activated on every game tick, NOT on right-click transitions.
@@ -367,9 +384,10 @@ public final class EasyPlace26 {
         if(wanted==null||wanted.isAir()||!mc.level.hasChunkAt(target))return;
         BlockState actual=mc.level.getBlockState(target);
         if(actual.equals(wanted)||(!actual.isAir()&&!actual.canBeReplaced()))return;
-        BlockHitResult hit=supportHit(mc,target);
+        BlockHitResult hit=supportHit(mc,target,wanted);
         if(hit==null) {
-            log("NO_LEGAL_SUPPORT",mc,target,wanted,"no vanilla interaction");
+            log("NO_MATCHING_REACHABLE_SUPPORT_OR_ORIENTATION",mc,target,
+                wanted,"no vanilla interaction; check held item, reach, support face, orientation");
             return;
         }
         if(!selectLegalItem(mc,target,wanted,hit)) {
