@@ -230,6 +230,10 @@ public final class EasyPlace26 {
         }
     }
 
+    /** Do not change the held hotbar item while an authoritative placement
+     * is waiting for the server's block update and prediction ACK. */
+    public static boolean isAwaitingConfirmation() {return pending!=null;}
+
     public static boolean shouldHoverPlace(Minecraft mc) {
         return mc!=null&&mc.options!=null&&mc.options.pletzelEasyPlace.get()&&
             mc.options.pletzelEasyPlaceHover.get()&&!mc.isMultiplayerServer();
