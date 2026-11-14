@@ -173,7 +173,16 @@ try:
    send(f"/setblock {x} {y} {z} minecraft:stone")
    marker="PLETZEL_CORRECTED_STONE_CONFIRMED_"+str(i)
    send(f"/execute if block {x} {y} {z} minecraft:stone run say {marker}")
-   if not any(marker in e["text"] and "CHAT" in e["text"] for e in events):
+   # Server logs already proved this command executed correctly, but browser
+   # chat delivery is asynchronous at 2-6 FPS. Await the ORIGINAL server
+   # reply rather than fabricating a block or lowering the assertion.
+   confirmed=False
+   for chat_poll in range(24):
+    if any(marker in e["text"] and "CHAT" in e["text"] for e in events):
+     confirmed=True
+     break
+    page.wait_for_timeout(500)
+   if not confirmed:
     raise AssertionError("Server did not confirm corrected Stone "+str((x,y,z)))
   send("/tp @p "+vantages[0])
   page.wait_for_timeout(4300)
