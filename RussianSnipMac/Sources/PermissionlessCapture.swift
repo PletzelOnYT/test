@@ -42,7 +42,7 @@ final class PermissionlessScreenPicker: NSObject, SCContentSharingPickerObserver
     }
 
     func contentSharingPickerStartDidFailWithError(_ error: Error) {
-        finish(.failure("The macOS picker couldn't open: " + error.localizedDescription))
+        finish(.failure(CaptureError("The macOS picker couldn't open: " + error.localizedDescription)))
     }
 
     @MainActor
