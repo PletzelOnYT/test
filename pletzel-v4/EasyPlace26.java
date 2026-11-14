@@ -239,7 +239,9 @@ public final class EasyPlace26 {
      * Walk only the player's REAL view ray; stop at solid obstructions.
      * As a fallback, aiming directly at a real support face also works.
      */
-    private static BlockPos ghostTarget(Minecraft mc) {
+    public static BlockPos aimedMissingSchematicBlock(Minecraft mc) {
+        if(mc==null||mc.player==null||mc.level==null||
+           !SchematicaSession.loaded())return null;
         Vec3 eye=mc.player.getEyePosition();
         Vec3 ray=mc.player.getLookAngle();
         double range=mc.player.blockInteractionRange();
@@ -250,8 +252,14 @@ public final class EasyPlace26 {
             prior=pos;
             if(!mc.level.hasChunkAt(pos))return null;
             BlockState expected=SchematicaWorldRenderer.expectedAt(pos);
-            if(expected!=null&&!expected.isAir())return pos;
-            if(!mc.level.getBlockState(pos).getCollisionShape(mc.level,pos).isEmpty())break;
+            BlockState actual=mc.level.getBlockState(pos);
+            // A completed schematic block is a REAL occluder, not a missing
+            // ghost. Never select it and then report that placement stalled.
+            // Continue through air/replaceable blocks to the next missing
+            // schematic cell, but never target through actual solid geometry.
+            if(expected!=null&&!expected.isAir()&&!actual.equals(expected)&&
+               (actual.isAir()||actual.canBeReplaced()))return pos;
+            if(!actual.getCollisionShape(mc.level,pos).isEmpty())break;
         }
         if(mc.hitResult instanceof BlockHitResult hit&&
            hit.getType()==HitResult.Type.BLOCK) {
@@ -260,7 +268,10 @@ public final class EasyPlace26 {
             BlockPos target=mc.level.getBlockState(support).canBeReplaced()
                 ?support:support.relative(hit.getDirection());
             BlockState expected=SchematicaWorldRenderer.expectedAt(target);
-            if(expected!=null&&!expected.isAir())return target;
+            if(expected!=null&&!expected.isAir()&&
+               !mc.level.getBlockState(target).equals(expected)&&
+               (mc.level.getBlockState(target).isAir()||
+                mc.level.getBlockState(target).canBeReplaced()))return target;
         }
         return null;
     }
@@ -331,6 +342,10 @@ public final class EasyPlace26 {
      */
     public static void afterVanillaKeybinds(Minecraft mc) {
         tick(mc);
+        // Easy Pick is independent of Easy Place. A schematic ghost in AIR
+        // cannot appear in vanilla hitResult, so normal right-click selection
+        // alone must not be its only path.
+        EasyPick26.updateAim(mc);
         if(mc==null||mc.options==null||!mc.options.pletzelEasyPlace.get()||
            mc.level==null||mc.player==null||mc.gameMode==null||
            !SchematicaSession.loaded()||Freecam26.active()||
@@ -342,7 +357,7 @@ public final class EasyPlace26 {
            mc.player.isUsingItem()||mc.player.isHandsBusy()||
            mc.gameMode.isDestroying()||pending!=null||
            !suspended.isEmpty())return;
-        BlockPos target=ghostTarget(mc);
+        BlockPos target=aimedMissingSchematicBlock(mc);
         if(target==null||rejectedTargets.contains(target))return;
         BlockState wanted=SchematicaWorldRenderer.expectedAt(target);
         if(wanted==null||wanted.isAir()||!mc.level.hasChunkAt(target))return;
