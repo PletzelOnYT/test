@@ -49,8 +49,15 @@ def press(page,key,ms=1200):
     page.wait_for_timeout(300)
 def is_world(p):
     im=Image.open(p).convert("RGB")
-    samples=[im.getpixel((x,185)) for x in range(250,371,10)]
-    return sum(1 for c in samples if max(c)-min(c)>18) >= 5
+    # The previous fixed SKY/FOREST sample line returned false for a real
+    # playable snowy-spruce world (4 FPS, TPS 20, fully drawn survival HUD),
+    # because neighboring leaf pixels are similarly green. Prove genuine
+    # gameplay via the actual on-screen SURVIVAL health HUD instead. Title,
+    # loading, pause-only and death screens cannot supply ten lit red hearts.
+    health=im.crop((355,590,645,635))
+    red_hearts=sum(1 for r,g,b in health.getdata()
+        if r>130 and r>g*1.8 and r>b*1.6 and g<130)
+    return red_hearts>250
 
 try:
  with sync_playwright() as p:
