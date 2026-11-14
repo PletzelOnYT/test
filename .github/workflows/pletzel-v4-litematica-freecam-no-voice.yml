@@ -3,21 +3,18 @@ on:
   push:
     branches: [pletzel-v4-easyplace-mapart-red-20261112]
     paths:
-      - '.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'
-      # Browser-only harness edits are verified against a byte-identical
-      # compiler artifact; do not cancel a 45-minute native build for them.
+      # Only genuine native Java/patch inputs trigger expensive compilation.
+      # Test source contracts and compiler workflow changes are not game code.
+      # A manual workflow_dispatch can still validate compiler infrastructure.
       - 'pletzel-v4/patch-multiformat-freecam.py'
       - 'pletzel-v4/SchematicFormats26.java'
       - 'pletzel-v4/Freecam26.java'
       - 'pletzel-v4/SchematicaWorldRendererOptimized26.java'
       - 'pletzel-v4/MapTooltipClientStable26.java'
       - 'pletzel-v4/patch-map-tooltip-stability.py'
-      - 'pletzel-v4/test-optimized-source-contract.py'
       - 'pletzel-v4/EasyPick26.java'
       - 'pletzel-v4/patch-easy-pick.py'
-      - 'pletzel-v4/test-easy-pick-source-contract.py'
       - 'pletzel-v4/patch-easyplace-mapart.py'
-      - 'pletzel-v4/test-easyplace-mapart-source.py'
       - 'pletzel-v4/EasyPlace26.java'
       - 'pletzel-v4/PletzelBuildingSettings26.java'
       - 'pletzel-v4/PletzelMapArtSettings26.java'
@@ -27,14 +24,13 @@ on:
       - 'pletzel-v4/SchematicaScreenRestored26.java'
       - 'pletzel-v4/PletzelMapArtIndexedDB26.java'
       - 'pletzel-v4/patch-schematica-maptooltip-restoration.py'
-      - 'pletzel-v4/test-restored-schematica-maptooltip-source.py'
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 concurrency:
   group: pletzel-v4-easyplace-native-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-24.04
