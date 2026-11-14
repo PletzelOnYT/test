@@ -161,7 +161,7 @@ cat > README.md <<EOF
 
 - Four-format Litematica/Schematica imports: \`.litematic\`, \`.schematic\`, \`.schem\`, \`.nbt\`.
 - Lazy, section-based schematic holograms with render-distance culling and bounded render caches.
-- **Easy Place (OFF default)**: **Hold Right Click only**, genuine vanilla support-face interactions with reach checks, server-state reconciliation and prediction acknowledgements. Hover Auto-Place is forcibly disabled. Multiplayer Easy Place is hard-disabled pending independent dedicated-server tests.
+- **Easy Place (OFF default)**: two opt-in modes — **Hover** automatically processes a visible schematic ghost without right-click, and **Continuous Hold** processes new schematic targets while the same right-click remains held. Both require a real reachable support face, matching hotbar block, vanilla item-use and authoritative server block-state plus prediction ACK. Shift+Right Click temporarily returns to ordinary manual interaction. Rejected placements are quarantined; unresolved desynchronization suspends automation. Multiplayer automated Easy Place remains disabled until separately tested on a controlled, permission-granted dedicated server.
 - **Easy Pick (OFF default)**: selects only existing hotbar slots 1–9 through normal inventory selection.
 - **Independent visible settings**: Easy Pick and Easy Place have separate saved ON/OFF controls in the spaced Minecraft-style Schematica menu.
 - **Map Tooltip for ALL ordinary filled maps**: vanilla 128x128 terrain, explored, and pixel-art maps preview automatically. Explorer/treasure maps remain excluded. Real received pixel bytes persist by world/server+dimension+MapId in IndexedDB; no manual art marking is required.
