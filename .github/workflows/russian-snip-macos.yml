@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macosx15.0 -framework AppKit -framework Translation -framework Security \
+          xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macosx15.0 -framework AppKit -framework SwiftUI -framework Translation -framework Security \
             "RussianSnipMac/Sources/SmartTranslate.swift" \
             "RussianSnipMac/Tests/TranslationEngineAcceptance.swift" -o "$RUNNER_TEMP/TranslationEngineTests"
           "$RUNNER_TEMP/TranslationEngineTests"
