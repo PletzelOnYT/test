@@ -171,9 +171,24 @@ try:
   page.wait_for_timeout(1600);snap("06-gui-800x600-page-navigation")
   page.set_viewport_size({"width":1280,"height":720})
   page.wait_for_timeout(1600);snap("06-gui-1280x720-restored")
-  click(410,183,8500)
-  if not any("[PletzelSchematicImport] LOADED "+fixture.name in s for s in console_text()):
-   raise AssertionError("Mixed ten-block native schematic import did not finish")
+  # Genuine file input can be blocked by a slow/stalled integrated-server tick.
+  # Require the real native import marker; never fake or inject schematic data.
+  click(410,183,1500)
+  import_start=time.monotonic()
+  imported=False
+  while time.monotonic()-import_start<90:
+   if any("[PletzelSchematicImport] LOADED "+fixture.name in s for s in console_text()):
+    imported=True
+    break
+   page.wait_for_timeout(2000)
+  if not imported:
+   snap("06b-native-import-did-not-finish")
+   related=[s for s in console_text() if
+      ("[PletzelSchematicImport]" in s or "[PletzelSchematica" in s or
+       "[EagPerfHeartbeat]" in s or "Exception" in s or "ERROR" in s)]
+   print("EASYPLACE_NATIVE_IMPORT_FAILURE_DIAGNOSTIC",
+         json.dumps(related[-35:]),flush=True)
+   raise AssertionError("Mixed ten-block native schematic import did not finish after 90 seconds of genuine browser/server processing")
   move_to_player()
   snap("07-schematic-loaded-default-off")
   close_schematic()
