@@ -34,7 +34,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMPILED_SOURCE_SHA: d8d59c52150533660e3b0a4a060278b4e54333a6
+          COMPILED_SOURCE_SHA: 91975004b4629f6dc25213f28ba9e5f8b266c399
         run: |
           set -euo pipefail
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
@@ -45,7 +45,7 @@ jobs:
           test -n "$diff" || { echo "NO_DIFF_EXPECTED"; exit 4; }
           while IFS= read -r p; do
             case "$p" in
-              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml') ;;
+              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml') ;;
               *) echo "GAME_CODE_DRIFT_REQUIRES_RECOMPILATION=$p"; exit 5;;
             esac
             echo "REVIEWED_HARNESS_ONLY=$p"
