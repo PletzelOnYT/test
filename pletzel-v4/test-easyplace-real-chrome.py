@@ -478,13 +478,25 @@ try:
   # Separate strict schematic boundary check: a NORMAL bedrock support,
   # but no ghost at the aimed destination. Easy Place ON must consume the
   # held physical use rather than send a single outside-schematic packet.
+  # The previous 10/10 successful run reached this check but the chosen
+  # off-schematic cell still contained original world terrain; asserting AIR
+  # without first preparing/confirming AIR produced a false game failure.
+  # Establish an actual empty, supported OFF-schematic target by ordinary
+  # integrated-server commands. These cannot place the expected materials
+  # and never count as Easy Place confirmations.
+  send(f"/fill {bx+4} {ty} {bz-7} {bx+7} {ty+3} {bz-4} minecraft:air")
+  send(f"/fill {bx+4} {ty-1} {bz-7} {bx+7} {ty-1} {bz-4} minecraft:bedrock")
+  off_marker="PLETZEL_OFF_SCHEMATIC_AIR_VERIFIED"
+  setup_marker="PLETZEL_OFF_SCHEMATIC_INITIAL_AIR_CONFIRMED"
+  send(f"/execute if block {bx+5} {ty} {bz-5} minecraft:air run say {setup_marker}")
+  if not server_proves(page,setup_marker):
+   raise AssertionError("Off-schematic fixture target was not AIR before held-use check")
   send(f"/tp @p {bx+5.5:.1f} {ty} {bz-5.5:.1f} 0 90")
   off_at=len(events)
   hold_use(1900)
   off_attempts=[e["text"] for e in events[off_at:]
       if "[PletzelEasyPlace] PENDING_VANILLA_RIGHT_CLICK" in e["text"]]
   if off_attempts:raise AssertionError(("Off-schematic physical Hold sent placement",off_attempts))
-  off_marker="PLETZEL_OFF_SCHEMATIC_AIR_VERIFIED"
   send(f"/execute if block {bx+5} {ty} {bz-5} minecraft:air run say {off_marker}")
   if not server_proves(page,off_marker):
    raise AssertionError("Unintended solid block outside schematic")
