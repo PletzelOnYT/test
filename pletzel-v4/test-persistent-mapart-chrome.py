@@ -187,6 +187,10 @@ try:
   page.set_viewport_size({"width":1024,"height":768});page.wait_for_timeout(3500)
   page.keyboard.press("e");page.wait_for_timeout(4000);snap("22-resized-inventory")
   page.keyboard.press("Escape");page.wait_for_timeout(900)
+  # The viewport was reduced to 1024x768 for a tooltip-layout regression.
+  # Restore the calibrated 1280x720 pause-menu layout BEFORE Save and Quit.
+  page.set_viewport_size({"width":1280,"height":720})
+  page.wait_for_timeout(1500)
   # Save the actual integrated server world before reloading the page. Select
   # empty hotbar slot 9 so the rejoin does NOT immediately activate maps.
   page.keyboard.press("9");page.wait_for_timeout(700)
