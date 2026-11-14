@@ -197,6 +197,26 @@ try:
   page.keyboard.press("Escape");page.wait_for_timeout(1900)
   page.mouse.click(625,470);page.wait_for_timeout(19000)
   snap("23-save-and-quit-before-restart")
+  # The maps continue receiving real pixel updates during the several
+  # inventory hover cycles AFTER the first two entries were initially read.
+  # Compare the FINAL transaction-committed snapshot immediately before
+  # browser shutdown, not an earlier legitimate (older) map-frame revision.
+  import hashlib
+  before_close=cached_pixels()
+  assert len(before_close)>=2, "Final map pixels absent before browser restart"
+  for stable_poll in range(8):
+   page.wait_for_timeout(1200)
+   fresh=cached_pixels()
+   if fresh==before_close:break
+   before_close=fresh
+  else:
+   raise AssertionError("Map Art IndexedDB did not settle after world Save and Quit")
+  updated=[k for k in before_close if saved_before.get(k)!=before_close[k]]
+  print("MAP_ART_UPDATED_DURING_REAL_WORLD_GAMEPLAY",len(updated),flush=True)
+  saved_before=before_close
+  print("MAP_ART_FINAL_BEFORE_PROCESS_CLOSE",
+        json.dumps({k:hashlib.sha256(bytes.fromhex(v)).hexdigest()
+                    for k,v in saved_before.items()}),flush=True)
   browser.close() # Browser process and all game workers are fully gone.
   print("REAL_MAP_ART_BROWSER_PROCESS_CLOSED",flush=True)
   browser=p.chromium.launch_persistent_context(user_data_dir=profile_dir,
@@ -210,6 +230,9 @@ try:
   page.wait_for_timeout(26000)
   saved_after=cached_pixels()
   print("REAL_MAP_ART_PERSISTED_AFTER_RELOAD",len(saved_after),flush=True)
+  print("MAP_ART_HASHES_AFTER_PROCESS_REOPEN",
+        json.dumps({k:hashlib.sha256(bytes.fromhex(v)).hexdigest()
+                    for k,v in saved_after.items()}),flush=True)
   if saved_before!=saved_after:
    raise AssertionError("Map art bytes changed after actual Chromium process close and fresh launch")
   snap("24-reloaded-profile-screen")
