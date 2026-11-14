@@ -131,7 +131,7 @@ try:
   # relative positions that drift after GUI navigation and spectator teleports.
   teleport=[e["text"] for e in events if "Teleported " in e["text"]]
   if not teleport:raise AssertionError("Cannot read actual server teleport position")
-  position=re.search(r"to (-?\\d+(?:\\.\\d+)?), (-?\\d+(?:\\.\\d+)?), (-?\\d+(?:\\.\\d+)?)",teleport[-1])
+  position=re.search(r"to (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)",teleport[-1])
   if not position:raise AssertionError("Cannot extract server-authoritative player position")
   import math
   ax,ay,az=(math.floor(float(n)) for n in position.groups())
