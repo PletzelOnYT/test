@@ -34,8 +34,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMPILED_SOURCE_SHA: 9270a5d27c345570f09114e992da2b5d3cc3cad0
-          COMPILED_BUILD_RUN: '43536878070'
+          COMPILED_SOURCE_SHA: d8d59c52150533660e3b0a4a060278b4e54333a6
         run: |
           set -euo pipefail
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)"
@@ -51,21 +50,28 @@ jobs:
             esac
             echo "REVIEWED_HARNESS_ONLY=$p"
           done <<< "$diff"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .head_branch)" = "$GITHUB_REF_NAME"
+          build_run=""
+          for attempt in $(seq 1 120); do
+            build_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$COMPILED_SOURCE_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="Pletzel V4 Easy Place Map Art red highlight no-voice full compilation")] | first | .id // empty')"
+            if [[ -n "$build_run" ]]; then break; fi
+            sleep 10
+          done
+          test -n "$build_run" || { echo "NEW_EXACT_SOURCE_NATIVE_BUILD_MISSING"; exit 5; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .head_branch)" = "$GITHUB_REF_NAME"
           for attempt in $(seq 1 660); do
-            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .status)"
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .status)"
             if [[ "$status" = completed ]]; then
-              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPILED_BUILD_RUN" --jq .conclusion)"
+              outcome="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$build_run" --jq .conclusion)"
               test "$outcome" = success || { echo "FRESH_NATIVE_COMPILATION_FAILED:$outcome"; exit 6; }
               break
             fi
             sleep 15
           done
           test "$status" = completed || { echo "COMPILER_TIMEOUT"; exit 7; }
-          echo "build_run=$COMPILED_BUILD_RUN" >> "$GITHUB_OUTPUT"
+          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
           echo "compiled_source_sha=$COMPILED_SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "FRESH_NATIVE_BINARY_PROVENANCE_OK run=$COMPILED_BUILD_RUN compiled=$COMPILED_SOURCE_SHA tests=$GITHUB_SHA"
+          echo "FRESH_NATIVE_BINARY_PROVENANCE_OK run=$build_run compiled=$COMPILED_SOURCE_SHA tests=$GITHUB_SHA"
   chrome:
     needs: [exact-compiled-candidate]
     runs-on: ubuntu-24.04
