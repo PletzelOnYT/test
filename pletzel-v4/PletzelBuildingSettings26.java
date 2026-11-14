@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
  */
 public final class PletzelBuildingSettings26 extends Screen {
     private final Screen parent;
-    private String note="Only actual vanilla right-clicks can place blocks. OFF by default.";
+    private String note="Easy Place OFF by default. Shift+right-click: normal vanilla use.";
     public PletzelBuildingSettings26(Screen parent) {
         super(Component.literal("Litematica Building Settings"));this.parent=parent;
     }
@@ -37,11 +37,13 @@ public final class PletzelBuildingSettings26 extends Screen {
         this.addRenderableWidget(Button.builder(
             Component.literal("Mode: "+(this.minecraft.options.pletzelEasyPlaceHover.get()?"Hover Auto-Place":"Hold to Place")),
             b->{
-                this.minecraft.options.pletzelEasyPlaceHover.set(false);
-                this.minecraft.options.pletzelEasyPlace.set(false);
+                boolean hover=!this.minecraft.options.pletzelEasyPlaceHover.get();
+                this.minecraft.options.pletzelEasyPlaceHover.set(hover);
                 this.minecraft.options.save();
-                b.setMessage(Component.literal("Mode: Hold to Place"));
-                note="Hover auto-place DISABLED; hold real Right Click on a support face";
+                b.setMessage(Component.literal("Mode: "+(hover?"Hover Auto-Place":"Hold to Place")));
+                note=hover?"Hover: aim at a ghost; no click required":
+                    "Hold: keep right-click down and move between ghosts";
+                System.out.println("[PletzelBuildSettings] Hover="+hover);
             }).bounds(right,y,150,20).build());
         y+=24;
         option(left,y,"Easy Pick",this.minecraft.options.pletzelEasyPick);
@@ -63,7 +65,7 @@ public final class PletzelBuildingSettings26 extends Screen {
         g.centeredText(this.font,Component.literal(
             this.font.plainSubstrByWidth(note,Math.max(80,this.width-14))),this.width/2,26,0xffdddddd);
         g.centeredText(this.font,Component.literal(
-            "Hover Auto-Place DISABLED. Hold real Right Click to place."),
+            "Hover: aim only. Hold: keep right click held. Shift+click: manual."),
             this.width/2,Math.max(174,this.height-22),0xffaaffff);
     }
     @Override public void onClose() {this.minecraft.gui.setScreen(parent);}
