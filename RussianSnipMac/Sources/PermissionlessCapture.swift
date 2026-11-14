@@ -38,7 +38,7 @@ final class PermissionlessScreenPicker: NSObject, SCContentSharingPickerObserver
     }
 
     func contentSharingPicker(_ picker: SCContentSharingPicker, didCancelFor stream: SCStream?) {
-        finish(.failure("Selection cancelled."))
+        finish(.failure(CaptureError("Selection cancelled.")))
     }
 
     func contentSharingPickerStartDidFailWithError(_ error: Error) {
@@ -72,11 +72,11 @@ final class PermissionlessScreenPicker: NSObject, SCContentSharingPickerObserver
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 8_000_000_000)
                 if !self.finished {
-                    self.finish(.failure("Screen selection timed out. Use Paste Screenshot instead."))
+                    self.finish(.failure(CaptureError("Screen selection timed out. Use Paste Screenshot instead.")))
                 }
             }
         } catch {
-            finish(.failure("Cannot capture selected content: " + error.localizedDescription))
+            finish(.failure(CaptureError("Cannot capture selected content: " + error.localizedDescription)))
         }
     }
 
