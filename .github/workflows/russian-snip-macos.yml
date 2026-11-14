@@ -1,7 +1,7 @@
 name: Build Russian Snip ready-to-use macOS app
 on:
   push:
-    branches: [russian-snip-v2-multiengine-20261113]
+    branches: [russian-snip-v21-permission-fix-20261113]
     paths:
       - "RussianSnipMac/**"
       - ".github/workflows/russian-snip-macos.yml"
@@ -24,8 +24,9 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           SOURCE="RussianSnipMac/Sources/RussianSnip.swift"
           ENGINE="RussianSnipMac/Sources/SmartTranslate.swift"
-          xcrun swiftc -parse-as-library -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security "$SOURCE" "$ENGINE" -o "$RUNNER_TEMP/RussianSnip-arm64"
-          xcrun swiftc -parse-as-library -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security "$SOURCE" "$ENGINE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
+          CAPTURE="RussianSnipMac/Sources/PermissionlessCapture.swift"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target arm64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security -framework ScreenCaptureKit -framework CoreImage -framework CoreMedia -framework CoreVideo "$SOURCE" "$ENGINE" "$CAPTURE" -o "$RUNNER_TEMP/RussianSnip-arm64"
+          xcrun swiftc -parse-as-library -O -swift-version 5 -target x86_64-apple-macosx13.0 -framework AppKit -framework SwiftUI -framework Vision -framework AVFoundation -framework Carbon -framework Translation -framework Security -framework ScreenCaptureKit -framework CoreImage -framework CoreMedia -framework CoreVideo "$SOURCE" "$ENGINE" "$CAPTURE" -o "$RUNNER_TEMP/RussianSnip-x86_64"
           lipo -create "$RUNNER_TEMP/RussianSnip-arm64" "$RUNNER_TEMP/RussianSnip-x86_64" -output "$APP/Contents/MacOS/RussianSnip"
           chmod 755 "$APP/Contents/MacOS/RussianSnip"
           cat >"$APP/Contents/Info.plist" <<'PLIST'
@@ -40,14 +41,25 @@ jobs:
           <key>CFBundleDisplayName</key><string>Russian Snip</string>
           <key>CFBundlePackageType</key><string>APPL</string>
           <key>CFBundleIconFile</key><string>AppIcon</string>
-          <key>CFBundleShortVersionString</key><string>2.0</string>
-          <key>CFBundleVersion</key><string>2</string>
+          <key>CFBundleShortVersionString</key><string>2.1</string>
+          <key>CFBundleVersion</key><string>3</string>
           <key>LSMinimumSystemVersion</key><string>13.0</string>
           <key>NSHighResolutionCapable</key><true/>
           <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
           </dict></plist>
           PLIST
           plutil -lint "$APP/Contents/Info.plist"
+      - name: Verify no legacy screen capture or permission loops
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R '/usr/sbin/screencapture\|CGRequestScreenCaptureAccess\|CGPreflightScreenCaptureAccess' RussianSnipMac/Sources; then
+            echo "Found prohibited legacy capture / repeated permission request path."
+            exit 1
+          fi
+          grep -Fq 'SCContentSharingPicker.shared' RussianSnipMac/Sources/PermissionlessCapture.swift
+          grep -Fq 'NSPasteboard.general' RussianSnipMac/Sources/RussianSnip.swift
+          echo "PASS: Apple picker and permissionless clipboard routes present."
       - name: Run native translation engine tests
         shell: bash
         run: |
@@ -114,12 +126,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           lipo -info "$APP/Contents/MacOS/RussianSnip"
           file "$APP/Contents/MacOS/RussianSnip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-v2-ready.zip"
-          unzip -t "Russian-Snip-Mac-v2-ready.zip" | tail -n 2
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "Russian-Snip-Mac-v21-permission-fixed.zip"
+          unzip -t "Russian-Snip-Mac-v21-permission-fixed.zip" | tail -n 2
       - name: Publish compiled downloadable Mac app
         uses: actions/upload-artifact@v4
         with:
-          name: Russian-Snip-Mac-v2-Compiled-App
-          path: Russian-Snip-Mac-v2-ready.zip
+          name: Russian-Snip-Mac-v21-Permission-Fixed-App
+          path: Russian-Snip-Mac-v21-permission-fixed.zip
           if-no-files-found: error
           retention-days: 30
