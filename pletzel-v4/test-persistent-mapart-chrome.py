@@ -134,11 +134,29 @@ try:
   if not reached_world:
    raise RuntimeError("Known broken singleplayer never reached 320 completed server ticks; cannot test two genuine maps")
   page.mouse.click(640,360);page.wait_for_timeout(1500)
-  send("/time query gametime")
-  # On the earlier real run the player drowned after a long stationary map
-  # capture, so the screenshot was You Died rather than Save and Quit.
-  # Water breathing keeps the real SURVIVAL inventory and map pipeline intact.
+  # Real screenshots from #43549330272 proved the player drowned *before*
+  # opening a map. That made every subsequent key/click target the death GUI
+  # rather than Minecraft's world, and consequently IndexedDB contained 0
+  # map records. Respawn with a REAL GUI click, then immediately grant a
+  # vanilla survival-compatible breathing effect; never manufacture maps.
+  def death_events():
+   return [e for e in events if " drowned" in e["text"] and
+           ("[CHAT]" in e["text"] or "Render thread" in e["text"])]
+  if death_events():
+   snap("09a-player-drowned-before-maps")
+   page.mouse.click(640,426) # Native Minecraft Respawn button (1280x720)
+   page.wait_for_timeout(5000)
+   print("REAL_MAP_SURVIVAL_RESPAWN_AFTER_DROWNING",flush=True)
   send("/effect give @p minecraft:water_breathing 999999 0 true")
+  # Initial oxygen may have expired while sending the first command; if so,
+  # repeat real Respawn and the authentic vanilla effect command once.
+  if death_events() and not any("REAL_MAP_SURVIVAL_RESPAWN_AFTER_DROWNING" in
+                              e["text"] for e in events):
+   # Only execute if first detection occurred AFTER attempting the effect.
+   page.mouse.click(640,426)
+   page.wait_for_timeout(4500)
+   send("/effect give @p minecraft:water_breathing 999999 0 true")
+  send("/time query gametime")
   snap("10-genuine-commands-enabled")
   send("/give @p minecraft:map 1")
   page.keyboard.press("1");page.wait_for_timeout(1500)
