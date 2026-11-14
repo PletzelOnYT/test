@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Security
 import Translation
+import SwiftUI
 
 enum ProviderMode: String, CaseIterable, Identifiable {
     case automatic = "Automatic failover"
@@ -247,12 +248,7 @@ enum SmartTranslate {
 
     @available(macOS 15.0, *)
     private static func appleTranslation(_ text: String) async throws -> String {
-        let session = TranslationSession(
-            installedSource: Locale.Language(identifier: "ru"),
-            target: Locale.Language(identifier: "en")
-        )
-        let response = try await session.translate(text)
-        return response.targetText
+        return try await AppleTranslationBridge.shared.request(text)
     }
 
     // Split at spaces/sentence punctuation when possible, keeping every character.
@@ -449,5 +445,73 @@ enum SmartTranslate {
             throw EngineError.request("Google Cloud returned no translation")
         }
         return output
+    }
+}
+
+
+// The view-managed TranslationSession API has been supported since macOS 15.
+// Direct TranslationSession(installedSource:) construction is macOS 26+ only.
+@available(macOS 15.0, *)
+@MainActor
+final class AppleTranslationBridge: ObservableObject {
+    static let shared = AppleTranslationBridge()
+    @Published var configuration: TranslationSession.Configuration?
+    private var pending: CheckedContinuation<String, Error>?
+    private var pendingText = ""
+    private var requestID = UUID()
+
+    private init() {}
+
+    func request(_ text: String) async throws -> String {
+        guard pending == nil else {
+            throw EngineError.request("Apple is already translating another selection")
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            let id = UUID()
+            requestID = id
+            pending = continuation
+            pendingText = text
+            configuration = TranslationSession.Configuration(
+                source: Locale.Language(identifier: "ru"),
+                target: Locale.Language(identifier: "en")
+            )
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 12_000_000_000)
+                if requestID == id && pending != nil {
+                    finish(.failure(EngineError.request("Apple on-device translation timed out")))
+                }
+            }
+        }
+    }
+
+    func execute(_ session: TranslationSession) async {
+        guard pending != nil else { return }
+        do {
+            let response = try await session.translate(pendingText)
+            finish(.success(response.targetText))
+        } catch {
+            finish(.failure(error))
+        }
+    }
+
+    private func finish(_ result: Result<String, Error>) {
+        guard let continuation = pending else { return }
+        pending = nil
+        pendingText = ""
+        configuration = nil
+        continuation.resume(with: result)
+    }
+}
+
+@available(macOS 15.0, *)
+struct AppleTranslationHost: View {
+    @ObservedObject private var bridge = AppleTranslationBridge.shared
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .translationTask(bridge.configuration) { session in
+                await bridge.execute(session)
+            }
     }
 }
