@@ -147,6 +147,12 @@ struct ScreenshotCropSheet: View {
     @State private var start: CGPoint?
     @State private var end: CGPoint?
 
+    init(image: NSImage, accept: @escaping (NSImage) -> Void, cancel: @escaping () -> Void) {
+        self.image = image
+        self.accept = accept
+        self.cancel = cancel
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             HStack {
