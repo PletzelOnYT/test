@@ -1,0 +1,115 @@
+name: Publish experimental Pletzel V4 No-Voice HTML to main
+on:
+  push:
+    branches: [pletzel-v4-easyplace-mapart-red-20261112]
+    paths: ['.github/workflows/pletzel-v4-publish-experimental-20261114.yml']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: pletzel-v4-experimental-main-publication-20261114
+  cancel-in-progress: false
+jobs:
+  publish-experimental:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: '43549286002'
+      COMPILED_SOURCE_SHA: 'b2e5f41c87ed9d0a6645a00031d60de154bf52a2'
+      SOURCE_BRANCH: 'pletzel-v4-easyplace-mapart-red-20261112'
+      ARTIFACT: 'pletzel-v4-easyplace-easypick-mapart-red-optimized-no-voice-complete-html'
+      COMPILE_LOG_ARTIFACT: 'pletzel-v4-corrected-shulker-gui-compile-logs'
+      COMPILED_NAME: 'Pletzel-V4-Optimized-Litematica-EasyPlace-EasyPick-MapArt-NoVoice.html'
+      PUBLISHED_NAME: 'Pletzel-V4-Experimental-NoVoice.html'
+      PREVIOUS_NAME: 'Pletzel-V4-Optimized-Litematica-EasyPlace-EasyPick-MapArt-NoVoice.html'
+      BACKUP_NAME: 'backups/Pletzel-V4-main-before-2026-11-14.html'
+      RELEASE_TAG: 'pletzel-v4-easyplace-experimental-20261114'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check exact compiled game provenance, preserve main, publish experimental GitHub Release and verify bytes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          TEMP_DIR="$(mktemp -d "$RUNNER_TEMP/pletzel-experimental.XXXXXX")"
+          mkdir -p "$TEMP_DIR/compiled" "$TEMP_DIR/compile-logs"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main "$SOURCE_BRANCH"
+          test "$(git rev-parse "origin/$SOURCE_BRANCH")" = "$GITHUB_SHA" || { echo 'Development branch advanced: abort to avoid stale publication'; exit 2; }
+          git merge-base --is-ancestor "$COMPILED_SOURCE_SHA" "$GITHUB_SHA"
+          ACTUAL_BUILD_SHA="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN" --jq .head_sha)"
+          ACTUAL_BUILD_STATUS="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN" --jq .conclusion)"
+          test "$ACTUAL_BUILD_SHA" = "$COMPILED_SOURCE_SHA"
+          test "$ACTUAL_BUILD_STATUS" = success
+          echo 'Verifying no new game-source changes since compiled source commit...'
+          git diff --name-only "$COMPILED_SOURCE_SHA" "origin/$SOURCE_BRANCH" | while IFS= read -r path; do
+            case "$path" in
+              pletzel-v4/test-*.py|.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml|.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml|.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml|.github/workflows/pletzel-v4-publish-experimental-20261114.yml|pletzel-v4/publish-easyplace-no-voice.sh) echo "Verified test/workflow-only change: $path" ;;
+              *) echo "UNCOMPILED GAME SOURCE CHANGE: $path"; exit 3 ;;
+            esac
+          done
+          gh run download "$BUILD_RUN" -R "$REPO" -n "$ARTIFACT" -D "$TEMP_DIR/compiled"
+          gh run download "$BUILD_RUN" -R "$REPO" -n "$COMPILE_LOG_ARTIFACT" -D "$TEMP_DIR/compile-logs"
+          COUNT="$(find "$TEMP_DIR/compiled" -type f -name '*.html' | wc -l)"
+          test "$COUNT" -eq 1
+          CANDIDATE="$(find "$TEMP_DIR/compiled" -type f -name '*.html' | head -1)"
+          test "$(basename "$CANDIDATE")" = "$COMPILED_NAME"
+          test "$(stat -c %s "$CANDIDATE")" -gt 80000000
+          GAME_SHA="$(sha256sum "$CANDIDATE" | awk '{print $1}')"
+          GAME_BYTES="$(stat -c %s "$CANDIDATE")"
+          REPORTED_SHA="$(find "$TEMP_DIR/compile-logs" -type f -name 'artifact-sha256.txt' -exec grep -h -F "$COMPILED_NAME" {} \; | awk '{print $1}' | head -1)"
+          test -n "$REPORTED_SHA" || { echo 'Missing original compiler SHA-256 record'; exit 4; }
+          test "$REPORTED_SHA" = "$GAME_SHA" || { echo 'Compiled HTML hash mismatch'; exit 4; }
+          printf 'Compiled candidate verified: bytes=%s sha256=%s\n' "$GAME_BYTES" "$GAME_SHA"
+          # Merge exact development source history and selected source paths without overwriting main's unrelated files.
+          git switch -C publish-pletzel-experimental origin/main
+          MAIN_BEFORE="$(git rev-parse HEAD)"
+          test -f "$PREVIOUS_NAME"
+          mkdir -p "$(dirname "$BACKUP_NAME")"
+          cp "$PREVIOUS_NAME" "$BACKUP_NAME"
+          git merge -s ours --no-ff --no-commit "origin/$SOURCE_BRANCH"
+          git checkout "origin/$SOURCE_BRANCH" -- .github pletzel-v4
+          while IFS= read -r root; do
+            case "$root" in
+              pletzel-v4-*.py) git checkout "origin/$SOURCE_BRANCH" -- "$root" ;;
+            esac
+          done < <(git ls-tree --name-only "origin/$SOURCE_BRANCH")
+          cp "$CANDIDATE" "$PUBLISHED_NAME"
+          {
+            printf '\n## Experimental Pletzel V4 No-Voice build — 2026-11-14\n\n'
+            printf 'The complete playable HTML is committed in the root as [%s](%s).\n\n' "$PUBLISHED_NAME" "https://github.com/$REPO/raw/refs/heads/main/$PUBLISHED_NAME"
+            printf 'GitHub experimental prerelease: https://github.com/%s/releases/tag/%s\n\n' "$REPO" "$RELEASE_TAG"
+            printf 'Full native compile: https://github.com/%s/actions/runs/%s (successful).\n' "$REPO" "$BUILD_RUN"
+            printf 'Chromium eight-suite test: https://github.com/%s/actions/runs/43615183423 (6/8 passing; Easy Place and Map Art failing).\n' "$REPO"
+            printf 'Source commit compiled: %s. Exact compiled HTML SHA-256: %s; size: %s bytes.\n\n' "$COMPILED_SOURCE_SHA" "$GAME_SHA" "$GAME_BYTES"
+            printf 'EXPERIMENTAL/UNVERIFIED: Do not use automated Easy Place on public multiplayer servers; potential kicks/bans and ghost blocks. Map Art persistence after a browser restart has not passed.\n\n'
+            printf 'Previous main HTML is preserved unchanged as %s and also copied to %s. No voice chat in this release.\n' "$PREVIOUS_NAME" "$BACKUP_NAME"
+          } >> README.md
+          git add -A
+          git commit -m 'Publish compiled Pletzel V4 no-voice experimental HTML on main with previous build backup' -m 'Import development source without replacing unrelated main files. Native compilation succeeds; real Chromium acceptance is 6/8, not stable.'
+          NEW_MAIN_SHA="$(git rev-parse HEAD)"
+          git push origin HEAD:main
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$NEW_MAIN_SHA"
+          test "$(git show "origin/main:$PUBLISHED_NAME" | sha256sum | awk '{print $1}')" = "$GAME_SHA"
+          test "$(git show "origin/main:$BACKUP_NAME" | sha256sum | awk '{print $1}')" = "$(git show "$MAIN_BEFORE:$PREVIOUS_NAME" | sha256sum | awk '{print $1}')"
+          printf 'EXPERIMENTAL BUILD — NOT FULLY ACCEPTED\nNative compile succeeded, 6/8 Chromium acceptance. Easy Place off-schematic safety and Map Art browser restart still fail. Avoid Easy Place automation on public servers.\n\nCompiled source: %s\nMain commit: %s\nSHA-256: %s\nSize: %s bytes\nBuild: https://github.com/%s/actions/runs/%s\nTests: https://github.com/%s/actions/runs/43615183423\n' "$COMPILED_SOURCE_SHA" "$NEW_MAIN_SHA" "$GAME_SHA" "$GAME_BYTES" "$REPO" "$BUILD_RUN" "$REPO" > "$TEMP_DIR/release-notes.txt"
+          gh release create "$RELEASE_TAG" "$PUBLISHED_NAME" -R "$REPO" --target "$NEW_MAIN_SHA" --title 'Pletzel V4 No-Voice — EXPERIMENTAL — 2026-11-14' --prerelease --notes-file "$TEMP_DIR/release-notes.txt"
+          mkdir -p "$TEMP_DIR/release-verify" "$TEMP_DIR/raw-verify"
+          gh release download "$RELEASE_TAG" -R "$REPO" --pattern "$PUBLISHED_NAME" --dir "$TEMP_DIR/release-verify"
+          test "$(sha256sum "$TEMP_DIR/release-verify/$PUBLISHED_NAME" | awk '{print $1}')" = "$GAME_SHA"
+          curl --fail --location --retry 3 --silent --show-error --output "$TEMP_DIR/raw-verify/$PUBLISHED_NAME" "https://raw.githubusercontent.com/$REPO/main/$PUBLISHED_NAME"
+          test "$(sha256sum "$TEMP_DIR/raw-verify/$PUBLISHED_NAME" | awk '{print $1}')" = "$GAME_SHA"
+          printf 'Status: EXPERIMENTAL, NOT 8/8\nMain commit: %s\nCompiled source: %s\nBuild run: %s\nChromium: 6/8, failing Easy Place and Map Art\nBytes: %s\nSHA256: %s\nRaw download: https://raw.githubusercontent.com/%s/main/%s\nRelease: https://github.com/%s/releases/tag/%s\nRelease asset: https://github.com/%s/releases/download/%s/%s\nBackup: %s\nVerified local git, release re-download, raw GitHub re-download, compiler record: all same SHA-256\n' "$NEW_MAIN_SHA" "$COMPILED_SOURCE_SHA" "$BUILD_RUN" "$GAME_BYTES" "$GAME_SHA" "$REPO" "$PUBLISHED_NAME" "$REPO" "$RELEASE_TAG" "$REPO" "$RELEASE_TAG" "$PUBLISHED_NAME" "$BACKUP_NAME" | tee publication-verification.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pletzel-v4-experimental-publication-verification
+          path: publication-verification.txt
+          retention-days: 90
+          if-no-files-found: warn
