@@ -48,14 +48,22 @@ if ! git diff --quiet "$accept_sha" HEAD -- \
   .github/workflows/pletzel-v4-litematica-freecam-no-voice.yml \
   pletzel-v4/EasyPlace26.java \
   pletzel-v4/EasyPick26.java \
+  pletzel-v4/Freecam26.java \
   pletzel-v4/MapArtStore26.java \
   pletzel-v4/MapTooltipClientPersistent26.java \
+  pletzel-v4/PletzelMapArtIndexedDB26.java \
   pletzel-v4/SchematicaWorldRendererOptimized26.java \
   pletzel-v4/patch-easyplace-mapart.py \
+  pletzel-v4/patch-multiformat-freecam.py \
+  pletzel-v4/patch-schematica-maptooltip-restoration.py \
   pletzel-v4/test-easyplace-real-chrome.py \
   pletzel-v4/test-persistent-mapart-chrome.py \
   pletzel-v4/test-red-highlight-real-chrome.py \
-  pletzel-v4/test-mods-separation-real-chrome.py; then
+  pletzel-v4/test-mods-separation-real-chrome.py \
+  pletzel-v4/test-freecam-real-flight.py \
+  pletzel-v4/test-fourformat-browser-smoke.py \
+  pletzel-v4/test-native-schematic-inworld.py \
+  pletzel-v4/test-no-voice-world-save.py; then
   echo "ABORT: newer game source or stricter Chrome tests exist after this accepted run."
   exit 7
 fi
