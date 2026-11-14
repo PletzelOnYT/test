@@ -69,12 +69,14 @@ for suite in easyplace mapart red-highlight fourformat freecam hologram world-sa
 done
 echo "$jobs_json" | jq -e '[.jobs[] | select(.name | startswith("chrome ("))] | length == 8' >/dev/null
 
-# The accepted source must explicitly pin THIS source compilation.
+# Accepted workflow must point to this freshly compiled native source,
+# download its exact generated full HTML, and enforce SHA-only test drift.
 accepted_workflow="$(git show "$accept_sha:.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml")"
-grep -Fqx "          run=$BUILD_RUN_ID" <<< "$accepted_workflow"
-grep -Fqx "          sha=$BUILD_SOURCE_SHA" <<< "$accepted_workflow"
-grep -Fqx "          artifact=$EXPECTED_ARTIFACT" <<< "$accepted_workflow"
-grep -Fqx '          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$artifact" -D candidate' <<< "$accepted_workflow"
+grep -Fq "COMPILED_SOURCE_SHA: $BUILD_SOURCE_SHA" <<< "$accepted_workflow"
+grep -Fq "artifact=$EXPECTED_ARTIFACT" <<< "$accepted_workflow"
+grep -Fq 'gh run download "$BUILD_RUN"' <<< "$accepted_workflow"
+grep -Fq 'test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)" = "$COMPILED_SOURCE_SHA"' <<< "$accepted_workflow"
+grep -Fq 'publish-accepted-standalone:' <<< "$accepted_workflow"
 
 mkdir -p publish-from-action
 gh run download "$BUILD_RUN_ID" -R "$REPO" -n "$EXPECTED_ARTIFACT" -D publish-from-action
@@ -151,7 +153,7 @@ cat > README.md <<EOF
 
 - Four-format Litematica/Schematica imports: \`.litematic\`, \`.schematic\`, \`.schem\`, \`.nbt\`.
 - Lazy, section-based schematic holograms with render-distance culling and bounded render caches.
-- **Easy Place (OFF default)**: vanilla support-face right-click in Hold or opt-in Hover mode, with real reach and server validation.
+- **Easy Place (OFF default)**: **Hold Right Click only**, genuine vanilla support-face interactions with reach checks, server-state reconciliation and prediction acknowledgements. Hover Auto-Place is forcibly disabled. Multiplayer Easy Place is hard-disabled pending independent dedicated-server tests.
 - **Easy Pick (OFF default)**: selects only existing hotbar slots 1–9 through normal inventory selection.
 - **Independent visible settings**: Easy Pick and Easy Place have separate saved ON/OFF controls in the spaced Minecraft-style Schematica menu.
 - **Map Tooltip for ALL ordinary filled maps**: vanilla 128x128 terrain, explored, and pixel-art maps preview automatically. Explorer/treasure maps remain excluded. Real received pixel bytes persist by world/server+dimension+MapId in IndexedDB; no manual art marking is required.
@@ -163,7 +165,7 @@ cat > README.md <<EOF
 
 The $ACCEPTANCE_RUN_ID Chrome acceptance run passed eight suites: Easy Place, persistent Map Art, red highlighting, all four schematic formats, Freecam, in-world holograms, and world save/reload. Compiled HTML bytes match the original source artifact using SHA-256.
 
-**Not claimed as verified:** multiplayer server compatibility, every special block orientation, or stable FPS on a physical Mac. The separate [same-runner FPS comparison #43259063632](https://github.com/$REPO/actions/runs/43259063632) failed; it is not evidence of a speedup. A past render-distance acceptance workflow also failed while automating Video Settings, so complete 2/4/8/16 performance acceptance is not established.
+**Not claimed as verified:** multiplayer Easy Place and anticheat compatibility (Easy Place remains disabled on multiplayer), every special block orientation, or stable FPS on a physical Mac. The separate [same-runner FPS comparison #43259063632](https://github.com/$REPO/actions/runs/43259063632) failed; it is not evidence of a speedup. A past render-distance acceptance workflow also failed while automating Video Settings, so complete 2/4/8/16 performance acceptance is not established.
 
 ## Release automation
 
@@ -226,6 +228,24 @@ gh api "repos/$REPO/contents/README.md?ref=$BRANCH" --jq .sha >/dev/null
 release_json="$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG")"
 echo "$release_json" | jq -e --arg file "$FILE" --arg bytes "$bytes" \
   '.assets | any(.name==$file and (.size|tostring)==$bytes)' >/dev/null
+
+# Promote the exact accepted and independently downloaded GitHub Release
+# bytes to main only AFTER the full eight-Chrome gate, branch blob, release
+# upload, artifact and SHA-256 checks have passed.
+cp README.md publish-from-action/accepted-README.md
+git fetch origin main
+git switch -c pletzel-verified-main origin/main
+cp "$src" "$FILE"
+cp publish-from-action/accepted-README.md README.md
+test "$(sha256sum "$FILE" | cut -d' ' -f1)" = "$sha"
+git add -- "$FILE" README.md
+if ! git diff --cached --quiet; then
+  git commit -m "Promote accepted Pletzel V4 no-voice HTML after Chromium 8/8 #$ACCEPTANCE_RUN_ID"
+  git push origin HEAD:main
+fi
+git fetch origin main
+test "$(git show "origin/main:$FILE" | sha256sum | cut -d' ' -f1)" = "$sha"
+echo "EXACT_SAME_ACCEPTED_HTML_ON_MAIN sha256=$sha"
 
 {
   echo "## Verified No-Voice Publication"

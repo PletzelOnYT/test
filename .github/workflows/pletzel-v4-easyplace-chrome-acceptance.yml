@@ -45,7 +45,7 @@ jobs:
           test -n "$diff" || { echo "NO_DIFF_EXPECTED"; exit 4; }
           while IFS= read -r p; do
             case "$p" in
-              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml') ;;
+              'pletzel-v4/test-'*.py|'.github/workflows/pletzel-v4-easyplace-chrome-acceptance.yml'|'.github/workflows/pletzel-v4-litematica-freecam-no-voice.yml'|'.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml'|'pletzel-v4/publish-easyplace-no-voice.sh') ;;
               *) echo "GAME_CODE_DRIFT_REQUIRES_RECOMPILATION=$p"; exit 5;;
             esac
             echo "REVIEWED_HARNESS_ONLY=$p"
@@ -139,3 +139,16 @@ jobs:
 
 # Release intentionally blocked: eight local Chrome suites do not prove
 # dedicated multiplayer correction, latency, disconnect or anticheat safety.
+
+  # No publishing on partial or compile-only success. Matrix must be 8/8.
+  publish-accepted-standalone:
+    needs: [exact-compiled-candidate, chrome]
+    if: ${{ success() && github.ref_name == 'pletzel-v4-easyplace-mapart-red-20261112' }}
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/pletzel-v4-publish-easyplace-no-voice.yml
+    with:
+      build_run_id: ${{ needs.exact-compiled-candidate.outputs.build_run }}
+      source_sha: ${{ needs.exact-compiled-candidate.outputs.compiled_source_sha }}
+      acceptance_run_id: ${{ github.run_id }}
