@@ -16,6 +16,20 @@ make=runpy.run_path(str(Path(__file__).with_name("make-easypick-fixture.py")))
 fixture=make["create"](out/"fixtures")
 materials=make["MATERIALS"]
 assert len(materials)==10
+# Extra real Sponge schematic for continuous building: 11 consecutive cells
+# using only the three AVAILABLE hotbar materials. Distinct from the
+# inventory-only 10th-material Easy Pick regression fixture.
+long_blocks=["minecraft:stone","minecraft:oak_planks","minecraft:glass"]*4
+long_blocks=long_blocks[:11]
+_n=make["t_compound"]
+_long_palette=_n("Palette",*(make["t_int"](block,i) for i,block in
+                          enumerate(("minecraft:stone","minecraft:oak_planks","minecraft:glass"))))
+_long_blob=_n("",make["t_int"]("Version",2),make["t_short"]("Width",11),
+             make["t_short"]("Height",1),make["t_short"]("Length",1),
+             _long_palette,make["t_byte_array"]("BlockData",[i%3 for i in range(11)]))
+continuous_fixture=fixture.parent/"easyplace-continuous-eleven.schem"
+continuous_fixture.write_bytes(gzip.compress(_long_blob,mtime=0))
+active_fixture=[fixture]
 class Handler(http.server.SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(game.parent),**kw)
  def log_message(self,*a):pass
@@ -35,8 +49,8 @@ try:
   page.on("console",lambda m:events.append({"t":elapsed(),"kind":m.type,"text":m.text[:2500]}))
   page.on("pageerror",lambda e:events.append({"t":elapsed(),"kind":"pageerror","text":str(e)[:3000]}))
   def choose(fc):
-   fc.set_files(str(fixture.resolve()))
-   print("EASYPLACE_EASYPICK_REAL_CHOOSER",fixture.name,flush=True)
+   fc.set_files(str(active_fixture[0].resolve()))
+   print("EASYPLACE_EASYPICK_REAL_CHOOSER",active_fixture[0].name,flush=True)
   page.on("filechooser",choose)
   def snap(name):
    page.screenshot(path=str(out/(name+".png")),timeout=60000)
