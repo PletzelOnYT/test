@@ -1,29 +1,63 @@
-# Acoustic Base Radar — Meteor Client 1.21.11 / Fabric
+# Acoustic Base Radar 1.2.0 — Minecraft Java 1.21.11 / Meteor / Fabric
 
-A standalone addon based on the event-listening *approach* of Saturn Addon's SoundLocator, with entirely new scoring and clustering code.
+A Meteor addon modeled after Saturn's SoundLocator event-listening approach, with
+independent per-block classification and priority-based coloring.
 
-## What it does
-- Listens to real sound instances surfaced through Meteor's `PlaySoundEvent`.
-- Handles chest/barrel/shulker sounds, villagers, redstone mechanisms, workstations, player activity, and optionally farm animals.
-- Groups events by nearby coordinates and tracks separate evidence classes.
-- Shows six 3D box colors: white → light yellow → yellow → light orange → orange → red.
-- Applies decay and deduplication to reduce false positives from repeated idle sounds.
-- Clears history on disconnect/dimension change, no disk tracking, no server packet injection.
-- Red is a high *relative evidence score*, not proof of a player-built base.
+## Exact block-sized sound highlights
+Every received relevant sound is marked with exactly one 1 × 1 × 1 cube at the
+integer sound-emitter position (floor X, floor Y, floor Z).
+Neighboring sources remain distinct; there are **no large merged-area boxes**.
 
-**Limitations:** Vanilla hoppers do not emit a sound when transferring items; they cannot be found through sound events. The module only receives sounds supplied to your client by the server, not remote/hidden chunks. Villager villages and machinery may produce false positives.
+Important distinction: a villager, minecart, or player sound may originate from
+an entity's position (a *voxel*), not an actual physical block. For chest and
+redstone sounds, the reported origin is generally near the operating block.
 
-## Build
-Requires Java 21 and Gradle 9.2, with internet access for Fabric Loom/Minecraft/Meteor dependencies:
+## Color priority
+- **White (0):** weak farm-animal noises (optional)
+- **Light yellow (1):** ambient villagers / rail noises
+- **Yellow (2):** workstations, villager trades, simple redstone / player activity
+- **Light orange (3):** normal chest/barrel opening and piston/dispenser activity
+- **Orange (4):** ender chest, active crafter, correlated sounds
+- **Red (5):** shulker-box open/close, or strengthened multi-sound evidence
 
+Colors indicate relative importance of **actual sound evidence**, not the
+probability or confirmed presence of a player base. Repeated identical sounds
+are deduplicated, different cues can strengthen a block, and stale evidence fades.
+
+## Range
+There is **no artificial listening-distance cap** in this addon. Any sound
+instance Minecraft actually receives can be tracked, even if its reported
+coordinates are outside the current render distance. There is likewise no
+custom maximum render distance for markers.
+
+**A client-side addon cannot obtain sounds the server does not transmit.**
+Servers and Minecraft's sound engine limit what sound events reach the client.
+A source behind an unloaded chunk, outside the server's sound broadcast range,
+or with no vanilla sound cannot be reconstructed by this addon. Hopper item
+transfer is silent in vanilla; minecart noises are merely weak hints.
+
+## Settings
+Modules > Acoustic Radar > base-sound-radar.
+Individual sound categories, minimum visible color tier, marker transparency,
+expiry time, red alerts, and optional self-sound filtering can be customized.
+
+Performance: bounded memory (up to 1024 distinct source voxels), periodic
+expiration, source-level sound cooldowns. Detection history is session-local and
+is cleared when you change dimensions or disconnect.
+
+## Install
+Use Java 21, Minecraft Java **1.21.11**, matching Meteor Client and Fabric Loader.
+Place `acoustic-base-radar-1.2.0.jar` in the instance's `mods` folder. Delete
+the older `acoustic-base-radar-1.1.0.jar` to avoid duplicate mod IDs.
+
+## Build and tests
 ```sh
-gradle build
+gradle clean build
+javac -d build/scorer-tests src/main/java/dev/acousticradar/RadarScorer.java src/test/java/dev/acousticradar/RadarScorerTest.java
+java -ea -cp build/scorer-tests dev.acousticradar.RadarScorerTest
 ```
 
-Place `build/libs/acoustic-base-radar-1.1.0.jar` in the instance's `mods` folder with the **Minecraft 1.21.11** compatible Meteor Client and Fabric Loader. In Meteor open **Modules → Acoustic Radar → base-sound-radar**. The module starts **off** by default.
+The Gradle **remapped** `build/libs/acoustic-base-radar-1.2.0.jar` is the installable addon.
 
-The Gradle-produced remapped JAR is the deployable artifact, NOT any `-dev.jar`.
-
-## Reference
-Saturn SoundLocator: https://github.com/Memeruler-k/Saturn-Addon/blob/main/src/main/java/dev/saturn/addon/modules/Exploit/SoundLocator.java
-This is an independent implementation, not a copied Saturn module.
+Saturn reference:
+https://github.com/Memeruler-k/Saturn-Addon/blob/main/src/main/java/dev/saturn/addon/modules/Exploit/SoundLocator.java
