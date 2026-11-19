@@ -1,4 +1,4 @@
-# Acoustic Base Radar — Meteor Client 1.21.1 / Fabric
+# Acoustic Base Radar — Meteor Client 1.21.11 / Fabric
 
 A standalone addon based on the event-listening *approach* of Saturn Addon's SoundLocator, with entirely new scoring and clustering code.
 
@@ -14,13 +14,13 @@ A standalone addon based on the event-listening *approach* of Saturn Addon's Sou
 **Limitations:** Vanilla hoppers do not emit a sound when transferring items; they cannot be found through sound events. The module only receives sounds supplied to your client by the server, not remote/hidden chunks. Villager villages and machinery may produce false positives.
 
 ## Build
-Requires Java 21 and Gradle 8.11, with internet access for Fabric Loom/Minecraft/Meteor dependencies:
+Requires Java 21 and Gradle 9.2, with internet access for Fabric Loom/Minecraft/Meteor dependencies:
 
 ```sh
 gradle build
 ```
 
-Place `build/libs/acoustic-base-radar-1.0.0.jar` in the instance's `mods` folder with the **Minecraft 1.21.1** compatible Meteor Client and Fabric Loader. In Meteor open **Modules → Acoustic Radar → base-sound-radar**. The module starts **off** by default.
+Place `build/libs/acoustic-base-radar-1.1.0.jar` in the instance's `mods` folder with the **Minecraft 1.21.11** compatible Meteor Client and Fabric Loader. In Meteor open **Modules → Acoustic Radar → base-sound-radar**. The module starts **off** by default.
 
 The Gradle-produced remapped JAR is the deployable artifact, NOT any `-dev.jar`.
 
