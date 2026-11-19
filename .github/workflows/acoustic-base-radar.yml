@@ -31,31 +31,55 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.0'
-      - name: Test pure-Java sound classifier and exact-block markers
+      - name: Run tests and Minecraft compile with persistent diagnostics
+        id: check
+        shell: bash
         run: |
-          mkdir -p build/scorer-tests
-          javac -d build/scorer-tests src/main/java/dev/acousticradar/RadarScorer.java src/test/java/dev/acousticradar/RadarScorerTest.java
-          java -ea -cp build/scorer-tests dev.acousticradar.RadarScorerTest
-      - name: Compile and remap Minecraft 1.21.11 addon
-        run: gradle clean build --stacktrace --no-daemon
-      - name: Package mod and source
-        run: |
-          mkdir -p dist
-          cp build/libs/acoustic-base-radar-1.2.0.jar dist/acoustic-base-radar-1.2.0.jar
-          zip -q -r dist/acoustic-base-radar-source.zip README.md build.gradle settings.gradle gradle.properties src
-      - name: Upload installable mod and source
+          mkdir -p dist build/scorer-tests
+          set +e
+          javac -d build/scorer-tests src/main/java/dev/acousticradar/RadarScorer.java src/test/java/dev/acousticradar/RadarScorerTest.java > dist/test-result.txt 2>&1
+          test_status=$?
+          if [ "$test_status" -eq 0 ]; then
+            java -ea -cp build/scorer-tests dev.acousticradar.RadarScorerTest >> dist/test-result.txt 2>&1
+            test_status=$?
+          fi
+          gradle clean build --stacktrace --no-daemon > dist/build-output.txt 2>&1
+          build_status=$?
+          {
+            echo "Java 21 scorer tests status: $test_status (0 means pass)"
+            cat dist/test-result.txt
+            echo "Gradle build status: $build_status (0 means pass)"
+            echo "--- Last 130 lines of build output ---"
+            tail -n 130 dist/build-output.txt
+          } > dist/build-status.txt
+          echo "test_status=$test_status" >> "$GITHUB_OUTPUT"
+          echo "build_status=$build_status" >> "$GITHUB_OUTPUT"
+          if [ "$test_status" -eq 0 ] && [ "$build_status" -eq 0 ]; then
+            cp build/libs/acoustic-base-radar-1.2.0.jar dist/acoustic-base-radar-1.2.0.jar
+            zip -q -r dist/acoustic-base-radar-source.zip README.md build.gradle settings.gradle gradle.properties src
+          fi
+      - name: Upload diagnostics and successfully compiled mod
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: acoustic-base-radar-1.21.11-precision
           path: |
             acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar
             acoustic-base-radar/dist/acoustic-base-radar-source.zip
+            acoustic-base-radar/dist/build-status.txt
           if-no-files-found: error
-      - name: Publish successful build to isolated branch
+      - name: Publish diagnostics and binary (when checks pass)
+        if: always()
         working-directory: .
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar acoustic-base-radar/dist/acoustic-base-radar-source.zip
-          git commit -m 'Build Acoustic Base Radar 1.2.0 1.21.11 [skip ci]' || true
+          git add acoustic-base-radar/dist/build-status.txt
+          if [ -f acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar ]; then
+            git add acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar acoustic-base-radar/dist/acoustic-base-radar-source.zip
+          fi
+          git commit -m 'Report Acoustic Base Radar v1.2.0 compile [skip ci]' || true
           git push origin HEAD:feature/acoustic-base-radar-1-21-11-precision
+      - name: Fail CI on failed compile or test
+        if: steps.check.outputs.test_status != '0' || steps.check.outputs.build_status != '0'
+        run: exit 1
