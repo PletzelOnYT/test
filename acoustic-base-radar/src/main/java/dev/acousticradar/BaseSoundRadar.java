@@ -1,6 +1,7 @@
 package dev.acousticradar;
 
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.PlaySoundEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -13,11 +14,23 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.util.math.Box;
+import net.minecraft.entity.Entity;
+import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
+import net.minecraft.network.packet.s2c.play.PlaySoundFromEntityS2CPacket;
 
 public final class BaseSoundRadar extends Module {
     private final SettingGroup general = settings.getDefaultGroup();
     private final SettingGroup sounds = settings.createGroup("Sound Sources");
     private final SettingGroup visuals = settings.createGroup("Render");
+
+    private final Setting<Boolean> listenPackets = general.add(new BoolSetting.Builder()
+        .name("server-sound-packets")
+        .description("Detect received server sound packets even if audio playback is culled.")
+        .defaultValue(true).build());
+    private final Setting<Boolean> listenPlayback = general.add(new BoolSetting.Builder()
+        .name("played-sound-events")
+        .description("Also detect locally played sounds, as in Saturn SoundLocator.")
+        .defaultValue(true).build());
 
     private final Setting<Integer> lifetime = general.add(new IntSetting.Builder()
         .name("memory-minutes")
@@ -127,23 +140,48 @@ public final class BaseSoundRadar extends Module {
         if (ticks % 20 == 0) tracker.expire(ticks, lifetime.get() * 1200L);
     }
 
+    /**
+     * Server-originated sounds are captured before client audio-distance culling.
+     * Only packets the server actually sent are visible; this is NOT a remote scan.
+     * Packet handling may run on the network thread, so schedule main-thread access.
+     */
+    @EventHandler
+    private void onPacket(PacketEvent.Receive event) {
+        if (!listenPackets.get()) return;
+        if (event.packet instanceof PlaySoundS2CPacket packet) {
+            String soundId = packet.getSound().value().id().toString();
+            double x = packet.getX(), y = packet.getY(), z = packet.getZ();
+            mc.execute(() -> trackSound(soundId, x, y, z));
+        } else if (event.packet instanceof PlaySoundFromEntityS2CPacket packet) {
+            String soundId = packet.getSound().value().id().toString();
+            int entityId = packet.getEntityId();
+            mc.execute(() -> {
+                if (mc.world == null) return;
+                Entity entity = mc.world.getEntityById(entityId);
+                if (entity != null) {
+                    trackSound(soundId, entity.getX(), entity.getY(), entity.getZ());
+                }
+            });
+        }
+    }
+
     @EventHandler
     private void onSound(PlaySoundEvent event) {
-        if (mc.world == null || mc.player == null || event.sound == null) return;
+        if (!listenPlayback.get() || event.sound == null) return;
+        trackSound(event.sound.getId().toString(),
+            event.sound.getX(), event.sound.getY(), event.sound.getZ());
+    }
 
-        String soundId = event.sound.getId().toString();
+    private void trackSound(String soundId, double x, double y, double z) {
+        if (mc.world == null || mc.player == null) return;
         RadarScorer.Signal signal = RadarScorer.classify(soundId);
         if (signal == null || !enabled(signal.kind())) return;
-
-        double x = event.sound.getX();
-        double y = event.sound.getY();
-        double z = event.sound.getZ();
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return;
         if (ignoreSelf.get() && mc.player.squaredDistanceTo(x, y, z)
             < (double) selfRadius.get() * selfRadius.get()) return;
 
-        // No artificial maximum listening distance and no render-distance cutoff.
-        // The server MUST still transmit the sound for this event to exist.
+        // Both event paths use the same per-voxel/per-sound deduplicator.
+        // No artificial maximum range: a remote packet is useful if received.
         int tier = tracker.add(soundId, x, y, z, ticks);
         if (tier == 5 && redAlerts.get() && ticks - lastRedAlert >= 1200L) {
             info("Strong sound evidence at " + (int) Math.floor(x) + ", "
