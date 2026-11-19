@@ -167,7 +167,7 @@ public final class BaseSoundRadar extends Module {
 
     @EventHandler
     private void onSound(PlaySoundEvent event) {
-        if (!listenPlayback.get() || event.sound == null) return;
+        if (!listenPlayback.get() || event.sound == null || event.sound.isRelative()) return;
         trackSound(event.sound.getId().toString(),
             event.sound.getX(), event.sound.getY(), event.sound.getZ());
     }
