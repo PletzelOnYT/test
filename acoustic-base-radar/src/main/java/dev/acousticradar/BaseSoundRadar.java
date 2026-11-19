@@ -168,8 +168,11 @@ public final class BaseSoundRadar extends Module {
     @EventHandler
     private void onSound(PlaySoundEvent event) {
         if (!listenPlayback.get() || event.sound == null || event.sound.isRelative()) return;
-        trackSound(event.sound.getId().toString(),
-            event.sound.getX(), event.sound.getY(), event.sound.getZ());
+        // Copy source fields now: Meteor reuses the event instance.
+        // Only mutate marker state on the Minecraft client thread.
+        String soundId = event.sound.getId().toString();
+        double x = event.sound.getX(), y = event.sound.getY(), z = event.sound.getZ();
+        mc.execute(() -> trackSound(soundId, x, y, z));
     }
 
     private void trackSound(String soundId, double x, double y, double z) {
