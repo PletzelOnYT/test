@@ -1,9 +1,9 @@
-name: Build Acoustic Base Radar 1.21.11
+name: Build Acoustic Base Radar 1.21.11 Precision
 
 on:
   push:
     branches:
-      - feature/acoustic-base-radar-meteor-1-21-11
+      - feature/acoustic-base-radar-1-21-11-precision
     paths:
       - 'acoustic-base-radar/**'
       - '.github/workflows/acoustic-base-radar.yml'
@@ -27,26 +27,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.0'
-      - name: Compile and remap addon
+      - name: Test pure-Java sound classifier and exact-block markers
+        run: |
+          mkdir -p build/scorer-tests
+          javac -d build/scorer-tests src/main/java/dev/acousticradar/RadarScorer.java src/test/java/dev/acousticradar/RadarScorerTest.java
+          java -ea -cp build/scorer-tests dev.acousticradar.RadarScorerTest
+      - name: Compile and remap Minecraft 1.21.11 addon
         run: gradle clean build --stacktrace --no-daemon
-      - name: Package build and sources
+      - name: Package mod and source
         run: |
           mkdir -p dist
-          cp build/libs/acoustic-base-radar-1.1.0.jar dist/acoustic-base-radar-1.1.0.jar
+          cp build/libs/acoustic-base-radar-1.2.0.jar dist/acoustic-base-radar-1.2.0.jar
           zip -q -r dist/acoustic-base-radar-source.zip README.md build.gradle settings.gradle gradle.properties src
-      - name: Upload installable mod JAR
+      - name: Upload installable mod and source
         uses: actions/upload-artifact@v4
         with:
-          name: acoustic-base-radar-1.21.11
+          name: acoustic-base-radar-1.21.11-precision
           path: |
-            acoustic-base-radar/dist/acoustic-base-radar-1.1.0.jar
+            acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar
             acoustic-base-radar/dist/acoustic-base-radar-source.zip
           if-no-files-found: error
-      - name: Publish build to isolated branch
+      - name: Publish successful build to isolated branch
+        working-directory: .
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add acoustic-base-radar/dist/acoustic-base-radar-1.1.0.jar acoustic-base-radar/dist/acoustic-base-radar-source.zip
-          git commit -m 'Build Acoustic Base Radar 1.21.11 [skip ci]' || true
-          git push origin HEAD:feature/acoustic-base-radar-meteor-1-21-11
-        working-directory: .
+          git add acoustic-base-radar/dist/acoustic-base-radar-1.2.0.jar acoustic-base-radar/dist/acoustic-base-radar-source.zip
+          git commit -m 'Build Acoustic Base Radar 1.2.0 1.21.11 [skip ci]' || true
+          git push origin HEAD:feature/acoustic-base-radar-1-21-11-precision
