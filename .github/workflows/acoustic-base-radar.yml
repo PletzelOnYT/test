@@ -9,6 +9,9 @@ on:
       - '.github/workflows/acoustic-base-radar.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,10 +29,24 @@ jobs:
           gradle-version: '8.11'
       - name: Compile and remap addon
         run: gradle clean build --stacktrace --no-daemon
+      - name: Package build and sources
+        run: |
+          mkdir -p dist
+          cp build/libs/acoustic-base-radar-1.0.0.jar dist/acoustic-base-radar-1.0.0.jar
+          zip -q -r dist/acoustic-base-radar-source.zip README.md build.gradle settings.gradle gradle.properties src
       - name: Upload installable mod JAR
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: acoustic-base-radar-1.21.1
-          path: acoustic-base-radar/build/libs/acoustic-base-radar-1.0.0.jar
+          path: |
+            acoustic-base-radar/dist/acoustic-base-radar-1.0.0.jar
+            acoustic-base-radar/dist/acoustic-base-radar-source.zip
           if-no-files-found: error
+      - name: Publish build to isolated branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add acoustic-base-radar/dist/acoustic-base-radar-1.0.0.jar acoustic-base-radar/dist/acoustic-base-radar-source.zip
+          git commit -m 'Build Acoustic Base Radar 1.21.1 [skip ci]' || true
+          git push origin HEAD:feature/acoustic-base-radar-meteor-1-21-1
+        working-directory: .
