@@ -1,186 +1,238 @@
 package dev.acousticradar;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Pure-Java, session-local acoustic evidence aggregation.
- * A tier is a relative evidence ranking, NOT a calibrated probability of a base.
+ * Sound-origin markers. Only sounds actually received by Minecraft are known:
+ * no packet spoofing, world scraping, arbitrary-distance acoustic inference,
+ * or claims of probability calibration.
+ *
+ * Stores one exact 1-block voxel per observed emitter, not a large region.
  */
 public final class RadarScorer {
-    public enum Kind {
-        CONTAINER(14.0, 42.0), VILLAGER(6.0, 27.0),
-        MACHINE(18.0, 43.0), WORKSTATION(11.0, 32.0),
-        PLAYER(5.0, 19.0), ANIMAL(2.0, 10.0);
+    public enum Kind { STORAGE, VILLAGER, AUTOMATION, WORKSTATION, PLAYER, ANIMAL, MINECART }
 
-        final double weight;
-        final double cap;
-        Kind(double weight, double cap) {
-            this.weight = weight;
-            this.cap = cap;
-        }
-    }
+    /** Priority is a heuristic evidence tier: 0 white -> 5 red. */
+    public record Signal(Kind kind, int priority) {}
 
-    public record Marker(double x, double y, double z, int tier,
-                         int soundCount, int categories, double evidence) {}
+    /** Integer world-block origin, not a guessed center of a base. */
+    public record Marker(int x, int y, int z, int tier, Kind kind,
+                         int observations, int distinctSounds, String lastSound) {}
 
-    private static final class Candidate {
-        double x, y, z;
+    private record BlockKey(int x, int y, int z) {}
+
+    private static final class Observation {
+        final BlockKey block;
+        final Map<String, Long> lastSoundTick = new HashMap<>();
+        final Set<String> differentSounds = new HashSet<>();
+        final EnumSet<Kind> kinds = EnumSet.noneOf(Kind.class);
         long lastTick;
-        int samples;
-        final EnumSet<Kind> types = EnumSet.noneOf(Kind.class);
-        final EnumMap<Kind, Double> credits = new EnumMap<>(Kind.class);
+        int total;
+        int strongest = -1;
+        Kind strongestKind;
+        String lastSound = "";
+        boolean corroborated;
 
-        Candidate(double x, double y, double z, long tick) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+        Observation(BlockKey block, long tick) {
+            this.block = block;
             this.lastTick = tick;
         }
 
-        double score(long tick) {
-            double sum = 0;
-            for (double value : credits.values()) sum += value;
-            // Evidence halves every 80 seconds without further sound activity.
-            return sum * Math.pow(0.5, Math.max(0, tick - lastTick) / 1600.0);
+        int tier(long now) {
+            // Strongest individual sound determines base color. Different kinds
+            // or different sound IDs may elevate by ONE tier each.
+            int diversityBonus = differentSounds.size() >= 2 ? 1 : 0;
+            int corroborationBonus = corroborated ? 1 : 0;
+            int agePenalty = (int) (Math.max(0, now - lastTick) / 1200L);
+            return clamp(strongest + diversityBonus + corroborationBonus - agePenalty);
         }
     }
 
-    private final List<Candidate> clusters = new ArrayList<>();
-    private final Map<String, Long> lastBySource = new HashMap<>();
+    private static final int MAX_MARKERS = 1024;
+    private final Map<BlockKey, Observation> blocks = new HashMap<>();
 
-    public void clear() {
-        clusters.clear();
-        lastBySource.clear();
-    }
+    public void clear() { blocks.clear(); }
 
-    public int size() {
-        return clusters.size();
-    }
+    public int size() { return blocks.size(); }
 
-    /** Returns the new tier, or -1 if a source is duplicate / outside radius. */
-    public int add(String sound, Kind kind, double x, double y, double z,
-                   long tick, double clusterRadius) {
-        // Group repeating sound events by nearby approximate emitter location.
-        String dedupe = kind + "/" + sound + "/" + Math.floor(x / 3.0)
-            + "/" + Math.floor(y / 3.0) + "/" + Math.floor(z / 3.0);
-        Long old = lastBySource.get(dedupe);
-        if (old != null && tick - old < 22) return -1;
-        lastBySource.put(dedupe, tick);
+    /** Tracks a received sound at its integer source voxel; returns -1 if suppressed. */
+    public int add(String soundId, double x, double y, double z, long tick) {
+        Signal signal = classify(soundId);
+        if (signal == null || !Double.isFinite(x) || !Double.isFinite(y)
+            || !Double.isFinite(z)) return -1;
+        // Avoid invalid coordinates / integer overflow from unusual sound mods.
+        if (Math.abs(x) > 30_000_000 || Math.abs(z) > 30_000_000 || Math.abs(y) > 1_000_000) {
+            return -1;
+        }
 
-        Candidate target = null;
-        double best = clusterRadius * clusterRadius;
-        for (Candidate c : clusters) {
-            double dx = x - c.x, dz = z - c.z;
-            double horizontalSquared = dx * dx + dz * dz;
-            if (Math.abs(y - c.y) <= 12 && horizontalSquared <= best) {
-                best = horizontalSquared;
-                target = c;
+        BlockKey key = new BlockKey((int) Math.floor(x), (int) Math.floor(y),
+                                    (int) Math.floor(z));
+        Observation o = blocks.get(key);
+        if (o == null) {
+            if (blocks.size() >= MAX_MARKERS) evictOldest();
+            o = new Observation(key, tick);
+            blocks.put(key, o);
+        }
+
+        Long previous = o.lastSoundTick.get(soundId);
+        long cooldown = signal.priority() <= 1 ? 100L : 12L;
+        if (previous != null && tick - previous < cooldown) return -1;
+
+        o.lastSoundTick.put(soundId, tick);
+        if (o.differentSounds.size() < 16) o.differentSounds.add(soundId);
+        o.kinds.add(signal.kind());
+        o.total = Math.min(o.total + 1, Integer.MAX_VALUE);
+        o.lastTick = tick;
+        o.lastSound = soundId;
+
+        if (signal.priority() > o.strongest) {
+            o.strongest = signal.priority();
+            o.strongestKind = signal.kind();
+        }
+
+        // Tight local corroboration, not a large merged hotspot. It improves
+        // confidence of each *individual* source but NEVER moves its marker.
+        if (signal.priority() >= 2) {
+            for (Observation other : blocks.values()) {
+                if (other == o || other.strongest < 2 ||
+                    other.strongestKind == signal.kind() ||
+                    tick - other.lastTick > 1600L) continue;
+                int dx = other.block.x() - key.x();
+                int dy = other.block.y() - key.y();
+                int dz = other.block.z() - key.z();
+                if (dx * dx + dy * dy + dz * dz <= 16) {
+                    o.corroborated = true;
+                    other.corroborated = true;
+                }
             }
         }
-        if (target == null) {
-            if (clusters.size() >= 120) {
-                Candidate oldest = clusters.get(0);
-                for (Candidate c : clusters) if (c.lastTick < oldest.lastTick) oldest = c;
-                clusters.remove(oldest);
-            }
-            target = new Candidate(x, y, z, tick);
-            clusters.add(target);
-        }
 
-        // Retain prior evidence only to the extent it has not decayed.
-        double decay = Math.pow(0.5, Math.max(0, tick - target.lastTick) / 1600.0);
-        for (Kind k : target.credits.keySet()) {
-            target.credits.put(k, target.credits.get(k) * decay);
-        }
-        double previous = target.credits.getOrDefault(kind, 0.0);
-        target.credits.put(kind, Math.min(kind.cap, previous + kind.weight));
-        target.types.add(kind);
-        target.samples++;
-        target.lastTick = tick;
-
-        // Slowly follow additional nearby sources without jumping to the player.
-        double mix = target.samples == 1 ? 1.0 : 0.15;
-        target.x += (x - target.x) * mix;
-        target.y += (y - target.y) * mix;
-        target.z += (z - target.z) * mix;
-        return tier(target.score(tick), target.types.size());
+        return o.tier(tick);
     }
 
-    public List<Marker> markers(long tick) {
-        List<Marker> results = new ArrayList<>(clusters.size());
-        for (Candidate c : clusters) {
-            double score = c.score(tick);
-            if (score >= 2.0) {
-                results.add(new Marker(c.x, c.y, c.z,
-                    tier(score, c.types.size()), c.samples, c.types.size(), score));
-            }
+    public List<Marker> markers(long tick, long ttlTicks, int minimumTier) {
+        List<Marker> result = new ArrayList<>(blocks.size());
+        for (Observation o : blocks.values()) {
+            if (tick - o.lastTick > ttlTicks) continue;
+            int tier = o.tier(tick);
+            if (tier < minimumTier) continue;
+            result.add(new Marker(o.block.x(), o.block.y(), o.block.z(),
+                tier, o.strongestKind, o.total, o.differentSounds.size(), o.lastSound));
         }
-        return results;
+        return result;
     }
 
     public void expire(long tick, long ttlTicks) {
-        clusters.removeIf(c -> tick - c.lastTick > ttlTicks || c.score(tick) < 2.0);
-        // Drop stale duplicate keys, avoiding an unbounded collection.
-        if (tick % 200 == 0) {
-            Iterator<Map.Entry<String, Long>> it = lastBySource.entrySet().iterator();
-            while (it.hasNext()) if (tick - it.next().getValue() > 200) it.remove();
+        Iterator<Observation> iterator = blocks.values().iterator();
+        while (iterator.hasNext()) {
+            Observation o = iterator.next();
+            if (tick - o.lastTick > ttlTicks) {
+                iterator.remove();
+                continue;
+            }
+            // Bound per-source duplicate-state memory on persistent voxels.
+            o.lastSoundTick.entrySet().removeIf(e -> tick - e.getValue() > 200);
         }
     }
 
-    public static int tier(double evidence, int distinctKinds) {
-        if (evidence < 12) return 0;  // white
-        if (evidence < 25) return 1;  // light yellow
-        if (evidence < 43) return 2;  // yellow
-        if (evidence < 66) return 3;  // light orange
-        if (evidence < 95 || distinctKinds < 3) return 4; // orange
-        return 5; // red: substantial evidence from >=3 sound classes
-    }
-
-    public static Kind classify(String id) {
-        String sound = id.startsWith("minecraft:") ? id.substring(10) : id;
-
-        if (starts(sound, "block.chest.", "block.barrel.", "block.ender_chest.",
-            "block.shulker_box.", "block.trapped_chest.")) {
-            if (contains(sound, ".open", ".close", ".lock")) return Kind.CONTAINER;
-        }
-        if (starts(sound, "entity.villager.", "entity.wandering_trader.")) {
-            if (contains(sound, ".ambient", ".trade", ".yes", ".no", ".work_", ".celebrate", ".levelup")) {
-                return Kind.VILLAGER;
+    private void evictOldest() {
+        BlockKey oldestKey = null;
+        long oldestTick = Long.MAX_VALUE;
+        for (Map.Entry<BlockKey, Observation> entry : blocks.entrySet()) {
+            if (entry.getValue().lastTick < oldestTick) {
+                oldestKey = entry.getKey();
+                oldestTick = entry.getValue().lastTick;
             }
         }
-        if (starts(sound, "block.piston.", "block.dispenser.", "block.dropper.",
-            "block.crafter.", "block.note_block.", "block.tripwire.", "block.iron_door.")) {
-            return Kind.MACHINE;
+        if (oldestKey != null) blocks.remove(oldestKey);
+    }
+
+    private static int clamp(int tier) { return Math.max(0, Math.min(5, tier)); }
+
+    /**
+     * Scores sounds by their individual usefulness, rather than simply by volume.
+     * Entities are approximate sound positions, not guaranteed physical blocks.
+     */
+    public static Signal classify(String id) {
+        if (id == null || id.isEmpty()) return null;
+        String s = id.startsWith("minecraft:") ? id.substring(10) : id;
+
+        // A shulker-box opening is very strong evidence of player-made storage.
+        if (starts(s, "block.shulker_box.")) {
+            if (has(s, ".open", ".close")) return new Signal(Kind.STORAGE, 5);
         }
-        if (starts(sound, "block.anvil.", "block.grindstone.", "block.stonecutter.",
+        if (starts(s, "block.ender_chest.")) {
+            if (has(s, ".open", ".close")) return new Signal(Kind.STORAGE, 4);
+        }
+        if (starts(s, "block.chest.", "block.barrel.", "block.trapped_chest.")) {
+            if (has(s, ".open", ".close", ".locked")) return new Signal(Kind.STORAGE, 3);
+        }
+
+        // Automatic machines: the most specific operation sounds rank highest.
+        if (starts(s, "block.crafter.")) {
+            if (has(s, ".craft", ".fail")) return new Signal(Kind.AUTOMATION, 4);
+        }
+        if (starts(s, "block.piston.", "block.dispenser.", "block.dropper.")) {
+            if (has(s, ".extend", ".contract", ".dispense", ".fail", ".drop", ".launch")) {
+                return new Signal(Kind.AUTOMATION, 3);
+            }
+        }
+        if (starts(s, "block.iron_door.", "block.iron_trapdoor.",
+            "block.lever.", "block.comparator.", "block.wooden_button.",
+            "block.stone_button.", "block.note_block.", "block.tripwire.")) {
+            if (has(s, ".open", ".close", ".click", ".attach", ".detach", "block.note_block.")) {
+                return new Signal(Kind.AUTOMATION, 2);
+            }
+        }
+
+        if (starts(s, "block.beacon.", "block.respawn_anchor.")) {
+            if (has(s, ".activate", ".power_select", ".charge", ".set_spawn")) {
+                return new Signal(Kind.WORKSTATION, 4);
+            }
+        }
+        if (starts(s, "block.anvil.", "block.grindstone.", "block.stonecutter.",
             "block.smithing_table.", "block.brewing_stand.", "block.furnace.",
-            "block.beacon.", "block.enchantment_table.", "block.bell.")) {
-            return Kind.WORKSTATION;
+            "block.enchantment_table.")) {
+            if (has(s, ".use", ".take_result", ".brew", ".crackle", ".place", ".craft")) {
+                return new Signal(Kind.WORKSTATION, 2);
+            }
         }
-        if (starts(sound, "entity.experience_orb.pickup", "entity.player.levelup",
-            "entity.item.pickup", "item.armor.equip", "entity.fishing_bobber.retrieve")) {
-            return Kind.PLAYER;
+
+        if (starts(s, "entity.villager.", "entity.wandering_trader.")) {
+            if (has(s, ".trade", ".yes", ".levelup", ".work_")) return new Signal(Kind.VILLAGER, 2);
+            if (has(s, ".ambient", ".no", ".celebrate")) return new Signal(Kind.VILLAGER, 1);
         }
-        if (starts(sound, "entity.cow.", "entity.sheep.", "entity.chicken.",
+        if (starts(s, "entity.experience_orb.pickup", "entity.player.levelup",
+            "item.armor.equip", "entity.item.pickup",
+            "entity.fishing_bobber.retrieve")) {
+            return new Signal(Kind.PLAYER, 2);
+        }
+
+        // Hopper-minecarts themselves do not emit a special hopper sound.
+        if (starts(s, "entity.minecart.riding", "entity.minecart.inside")) {
+            return new Signal(Kind.MINECART, 1);
+        }
+        if (starts(s, "entity.cow.", "entity.sheep.", "entity.chicken.",
             "entity.pig.", "entity.horse.")) {
-            if (contains(sound, ".ambient", ".milk", ".shear", ".eat")) return Kind.ANIMAL;
+            if (has(s, ".ambient", ".milk", ".shear", ".eat")) return new Signal(Kind.ANIMAL, 0);
         }
-        // Hoppers moving items have no vanilla sound, so cannot be detected here.
         return null;
     }
 
-    private static boolean starts(String value, String... prefixes) {
-        for (String prefix : prefixes) if (value.startsWith(prefix)) return true;
+    private static boolean starts(String sound, String... prefixes) {
+        for (String prefix : prefixes) if (sound.startsWith(prefix)) return true;
         return false;
     }
-    private static boolean contains(String value, String... fragments) {
-        for (String fragment : fragments) if (value.contains(fragment)) return true;
+
+    private static boolean has(String sound, String... fragments) {
+        for (String fragment : fragments) if (sound.contains(fragment)) return true;
         return false;
     }
 }
