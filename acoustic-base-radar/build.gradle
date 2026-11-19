@@ -33,3 +33,9 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21
     options.encoding = 'UTF-8'
 }
+
+// Standalone scorer checks are run with java -ea in CI. Gradle's default
+// test task has no JUnit engine in this minimal Fabric addon.
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+}
