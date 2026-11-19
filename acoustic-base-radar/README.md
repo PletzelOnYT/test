@@ -25,21 +25,24 @@ probability or confirmed presence of a player base. Repeated identical sounds
 are deduplicated, different cues can strengthen a block, and stale evidence fades.
 
 ## Range
-There is **no artificial listening-distance cap** in this addon. Any sound
-instance Minecraft actually receives can be tracked, even if its reported
-coordinates are outside the current render distance. There is likewise no
-custom maximum render distance for markers.
+There is **no artificial listening-distance cap** in this addon. The detector
+uses both Meteor's played-sound event and the incoming server
+`PlaySoundS2CPacket` / `PlaySoundFromEntityS2CPacket` when available. The
+latter may contain coordinates for sounds that local audio playback culls.
+Both sources are deduplicated into the same exact-block marker. There is also
+no custom maximum render distance for markers.
 
 **A client-side addon cannot obtain sounds the server does not transmit.**
-Servers and Minecraft's sound engine limit what sound events reach the client.
-A source behind an unloaded chunk, outside the server's sound broadcast range,
-or with no vanilla sound cannot be reconstructed by this addon. Hopper item
-transfer is silent in vanilla; minecart noises are merely weak hints.
+The server controls which sound packets reach the client. A source behind an
+unloaded chunk, outside the server's sound broadcast range, or with no vanilla
+sound cannot be reconstructed by this addon. Hopper item transfer is silent in
+vanilla; minecart noises are merely weak hints.
 
 ## Settings
 Modules > Acoustic Radar > base-sound-radar.
-Individual sound categories, minimum visible color tier, marker transparency,
-expiry time, red alerts, and optional self-sound filtering can be customized.
+Individual sound categories, packet detection / local playback detection,
+minimum visible color tier, marker transparency, expiry time, red alerts, and
+optional self-sound filtering can be customized.
 
 Performance: bounded memory (up to 1024 distinct source voxels), periodic
 expiration, source-level sound cooldowns. Detection history is session-local and
